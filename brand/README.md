@@ -75,12 +75,6 @@ Font files are **not** included in the kit; obtain and use Inter under its own a
 - The brand kit defines visual identity; inclusion of product artwork does not certify the availability, security, or capabilities of software products.
 - Use trademark symbols and legal notices only when appropriate to the project's rights and actual registrations.
 
-## Using this kit in GitHub
-
-Place the contents of this archive directly inside the repository's **`brand/`** directory. Keep `README.md` and `Septuvo_Brand_Guidelines.pdf` at that folder's root, followed by the six numbered asset directories. The relative links in this README are written for that layout.
-
-When updating an existing `brand/` directory, replace superseded files rather than retaining duplicate or outdated versions. Preserve original PNG and SVG dimensions where possible, and keep machine-readable token values synchronized across JSON, CSS, and Rust.
-
 ---
 
 **Septuvo brand identity · October 2026**
