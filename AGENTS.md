@@ -1,6 +1,6 @@
 # Septuvo — mandatory agent instructions
 
-Applies to Dex, Claude Code, coding assistants, and human contributors. **READ BEFORE ANY CHANGE.**
+Applies to **Codex, Claude Code, Dex, and any other coding agent or human contributor**, regardless of vendor, IDE or execution tool. **READ BEFORE ANY CHANGE.**
 
 ## Authority and source of truth
 
@@ -8,20 +8,20 @@ The repository owner determines scope, priorities, milestones, security posture 
 
 Authority order: **explicit owner instruction / approved work order**, then **DECISIONS.md**, **ROADMAP.md**, **SECURITY_MODEL.md**, **ARCHITECTURE.md**, then README. If rules conflict or owner instructions appear to weaken a security gate: **STOP, report the conflict and request a decision.** A roadmap item is not by itself authorization to implement it.
 
-Only the exact task and files named in an approved work order are in scope. Read docs/WORK_ORDER_TEMPLATE.md.
+Only the exact task and files named in an approved work order are in scope. Read [AGENT_OPERATIONS.md](docs/AGENT_OPERATIONS.md), [TASK_CATALOG.md](docs/TASK_CATALOG.md), [TRACEABILITY.md](docs/TRACEABILITY.md), and [WORK_ORDER_TEMPLATE.md](docs/WORK_ORDER_TEMPLATE.md). Roadmap bullets are not blanket work authorization. Task cards propose output paths; they do not authorize edits or gate passage.
 
 ## Start-of-task checklist
 
 1. Read the above documents relevant to your task and the latest decision register.
 2. Inspect branch, HEAD, repository status, existing commits and current file contents. Never trust an earlier handoff without verification.
 3. Report exact task ID, allowed files, known dependencies, acceptance criteria, risks, rollback and expected stopping point.
-4. Check required gate approvals. **No approval = no implementation.** Document the blocker instead of guessing.
-5. Work on a narrow task branch and propose a PR for future code changes; do not push directly to main unless the owner explicitly directs it. Do not force-push.
+4. Check required gate approvals and the specific owner-approved work order. **No approval = no implementation.** Documentation proposals are allowed only within an approved task. Document the blocker instead of guessing.
+5. Work on a narrow task branch and propose a PR for **every change**; do not push directly to main unless the owner explicitly directs it. Do not force-push or self-merge.
 
 ## Absolute red lines
 
 - **No invented cryptography:** no custom ciphers, signature schemes, KEM combiners, KDFs, GCM nonces, handshake transcript conventions or homegrown entropy sources. Candidate primitives are NOT a protocol design.
-- **No real SVP handshake, packet format, key management, or cryptographic tunnel code before Gate G1** is satisfied by documented specialist review and owner approval. Research notes, specification drafts and isolated non-security simulators are allowed if explicitly scoped.
+- **No real SVP handshake, executable packet format, key management, or cryptographic tunnel code before Gate G1** is satisfied by documented specialist review and owner approval. Research notes, specification drafts and isolated non-security simulators are allowed if explicitly scoped.
 - Do not transplant TLS/WireGuard constructions without new analysis. A standards-compliant primitive does not make an original VPN protocol secure.
 - No hard-coded private keys, static demo nonces, logging plaintext keys, disabling certificate/identity checks, insecure RNGs or unencrypted fallback paths. No acceptance of a convenient “demo exception” for the production code path.
 - No silent downgrade of post-quantum policy, security suites, verification, kill switch, DNS handling or IPv6 protections.
@@ -29,7 +29,7 @@ Only the exact task and files named in an approved work order are in scope. Read
 - No unapproved dependency additions, privilege escalation, kernel/driver installations, public port openings, real router/VPS alterations, external traffic generation, data deletion, telemetry, remote SaaS dependencies or device enrollment.
 - No release tags, binary publishing, claiming external audits, changing repo visibility, DNS purchases or trademark claims without explicit owner approval.
 - No unrelated rewrites, opportunistic features or speculative performance shortcuts. **One scoped task per checkpoint.**
-- Do not claim literal 100% Rust across mobile/OS runtime if native OS frameworks, system drivers or glue are needed. Keep all **Service-owned security-critical logic in Rust** and inventory external code/native interfaces.
+- Do not claim literal 100% Rust across mobile/OS runtime if native OS frameworks, system drivers or glue are needed. Keep all **Septuvo-owned security-critical logic in Rust** and inventory external code/native interfaces.
 - Treat remote packets, configuration, peer identity, management APIs and control-plane data as hostile input.
 
 ## Engineering practices
@@ -51,6 +51,10 @@ Only the exact task and files named in an approved work order are in scope. Read
 | **G2 — Controlled lab qualification** | Real two-node tunnel, negative cases, leak/kill-switch tests, reproducible results, explicit lab-only limitations |
 | **G3 — Production release** | Independent implementation/security assessment, remediation, platform matrix, signed builds, incident/update processes and owner approval |
 | **G4 — Enterprise/provider claims** | Capacity, multi-tenant isolation, HA and abuse resistance tested; owners approve evidenced limits |
+
+## Task dispatch and state
+
+Follow the deterministic task-dispatch algorithm in [AGENT_OPERATIONS.md](docs/AGENT_OPERATIONS.md): inspect actual state, select only the first eligible task, verify owner authorization **and** required gate, execute only that task, submit evidence, and **STOP**. Every agent uses the same statuses (NOT STARTED, READY, IN PROGRESS, BLOCKED, IN REVIEW, ACCEPTED, REJECTED / REWORK). Only the owner records ACCEPTED or approves a gate. On timeout, inspect actual HEAD/worktree and reconcile before resuming; do not assume a command completed.
 
 ## Finish-of-task / timeout report (mandatory)
 

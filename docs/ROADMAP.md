@@ -1,6 +1,6 @@
 # Septuvo — owner-controlled engineering roadmap
 
-**Status: initial blueprint. Not an authorization to code or a schedule.** Follow AGENTS.md and the work-order template. Milestones advance **in the order below**, with exactly one narrowly scoped task per agent checkpoint. Owner must explicitly approve every new gate and work order. An agent must never continue to the next milestone because time remains.
+**Status: initial blueprint. Not an authorization to code or a schedule.** Follow [AGENTS.md](../AGENTS.md), [AGENT_OPERATIONS.md](AGENT_OPERATIONS.md), [TASK_CATALOG.md](TASK_CATALOG.md), [TRACEABILITY.md](TRACEABILITY.md) and the [work-order template](WORK_ORDER_TEMPLATE.md). This file defines stages; the task catalog defines **exact per-task inputs, outputs and verification**. If any documents conflict, stop and record the ambiguity—do not choose independently. Milestones advance **in the order below**, with exactly one narrowly scoped task per agent checkpoint. Owner must explicitly approve every new gate and work order. An agent must never continue to the next milestone because time remains.
 
 ## Gate summary
 
@@ -36,7 +36,7 @@
 - **M2-01:** Compare existing reviewed constructions, Rust crypto library maturity, protocols/standards and licensing. Propose suites with alternatives and explicit dependency risks.
 - **M2-02:** Draft exact full handshake and identity protocol: transcript, mutual authentication, trust roots, KEM validation/combiner, HKDF, key confirmation, errors and downgrade behavior.
 - **M2-03:** Draft packet grammar, AEAD nonce/replay semantics, key epochs, rotation limits, retransmission, migration, reassembly, MTU and anti-amplification controls.
-- **M2-04:** Produce canonical, versioned test vectors and state diagrams from the **reviewed** design; no live network code.
+- **M2-04:** Draft proposed, versioned test vectors and state diagrams from the internally reviewed design; label them provisional until the external G1 review accepts the exact specification; no live network code.
 - **M2-05:** Obtain qualified external cryptographic/protocol review, log findings, remediate and obtain owner G1 sign-off on exact specification revision.
 
 **Acceptance:** every P-01..P-14 item answered, traceable, independently reviewed and owner-approved. Reopen G1 on material changes. **STOP until G1.**
@@ -74,13 +74,13 @@
 - **M6-01:** Implement local-only enrollment and device identity management, recovery/revocation, protected local state and self-hosting with zero vendor account requirement.
 - **M6-02:** Implement signed/installable server packaging (supported Linux target first) with safe setup, service persistence, rollback and uninstall.
 - **M6-03:** Provide CLI for admins plus simple role-based wizard; real connection diagnostics separate interface / authentication / data reachability / DNS.
-- **M6-04:** End-to-end test fresh deployment for a novice using server + mobile-like remote client scenarios, including NAT limitations and explicit relay opt-in.
+- **M6-04:** End-to-end test a fresh personal deployment using **isolated Linux clients in simulated remote/mobile-like network paths**. Include NAT limitations and optional relay feasibility; do not claim real Android/iOS support before M7-04/M7-05.
 
 **Acceptance:** clean install-to-connect documented and repeatable; missing permissions and failed connectivity produce actionable errors; secrets and protected routes survive reinstall/updates safely.
 
 ## M7 — consumer apps and operating-system integrations
 
-- **M7-01:** Rust-first desktop application; Windows, Linux and macOS OS VPN integration with platform-specific privilege, firewall and DNS test plans.
+- **M7-01:** Rust-first desktop application and OS integrations as **separate owner-approved platform subtasks** for Linux, Windows and macOS, with platform-specific privilege, firewall and DNS tests. No blanket cross-platform completion.
 - **M7-02:** Secure edit/disconnect/reconnect flow, network change handling, status accuracy and UI close-to-tray/background behavior.
 - **M7-03:** Minimum viewport/resizing/accessibility tests plus signed packages, updates and uninstall recovery.
 - **M7-04:** Android/iOS VPN service integrations from shared Rust security core; document any unavoidable native language/OS framework glue and mobile VPN coexistence limits.
@@ -109,6 +109,6 @@
 
 ## Execution sequence and discipline
 
-**One agent work order at a time.** Each task must name files, expected behavior, non-goals, test commands, known risks, rollback and its exact stop point. Branch + PR for code; owner reviews before merge and explicitly selects the next item. Re-check prior task state at each handoff. Agents must never infer completion from a timeout, create their own security decisions, publish an experimental VPN publicly, or skip to a “fun” feature.
+**One owner-approved agent work order at a time, regardless of agent or tool.** Use the 43-card [TASK_CATALOG.md](TASK_CATALOG.md); each task must name files, expected behavior, non-goals, test commands, known risks, rollback and its exact stop point. Branch + PR for code; owner reviews before merge and explicitly selects the next item. Re-check prior task state at each handoff. Agents must never infer completion from a timeout, create their own security decisions, publish an experimental VPN publicly, or skip to a “fun” feature.
 
 **Current next action:** owner review of this planning baseline (M0-01 → M0-02), then written G0 approval. Until then **no cryptographic protocol implementation**.
