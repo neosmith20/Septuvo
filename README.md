@@ -1,16 +1,71 @@
 # Septuvo
+
 **Security Without Compromise.**
 
-### Private by design. Powerful by nature. Simple for everyone.
+*Private by design. Powerful by nature. Simple for everyone.*
 
-Septuvo is a next-generation virtual private networking platform being designed from the ground up to redefine how devices, people, and networks connect securely.
+> **Project status: design / pre-implementation.** There is no working Septuvo VPN, published SVP wire protocol, audited cryptographic implementation, or production release yet. Statements here describe intended capabilities, not demonstrated security or performance.
 
-Powered by an independent networking protocol and a Rust-based architecture, Septuvo combines modern encryption, hybrid post-quantum cryptography, and high-performance networking into one streamlined platform.
+**Septuvo** is an independent Layer 3 VPN project intended to connect devices and private networks securely, simply, and at scale. It aims to serve people accessing a home media server as well as organizations operating many gateways—without requiring ordinary users to compile components or manage cryptographic settings.
 
-Built on the principle that **every network should be treated as untrusted**, Septuvo is designed to protect your connections without sacrificing performance, flexibility, or control.
+## Official product names
 
-Whether you're securely accessing files and media from home, connecting employees across multiple locations, or operating a large-scale VPN infrastructure, Septuvo is designed to adapt to your needs.
+| Name | Role |
+| --- | --- |
+| **Septuvo** | Company and primary brand |
+| **Septuvo VPN** | Consumer and business VPN software |
+| **Septuvo Protocol (SVP)** | Independent, openly specified networking protocol |
+| **Septuvo Server** | Self-hosted and commercial gateway software |
 
-With effortless setup, intelligent routing, seamless connectivity, and complete self-hosting capabilities, Septuvo aims to make advanced network security accessible to everyone—from everyday users to enterprise administrators.
+The project intends to develop an original VPN wire protocol and a Rust-native core, not a fork or rebranding of WireGuard, OpenVPN or Tailscale.
 
-**One protocol. Endless possibilities. Your network, your control.**
+## Product goals
+
+- **Untrusted by default:** assume every attached Wi-Fi, Ethernet and cellular network can be hostile. Offer explicitly approved local network access and advanced split routing without weakening unrelated tunnel traffic.
+- **Post-quantum-conscious security:** evaluate hybrid classical/post-quantum key establishment, authenticated post-quantum-capable identities and audited symmetric encryption. The cryptographic construction is **not yet selected, proven, or audited**.
+- **High performance:** efficient UDP packet transport, runtime hardware acceleration, stable roaming and low resource usage, measured with reproducible benchmarks.
+- **Easy installation:** signed installer, guided client/server setup, secure enrollment, meaningful connection diagnostics and clear LAN/security preferences. No end-user compilation or manual crate selection.
+- **Scalable architecture:** the same wire protocol and Rust packet engine for self-hosted personal connections, business gateways and commercial-provider clusters.
+- **User ownership:** standalone self-hosting without a mandatory account, with optional coordination or relay services.
+
+## Intended architecture (not an implemented specification)
+
+| Area | Direction | Status |
+| --- | --- | --- |
+| Network model | Layer 3 IP tunnel, IPv4 + IPv6, UDP | Design intent |
+| Codebase | First-party protocol, networking, security logic and services in Rust | Design intent; OS integration constraints to verify |
+| Symmetric data encryption | AES-256-GCM preferred; ChaCha20-Poly1305 evaluated as an optional supported suite | Candidate |
+| Key establishment | X25519 + ML-KEM-768 hybrid | Candidate; specialist review required |
+| Identity/authentication | ML-DSA-65 and carefully designed enrollment/trust model | Candidate; specialist review required |
+| Packet layout, handshake transcript, nonce construction, key rotation | **Undecided** | BLOCKED until reviewed and approved |
+| Local LAN | Explicitly approved destinations, never implicit trust of RFC1918 ranges | Requirement |
+| Public performance/security claims | Evidence and independent review required | Not achieved |
+
+**AES-256-GCM and ML-KEM do different jobs.** AES encrypts data; ML-KEM helps establish secrets. Neither one alone guarantees a post-quantum secure VPN.
+
+## Documentation and starting point
+
+1. [AGENTS.md](AGENTS.md) — **mandatory operating rules for Dex, Claude Code and other coding agents.**
+2. [Roadmap](docs/ROADMAP.md) — sequence, review gates, entry and acceptance criteria.
+3. [Architecture blueprint](docs/ARCHITECTURE.md) — logical components, deployments and user experience.
+4. [Security model](docs/SECURITY_MODEL.md) — threats, required properties and attack surfaces.
+5. [Protocol review checklist](docs/PROTOCOL_REVIEW_CHECKLIST.md) — mandatory open questions before writing a real handshake.
+6. [Test matrix](docs/TEST_MATRIX.md) — positive, negative, UX, security and performance validation.
+7. [Decision register](docs/DECISIONS.md) — confirmed directions, proposals and unresolved decisions.
+8. [Work order template](docs/WORK_ORDER_TEMPLATE.md) — handoffs and verifiable agent tasks.
+
+**Start with milestone M0, not implementation.** No agent is authorized to invent SVP cryptography or skip an approval gate.
+
+## Current availability
+
+This repository currently contains planning documents and the Apache-2.0 license, **not an installable VPN**. Brand/domain/trademark clearance has not been completed. There is no committed public release date.
+
+## References
+
+- [NIST FIPS 203 (ML-KEM)](https://csrc.nist.gov/pubs/fips/203/final)
+- [NIST FIPS 204 (ML-DSA)](https://csrc.nist.gov/pubs/fips/204/final)
+- [IETF RFC 10024 (hybrid TLS key exchange)](https://www.rfc-editor.org/info/rfc10024) — TLS-specific; not proof of an SVP construction.
+- [IETF RFC 5869 (HKDF)](https://www.rfc-editor.org/rfc/rfc5869)
+- [NIST SP 800-38D (GCM)](https://csrc.nist.gov/pubs/sp/800/38/d/final)
+
+Licensed under [Apache-2.0](LICENSE).
