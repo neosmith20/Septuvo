@@ -6,7 +6,7 @@
   <linearGradient id="lowerBlue" x1="0" x2=".75" y1=".1" y2="1"><stop stop-color="#12B9FF"/><stop offset=".5" stop-color="#0066FF"/><stop offset="1" stop-color="#00348B"/></linearGradient>
   <linearGradient id="silver" x1="0" x2="1" y1=".1" y2="1"><stop stop-color="#F7FDFF"/><stop offset=".34" stop-color="#BBCBD8"/><stop offset=".65" stop-color="#8FA6BE"/><stop offset="1" stop-color="#57697F"/></linearGradient>
  </defs>
- <!-- Ribbon paths provide an editable vector rendition of Septuvo's metallic S symbol. -->
+ <!-- Ribbon paths are an editable VECTOR INTERPRETATION of the approved raster artwork. -->
  <path d="M27 142 C6 129 5 106 17 82 C30 56 63 40 95 24 L116 10 L116 35 C115 58 95 67 73 75 C41 86 29 103 27 142 Z" fill="url(#topBlue)"/>
  <path d="M57 87 C82 77 100 72 116 50 C156 65 181 92 181 130 L181 175 C172 151 155 137 124 127 C95 115 72 102 57 87 Z" fill="url(#rightBlue)"/>
  <path d="M17 98 C5 123 3 142 7 158 C14 185 44 193 79 207 L131 228 C150 236 160 247 155 257 C174 242 182 222 176 206 C168 184 143 177 109 163 L56 142 C33 131 16 117 17 98Z" fill="url(#middle)"/>
