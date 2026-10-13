@@ -24,6 +24,7 @@ All security-sensitive choices require explicit owner approval and, when identif
 | D-018 | Public performance goals | Competitive throughput, low latency and good battery life | Unmeasured aspiration | Controlled reproducible benchmarks |
 | D-019 | Exit behavior | Client UI may close/minimize without dropping tunnel; intentional disconnect distinct | Product requirement | Test after desktop clients exist |
 | D-020 | Connected status | Distinguish adapter active, authenticated peer, data reachability and DNS | Product requirement | Independent diagnostic probes and UX tests |
+| D-021 | Pre-G1 computed vector policy | Owner decision requested: **A)** existing independently reviewed reference tools only (no Septuvo code); **B)** disposable generator (would violate the current no-code-before-G1 rule, so NOT authorized); **C)** defer computed vectors until after G1, with a pre-G1 documentation-only conformance plan (**recommended**) | **OPEN — no option approved** | Owner to choose A or C; qualified G1 reviewer must accept sufficiency of evidence, otherwise G1 stays blocked |
 
 ## Open questions requiring written decisions before relevant tasks
 
@@ -35,5 +36,6 @@ All security-sensitive choices require explicit owner approval and, when identif
 6. Credential recovery, key storage on each OS, client re-enrollment after lost devices, revocation staleness during outages.
 7. Control-plane architecture (standalone storage vs clustered HA), multi-tenancy boundaries and revocation deadlines.
 8. OS API limitations: true Rust-only feasibility, mobile background behavior, virtual interfaces and signed installers.
+9. D-021: owner selects option A or C for pre-G1 computed vectors. Recommendation C avoids all pre-G1 executable work. Option B is incompatible with the project's current hard prohibition and is **not** being adopted.
 
 Record any new decision as a new D-ID with rationale, rejected alternatives, consequences and owner authorization. **Never silently convert a candidate into a fact.**

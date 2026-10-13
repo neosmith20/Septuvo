@@ -2,11 +2,11 @@
 
 **Planning blueprint, not an authorization to code.** Read [AGENT_OPERATIONS.md](AGENT_OPERATIONS.md), [AGENTS.md](../AGENTS.md), [ROADMAP.md](ROADMAP.md), [SECURITY_MODEL.md](SECURITY_MODEL.md) and the [work-order template](WORK_ORDER_TEMPLATE.md) before using any task card.
 
-**Rules applying to every card:** The owner must authorize exactly one card's work order. The immediately preceding task must be owner-accepted (unless the card explicitly describes a gate-only decision). Named output paths are intended deliverables, **not an unrestricted permission to create files**. If they need changing, get a written scope update. The current gate must have recorded evidence. Commit only scoped files on a task branch, attach test logs, request review and **STOP**. Never infer that describing a later milestone authorizes starting it.
+**Rules applying to every card:** Consult the owner-edited [STATUS.md](STATUS.md). The owner must authorize exactly one card's work order. The immediately preceding task must be owner-accepted (unless the card explicitly describes a gate-only decision). Named output paths are intended deliverables, **not an unrestricted permission to create files**. If they need changing, get a written scope update. The current gate must have recorded evidence. Commit only scoped files on a task branch, attach test logs, request review and **STOP**. Never infer that describing a later milestone authorizes starting it.
 
 ## Fixed task order
 
-**M0:** M0-01 → M0-02 → M0-03
+**M0:** M0-01 → (M0-01.1 corrections when audit finds defects) → M0-02 → M0-03
 
 **M1:** M1-01 → M1-02 → M1-03 → M1-04
 
@@ -28,8 +28,7 @@
 
 ## Standard per-task completion evidence
 
-Provide branch/full HEAD SHA, exact changed files, owner authorization and gate reference, commands/test environment/output artifacts, each criterion marked PASS/FAIL/NOT RUN, security assessment, residual decisions, rollback proof, PR URL and one next proposed task. Write **NOT RUN** when a future test is unavailable; do not invent a harness. If protocol/route/security changes exceed a work order, stop for new owner approval and review. See [AGENT_OPERATIONS.md](AGENT_OPERATIONS.md).
-
+Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff form. Every task remains IN REVIEW until owner acceptance in STATUS.md. Base cards, dotted subtasks and H maintenance IDs each require separately approved work orders.
 
 ## M0 — Repository baseline and owner approval
 
@@ -41,9 +40,17 @@ Provide branch/full HEAD SHA, exact changed files, owner authorization and gate 
 - **Acceptance evidence:** Report all cross-file naming, gates, crypto-state, relative links, requirements and task IDs; record unresolved findings as OPEN. No source or protocol edits.
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M0-02 automatically.
 
+### M0-01.1 — Correct M0-01 audit defects (conditional)
+
+- **Entry / prerequisites:** M0-01 accepted; defects identified; explicit owner-approved subtask in STATUS.md.
+- **Approved output locations:** Exact affected planning documents in the subtask work order; docs/reviews/M0-01-audit.md finding status only if approved.
+- **Exact work:** Apply only the defects identified by M0-01, with links to findings and bounded changes. No networking, crypto, live infrastructure, brand asset or unrelated modification.
+- **Acceptance evidence:** Each finding resolved or explicitly left OPEN; documentation CI and actual test commands attached.
+- **Stop point:** Submit scoped PR, wait for owner to mark M0-01.1 ACCEPTED. If no findings, owner records a waiver in M0-01 acceptance evidence before M0-02.
+
 ### M0-02 — Resolve baseline product decisions
 
-- **Entry / prerequisites:** M0-01 accepted and owner-approved decision session.
+- **Entry / prerequisites:** M0-01 accepted; if audit found defects, M0-01.1 owner-accepted; owner-approved decision session.
 - **Approved output locations:** `docs/reviews/M0-02-owner-decisions.md`, `docs/DECISIONS.md`.
 - **Exact work:** Present explicit yes/no choices for supported OS order, language exceptions, first lab platform, target user journeys, self-hosting and risk assumptions; record rationale and owner response.
 - **Acceptance evidence:** Every requested decision has a source/approval or is OPEN; never fill blanks or approve cryptographic details.
@@ -123,8 +130,8 @@ Provide branch/full HEAD SHA, exact changed files, owner authorization and gate 
 
 - **Entry / prerequisites:** M2-03 accepted; internal draft reviewed; external G1 still pending.
 - **Approved output locations:** `docs/protocol/test-vectors.md`, `docs/protocol/conformance-plan.md`.
-- **Exact work:** Define deterministic illustrative fixtures, malformed/negative cases, state and replay vectors, property tests and independent implementation checks; separate *proposed* fixtures from externally accepted canonical vectors.
-- **Acceptance evidence:** Every P-01..P-14 checklist line maps to a spec section or OPEN finding; vectors are explicitly PROVISIONAL until reviewer accepts them.
+- **Exact work:** Documentation only: propose wire-fixture formats, negative cases, state/replay scenarios, future property-test requirements and independent implementation conformance methodology. **Do not compute test vectors or write crypto/protocol generators, property-test code, or live-network code before G1.** D-021 is OPEN; request owner choice rather than generating executable evidence.
+- **Acceptance evidence:** Every P-01..P-14 item maps to a section or explicitly OPEN finding. Computed vectors are NOT RUN/BLOCKED pending owner D-021 choice and G1 reviewer acceptance of proposed evidence plan; no live-network code.
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M2-05 automatically.
 
 ### M2-05 — Obtain external protocol assessment and G1 decision
@@ -236,7 +243,7 @@ Provide branch/full HEAD SHA, exact changed files, owner authorization and gate 
 
 - **Entry / prerequisites:** M5-03 accepted.
 - **Approved output locations:** `tests/lab/resilience/`, `docs/reviews/M5-resilience.md`.
-- **Exact work:** Run packet mutation, loss/reorder, fuzz corpora, bounded-resource DoS simulations, IPv6/DNS leak checks, memory/concurrency checks and extended soak tests within lab quotas.
+- **Exact work:** Run packet mutation, loss/reorder, **roaming (where available), fragmentation/MTU failures**, fuzz corpora, bounded-resource DoS simulations, IPv6/DNS leak checks, privilege/replay tests, memory/concurrency checks and extended soak tests within lab quotas.
 - **Acceptance evidence:** T1/T2 evidence with exact environments and quantitative observations; failed tests block progress; no live external load tests.
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M5-05 automatically.
 
@@ -263,7 +270,7 @@ Provide branch/full HEAD SHA, exact changed files, owner authorization and gate 
 
 - **Entry / prerequisites:** M6-01 accepted.
 - **Approved output locations:** `packaging/linux/`, `docs/install/linux-server.md`, `tests/install/`.
-- **Exact work:** Design automated install/uninstall, service supervision, least-privilege operations, safe defaults, port/firewall guidance, rollback and packaging signing plan.
+- **Exact work:** Implement lab-installable **unsigned pre-release** Linux server packaging with automated install/uninstall, service supervision, least-privilege defaults, port/firewall guidance and rollback. Document signing plan; actual production release signing belongs to M8-03.
 - **Acceptance evidence:** Fresh lab install/uninstall/reboot tested; no unexpected public exposure, route leftovers or unapproved package installs.
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M6-03 automatically.
 
@@ -407,7 +414,7 @@ Provide branch/full HEAD SHA, exact changed files, owner authorization and gate 
 
 ## Task catalog invariants
 
-1. Each of the **43** named tasks has a unique ID and a prerequisite, bounded output, actions, acceptance evidence and a stop point.
+1. Each of the **43 base tasks** has a unique ID and a prerequisite, bounded output, actions, acceptance evidence and a stop point. Conditional dotted subtasks and owner-directed H work are separately recorded/approved in [STATUS.md](STATUS.md) and do not change the 43-base-task count.
 2. No agent can approve G0–G4, external review, a domain/trademark claim, production readiness or a public release on the owner's behalf.
 3. M2 spec proposals, ML-KEM/ML-DSA/HKDF/AES-GCM candidate choices and packet wire fields must not become a deployed handshake before G1, even if a code generator could implement them quickly.
 4. A Rust workspace, GUI, installer, mobile extension, control-plane cluster or gateway capability does **not** exist merely because this catalog names a target path.

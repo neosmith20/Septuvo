@@ -4,19 +4,21 @@
 
 ## Gate summary
 
-| Gate | Meaning | Current state |
+| Gate | Meaning | Authoritative state |
 | --- | --- | --- |
-| G0 | Owner approves scope, decisions, non-goals and this roadmap | **PENDING** |
-| G1 | Qualified outside specialist reviews precise SVP security/handshake/wire design; owner approves prototype implementation | **PENDING** |
-| G2 | Lab interop, negative protocol cases, no-leak routing and controlled fault tests; owner approves external pilot | **PENDING** |
-| G3 | Independent security/implementation audit and remediation, signed builds and platform validation; owner approves production | **PENDING** |
-| G4 | Enterprise/provider isolation, availability, measured capacity and operational controls; owner approves large-scale claims | **PENDING** |
+| G0 | Owner approves scope, decisions, non-goals and this roadmap | [STATUS.md](STATUS.md) |
+| G1 | Outside specialist reviews exact SVP design; owner approves prototype implementation | [STATUS.md](STATUS.md) |
+| G2 | Lab interop, negative cases, no leaks and controlled faults; **not external pilot permission** | [STATUS.md](STATUS.md) |
+| G3 | Independent security audit, remediation, signed release builds, platform validation | [STATUS.md](STATUS.md) |
+| G4 | Provider isolation, availability, measured capacity and operational controls | [STATUS.md](STATUS.md) |
+
+Only owner-edited, dated ledger entries can pass a gate. All gates are initially PENDING.
 
 ## M0 — repository baseline and owner sign-off (FIRST)
 
 **Goal:** a coherent blueprint before any cryptographic/network implementation.
 
-- **M0-01:** Audit README, license, AGENTS.md, architecture, threat model, decision register, protocol checklist, roadmap and test matrix for contradictions and claims. Documentation only.
+- **M0-01:** Audit README, license, AGENTS.md, architecture, threat model, decision register, protocol checklist, roadmap and test matrix for contradictions and claims. Documentation only. If defects exist, owner authorizes conditional **M0-01.1** corrections and accepts them before M0-02.
 - **M0-02:** Resolve each open scope/implementation-language/platform question with the owner; record approvals/rejected alternatives in DECISIONS.md. The four names in D-001 are already owner-confirmed.
 - **M0-03:** Agree on a staged review plan, external protocol-review expertise and practical test hardware. Define version-control/PR practices and review owners.
 
@@ -36,7 +38,7 @@
 - **M2-01:** Compare existing reviewed constructions, Rust crypto library maturity, protocols/standards and licensing. Propose suites with alternatives and explicit dependency risks.
 - **M2-02:** Draft exact full handshake and identity protocol: transcript, mutual authentication, trust roots, KEM validation/combiner, HKDF, key confirmation, errors and downgrade behavior.
 - **M2-03:** Draft packet grammar, AEAD nonce/replay semantics, key epochs, rotation limits, retransmission, migration, reassembly, MTU and anti-amplification controls.
-- **M2-04:** Draft proposed, versioned test vectors and state diagrams from the internally reviewed design; label them provisional until the external G1 review accepts the exact specification; no live network code.
+- **M2-04:** Draft **documentation-only** test-vector *formats*, state diagrams and conformance cases. No computed vectors, generator/property-test code, crypto/protocol code or live networking before G1. D-021 is an OPEN owner decision; the external G1 reviewer must assess evidence sufficiency.
 - **M2-05:** Obtain qualified external cryptographic/protocol review, log findings, remediate and obtain owner G1 sign-off on exact specification revision.
 
 **Acceptance:** every P-01..P-14 item answered, traceable, independently reviewed and owner-approved. Reopen G1 on material changes. **STOP until G1.**
@@ -72,7 +74,7 @@
 ## M6 — standalone Septuvo Server + guided onboarding
 
 - **M6-01:** Implement local-only enrollment and device identity management, recovery/revocation, protected local state and self-hosting with zero vendor account requirement.
-- **M6-02:** Implement signed/installable server packaging (supported Linux target first) with safe setup, service persistence, rollback and uninstall.
+- **M6-02:** Implement lab-installable **unsigned pre-release** Linux server packaging with safe setup, service persistence, rollback and uninstall; document signing plan. **M8-03 owns signed production release artifacts**.
 - **M6-03:** Provide CLI for admins plus simple role-based wizard; real connection diagnostics separate interface / authentication / data reachability / DNS.
 - **M6-04:** End-to-end test a fresh personal deployment using **isolated Linux clients in simulated remote/mobile-like network paths**. Include NAT limitations and optional relay feasibility; do not claim real Android/iOS support before M7-04/M7-05.
 
@@ -111,4 +113,4 @@
 
 **One owner-approved agent work order at a time, regardless of agent or tool.** Use the 43-card [TASK_CATALOG.md](TASK_CATALOG.md); each task must name files, expected behavior, non-goals, test commands, known risks, rollback and its exact stop point. Branch + PR for code; owner reviews before merge and explicitly selects the next item. Re-check prior task state at each handoff. Agents must never infer completion from a timeout, create their own security decisions, publish an experimental VPN publicly, or skip to a “fun” feature.
 
-**Current next action:** owner review of this planning baseline (M0-01 → M0-02), then written G0 approval. Until then **no cryptographic protocol implementation**.
+**Current next action:** inspect owner-maintained [STATUS.md](STATUS.md), then M0-01 audit → M0-01.1 corrections if findings exist → M0-02 decisions → M0-03 G0 evidence, each separately owner-approved and accepted. Only then may the owner record G0 passage. **No cryptographic/protocol implementation before G1.**

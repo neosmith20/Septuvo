@@ -27,11 +27,11 @@ REQUIRED = (
     "SECURITY.md",
 )
 LINK = re.compile(r"(?<!!)\[[^\]\n]+\]\(([^)\n]+)\)")
-CATALOG_ID = re.compile(r"^### (M\\d+-\\d+) —", re.MULTILINE)
-ROADMAP_ID = re.compile(r"\\*\\*(M\\d+-\\d+):\\*\\*")
-SUBTASK_ID = re.compile(r"^### (M\\d+-\\d+\\.\\d+) —", re.MULTILINE)
-VALID_WORK_ID = re.compile(r"^(?:M\\d+-\\d+(?:\\.\\d+)?|H-\\d{3})$")
-LEDGER_ROW = re.compile(r"^\\| (M\\d+-\\d+(?:\\.\\d+)?|H-\\d{3}) \\|", re.MULTILINE)
+CATALOG_ID = re.compile(r"^### (M\d+-\d+) —", re.MULTILINE)
+ROADMAP_ID = re.compile(r"\*\*(M\d+-\d+):\*\*")
+SUBTASK_ID = re.compile(r"^### (M\d+-\d+\.\d+) —", re.MULTILINE)
+VALID_WORK_ID = re.compile(r"^(?:M\d+-\d+(?:\.\d+)?|H-\d{3})$")
+LEDGER_ROW = re.compile(r"^\| (M\d+-\d+(?:\.\d+)?|H-\d{3}) \|", re.MULTILINE)
 errors = []
 
 for rel in REQUIRED:
@@ -59,7 +59,7 @@ if not errors:
         if not VALID_WORK_ID.fullmatch(ident):
             errors.append(f"Invalid work ID: {ident}")
     for gate in ("G0", "G1", "G2", "G3", "G4"):
-        if not re.search(rf"^\\| {gate} \\| (?:PENDING|PASSED|FAILED) \\|", ledger, re.MULTILINE):
+        if not re.search(rf"^\| {gate} \| (?:PENDING|PASSED|FAILED) \|", ledger, re.MULTILINE):
             errors.append(f"Owner gate ledger missing or invalid: {gate}")
     security_model = (ROOT / "docs/SECURITY_MODEL.md").read_text(encoding="utf-8")
     traceability = (ROOT / "docs/TRACEABILITY.md").read_text(encoding="utf-8")

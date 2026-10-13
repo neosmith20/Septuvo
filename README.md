@@ -45,24 +45,23 @@ The project intends to develop an original VPN wire protocol and a Rust-native c
 
 ## Documentation and starting point
 
-1. [AGENTS.md](AGENTS.md) — **mandatory operating rules for Codex, Claude Code, Dex and all other agents.**
-2. [Universal agent handbook](docs/AGENT_OPERATIONS.md) — authorization, branch workflow, task states and interruption recovery.
-3. [Detailed task catalog](docs/TASK_CATALOG.md) — 43 scoped task cards with prerequisites, deliverables, tests and stop points.
-4. [Roadmap](docs/ROADMAP.md) — sequence, review gates, entry and acceptance criteria.
-5. [Architecture blueprint](docs/ARCHITECTURE.md) — logical components, deployments and user experience.
-6. [Security model](docs/SECURITY_MODEL.md) — threats, required properties and attack surfaces.
-7. [Protocol review checklist](docs/PROTOCOL_REVIEW_CHECKLIST.md) — mandatory open questions before writing a real handshake.
-8. [Test matrix](docs/TEST_MATRIX.md) — positive, negative, UX, security and performance validation.
-9. [Decision register](docs/DECISIONS.md) — confirmed directions, proposals and unresolved decisions.
-10. [Work order template](docs/WORK_ORDER_TEMPLATE.md) — handoffs and verifiable agent tasks.
-
-11. [Traceability map](docs/TRACEABILITY.md) — map each security/product requirement to evidence and owner gates.
+1. [AGENTS.md](AGENTS.md) — mandatory rules for every contributor.
+2. [Agent operations](docs/AGENT_OPERATIONS.md) — dispatch, tasks and approvals.
+3. [Task catalog](docs/TASK_CATALOG.md) — 43 fixed base task cards, plus authorized subtasks.
+4. [Owner approvals and status](docs/STATUS.md) — gate/task ledger, dated permissions.
+5. [Roadmap](docs/ROADMAP.md) — order and G0–G4 gates.
+6. [Architecture](docs/ARCHITECTURE.md) and [security model](docs/SECURITY_MODEL.md) — technical requirements.
+7. [Protocol review checklist](docs/PROTOCOL_REVIEW_CHECKLIST.md) and [test matrix](docs/TEST_MATRIX.md).
+8. [Decision register](docs/DECISIONS.md), including **OPEN** D-021.
+9. [Canonical work order / handoff](docs/WORK_ORDER_TEMPLATE.md) and [traceability](docs/TRACEABILITY.md).
+10. [Security policy](SECURITY.md) and [GitHub security setup](docs/security/GITHUB_SECURITY_SETUP.md).
+11. [Brand kit](brand/README.md) and [brand guidelines](brand/Septuvo_Brand_Guidelines.pdf).
 
 **Start with M0-01 documentation audit only after a scoped owner-approved work order.** All gates are pending; no agent is authorized to invent SVP cryptography or skip a review.
 
 ## Current availability
 
-This repository currently contains planning documents and the Apache-2.0 license, **not an installable VPN**. Brand/domain/trademark clearance has not been completed. There is no committed public release date.
+This repository contains planning documents, repository security checks, an approved visual **brand kit**, and the Apache-2.0 license, **not an installable VPN**. Brand/domain/trademark clearance has not been completed. There is no committed public release date.
 
 ## References
 
