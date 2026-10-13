@@ -6,7 +6,7 @@ Applies to **Codex, Claude Code, Dex, and any other coding agent or human contri
 
 The repository owner determines scope, priorities, milestones, security posture and release decisions. You are an implementation assistant, **not a cryptographic standards committee or an independent auditor**.
 
-Authority order: **explicit owner instruction / approved work order**, then **DECISIONS.md**, **ROADMAP.md**, **SECURITY_MODEL.md**, **ARCHITECTURE.md**, then README. If rules conflict or owner instructions appear to weaken a security gate: **STOP, report the conflict and request a decision.** A roadmap item is not by itself authorization to implement it.
+Authority: **owner-approved work order and owner-edited [STATUS.md](docs/STATUS.md)** for authorization/gates; **AGENTS.md and [AGENT_OPERATIONS.md](docs/AGENT_OPERATIONS.md)** for mandatory execution rules; **[DECISIONS.md](docs/DECISIONS.md)** for recorded technical choices; **[ROADMAP.md](docs/ROADMAP.md) and [TASK_CATALOG.md](docs/TASK_CATALOG.md)** for task sequence/scope; **[SECURITY_MODEL.md](docs/SECURITY_MODEL.md) and [ARCHITECTURE.md](docs/ARCHITECTURE.md)** for design; **[TRACEABILITY.md](docs/TRACEABILITY.md)** for evidence; **[WORK_ORDER_TEMPLATE.md](docs/WORK_ORDER_TEMPLATE.md)** as the single handoff format; README for overview. If any documents conflict or a request could weaken a gate: **STOP and request owner resolution**.
 
 Only the exact task and files named in an approved work order are in scope. Read [AGENT_OPERATIONS.md](docs/AGENT_OPERATIONS.md), [TASK_CATALOG.md](docs/TASK_CATALOG.md), [TRACEABILITY.md](docs/TRACEABILITY.md), and [WORK_ORDER_TEMPLATE.md](docs/WORK_ORDER_TEMPLATE.md). Roadmap bullets are not blanket work authorization. Task cards propose output paths; they do not authorize edits or gate passage.
 
@@ -54,20 +54,10 @@ Only the exact task and files named in an approved work order are in scope. Read
 
 ## Task dispatch and state
 
-Follow the deterministic task-dispatch algorithm in [AGENT_OPERATIONS.md](docs/AGENT_OPERATIONS.md): inspect actual state, select only the first eligible task, verify owner authorization **and** required gate, execute only that task, submit evidence, and **STOP**. Every agent uses the same statuses (NOT STARTED, READY, IN PROGRESS, BLOCKED, IN REVIEW, ACCEPTED, REJECTED / REWORK). Only the owner records ACCEPTED or approves a gate. On timeout, inspect actual HEAD/worktree and reconcile before resuming; do not assume a command completed.
+Follow the deterministic task-dispatch algorithm in [AGENT_OPERATIONS.md](docs/AGENT_OPERATIONS.md): inspect actual state, select only the first eligible task, verify owner authorization **and** required gate, execute only that task, submit evidence, and **STOP**. Every agent uses the same statuses (NOT STARTED, READY, IN PROGRESS, BLOCKED, IN REVIEW, ACCEPTED, REJECTED / REWORK). Only the owner records ACCEPTED or approves a gate **in [STATUS.md](docs/STATUS.md)**. Agents must never edit the ledger. On timeout, inspect actual HEAD/worktree and reconcile before resuming; do not assume a command completed.
 
 ## Finish-of-task / timeout report (mandatory)
 
-Use this format, no exceptions:
-
-- **Task / gate / approval**:
-- **Branch and exact HEAD SHA**:
-- **Changed files**:
-- **Actual commands and results**:
-- **Acceptance criteria PASS / FAIL / NOT RUN**:
-- **Security/reliability risks & unresolved decisions**:
-- **Rollback / recovery instructions**:
-- **Next single task**:
-- **STOP** — wait for explicit approval to advance.
+Use the complete **Completion and handoff** section of [WORK_ORDER_TEMPLATE.md](docs/WORK_ORDER_TEMPLATE.md) as the **only** required format. It covers task/gate approval, full SHA, PR URL, real test evidence, risks, rollback actually tested, and one proposed next task. **STOP** for owner review.
 
 If blocked or interrupted, stop at a safe checkpoint. Never present incomplete work as finished.

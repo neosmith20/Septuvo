@@ -1,13 +1,13 @@
 # Septuvo — universal single-task work order and handoff template
 
-For **Codex, Claude Code, Dex or any other agent**. Copy this template **for every task** from [TASK_CATALOG.md](TASK_CATALOG.md), and obey [AGENT_OPERATIONS.md](AGENT_OPERATIONS.md). If owner scope authorization, predecessor acceptance or required gate is missing, **STOP**. A template is not approval.
+For **Codex, Claude Code, Dex or any other agent**. Copy this template for **every base, dotted subtask, or owner-approved H task**; consult [STATUS.md](STATUS.md), and obey [AGENT_OPERATIONS.md](AGENT_OPERATIONS.md). If owner scope authorization, predecessor acceptance or required gate is missing, **STOP**. A template is not approval.
 
 ## Work order
 
-- **Task ID / milestone**: M?-?? (must match TASK_CATALOG.md)
+- **Task ID / milestone**: M?-?? / M?-??.? / H-??? (registered in STATUS.md)
 - **Predecessor task accepted? Evidence link**:
-- **Status**: NOT STARTED / READY / IN PROGRESS / BLOCKED / IN REVIEW / ACCEPTED / REJECTED-REWORK
-- **Exact owner approval for this scope / link / timestamp**:
+- **Status**: NOT STARTED / READY / IN PROGRESS / BLOCKED / IN REVIEW / ACCEPTED / REJECTED / REWORK
+- **Exact owner approval, dated permalink and ledger entry in STATUS.md**:
 - **Required gate**: G? (evidence/link; or “not applicable — documentation-only”)
 - **Objective (one sentence)**:
 - **In scope (exact paths and behavior)**:
@@ -34,7 +34,8 @@ For **Codex, Claude Code, Dex or any other agent**. Copy this template **for eve
 - **Security and privacy impact**:
 - **Unresolved blockers / exact decisions needed**:
 - **Rollback tested? What and where?**:
-- **Gate state after task (owner decision, if any)**:
+- **Actual required gate and owner-recorded state in STATUS.md**:
+- **Owner acceptance evidence (if any; never agent-approved)**:
 - **One next proposed task only (not started)**:
 - **STOP — await owner review before next milestone**:
 
