@@ -1,0 +1,22 @@
+/* Septuvo official brand color and UI theme tokens. */
+:root {
+  --septuvo-midnight: #050A14;
+  --septuvo-navy: #0B1220;
+  --septuvo-surface: #1E293B;
+  --septuvo-border: #334155;
+  --septuvo-blue: #0066FF;
+  --septuvo-electric: #00D5F8;
+  --septuvo-teal: #00E5B8;
+  --septuvo-aqua: #14E0D6;
+  --septuvo-purple: #A855F7;
+  --septuvo-sky: #38BDF8;
+  --septuvo-white: #F8FAFC;
+  --septuvo-muted: #94A3B8;
+  --septuvo-green: #10B981;
+  --septuvo-yellow: #F59E0B;
+  --septuvo-red: #EF4444;
+  --septuvo-font: "Inter", system-ui, -apple-system, sans-serif;
+  --septuvo-radius-panel: 14px;
+}
+[data-theme="dark"] { color: var(--septuvo-white); background: var(--septuvo-midnight); }
+[data-theme="light"] { color: var(--septuvo-navy); background: var(--septuvo-white); }
