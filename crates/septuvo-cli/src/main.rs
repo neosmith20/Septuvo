@@ -79,7 +79,7 @@ mod tests {
         let (code, out, err) = call(&[]);
         assert_eq!(code, EXIT_OK);
         assert!(out.contains("Usage:"));
-        assert!(err.is_empty());
+        assert_eq!(err, "");
     }
 
     #[test]
@@ -114,7 +114,7 @@ mod tests {
     fn unknown_command_is_a_usage_error() {
         let (code, out, err) = call(&["connect"]);
         assert_eq!(code, EXIT_USAGE);
-        assert!(out.is_empty());
+        assert_eq!(out, "");
         assert!(err.contains("unknown command"));
     }
 
