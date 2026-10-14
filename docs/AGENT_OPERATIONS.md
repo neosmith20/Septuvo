@@ -6,7 +6,7 @@
 
 ## Start here, every time
 
-1. Read [AGENTS.md](../AGENTS.md), [ROADMAP.md](ROADMAP.md), [TASK_CATALOG.md](TASK_CATALOG.md), [DECISIONS.md](DECISIONS.md), [SECURITY_MODEL.md](SECURITY_MODEL.md) and [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md). Read the architecture, test matrix and protocol checklist whenever relevant.
+1. Read [AGENTS.md](../AGENTS.md), [STATUS.md](STATUS.md), [ROADMAP.md](ROADMAP.md), [TASK_CATALOG.md](TASK_CATALOG.md), [DECISIONS.md](DECISIONS.md), [SECURITY_MODEL.md](SECURITY_MODEL.md) and [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md). Read the architecture, test matrix and protocol checklist whenever relevant.
 2. Inspect the actual current repository, branch and HEAD. Compare the last handoff with the files and commits. A previous agent's report is *not* proof a task was finished.
 3. Identify **exactly one task ID** from the task catalog and confirm that all prerequisites and approvals exist, with links to recorded evidence.
 4. Prepare a work order containing all required fields. If the owner has not explicitly approved that work order, limit activity to read-only inspection and drafting the proposed work order.
@@ -17,7 +17,7 @@
 
 ## What constitutes approval
 
-Approval must be attributable to the repository owner and identify the specific task/scope. A PR, issue, backlog entry, comment by another agent, or a passed CI job does not alone constitute owner approval. Never infer approval from silence or an earlier general conversation.
+Approval must be attributable to the repository owner and identify an exact scoped work-order revision. The owner records approval dates and links in [STATUS.md](STATUS.md) (approval procedure defined there). Agents must **never edit STATUS.md**. A PR, issue, comment by another agent, merge or green CI alone is not authorization. Never infer approval from silence or prior conversations.
 
 Each task has two independent prerequisites:
 - **Work authorization:** the owner approves this task's exact scope, environment, file set and stopping point.
@@ -37,29 +37,36 @@ Use exactly these statuses in handoffs and task-tracking records:
 - **ACCEPTED:** owner approved completed task and evidence.
 - **REJECTED / REWORK:** owner rejected evidence or scope; task must be corrected without assuming the next task may start.
 
-Only the owner can mark a gate passed or a task **ACCEPTED**. An agent can report tests passing without changing owner-approval status.
+Only the owner can mark a gate PASSED or a task **ACCEPTED** in [STATUS.md](STATUS.md). An agent can report passing tests without changing owner-approval status.
 
 ## Deterministic dispatch algorithm
 
+Read the owner-controlled [STATUS.md](STATUS.md) ledger. Select the **first base task NOT ACCEPTED** whose predecessor **IS ACCEPTED** (M0-01 has no predecessor). If an earlier task is blocked, under review or rejected, **do not skip it**.
+
 ~~~text
-read source documents and live Git state
-select the first task in TASK_CATALOG whose predecessor is ACCEPTED
-if a prerequisite or required gate is missing:
-    report BLOCKED with exact missing evidence
-    STOP
-if the current task's work order is not explicitly owner-approved:
-    draft an approval-ready work order, no implementation
-    STOP
-perform ONLY the approved work in a task branch
-run task-specific and regression tests; record evidence
-if unexpected security/route/crypto changes are needed:
-    document proposed change; STOP without implementing it
-submit PR or report blocked environment
-report completion with exact commit, PASS/FAIL/NOT RUN and rollback
-STOP for owner review; NEVER self-dispatch next task
+read live Git state, task catalog, STATUS.md and all approval evidence
+if evidence or ledger is missing/contradictory: STOP
+find earliest base task whose state is NOT ACCEPTED
+if IN REVIEW: wait for owner; STOP
+if BLOCKED: report the same blocker, STOP (do not select next task)
+if REJECTED / REWORK: request renewed scope and rework only this task; STOP
+if IN PROGRESS: reconcile actual branch/PR and resume only authorized work
+if predecessor is not ACCEPTED (except M0-01): STOP
+if required dotted subtasks are not accepted/waived by owner: STOP
+if M0-02 and M0-01 identified defects, require accepted M0-01.1
+if required gate is not PASSED: STOP
+if exact work-order approval is not recorded in STATUS.md: draft only; STOP
+implement exactly one approved task on its approved branch
+run tests, submit PR with PASS/FAIL/NOT RUN evidence; STOP
 ~~~
 
-An agent must **never** reinterpret this algorithm as permission to carry out all ready tasks at once.
+### ID conventions
+
+- Base engineering tasks: `M0-01` ... `M9-05`, exactly **43** ordered IDs from TASK_CATALOG.md.
+- Separately owner-approved subtasks: `M0-01.1`, `M7-01.1`, `M8-02.1`, `M9-02.1`, etc. Parent is not accepted until required subtasks are accepted or explicitly waived by owner.
+- Owner-directed work outside roadmap: `H-001`, `H-002`, etc. for hygiene, repository administration or brand. Never imply a gate or parent task passed.
+- Every class requires an exact owner-approved work order **recorded by the owner** in STATUS.md; never auto-dispatch subtasks or H tasks.
+- Use **one ID per work order and PR**. The only handoff format is [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md).
 
 ## Standard change workflow
 
@@ -77,7 +84,7 @@ Additional cargo audit, deny, fuzz and platform tests are task-specific and must
 
 **Safety:** the current repo has no VPN implementation. Do not run packet generators, grant VPN capabilities, alter live routes/firewalls/DNS, enroll devices, expose a UDP listener, install drivers or alter a production server without an explicit authorized lab task. Use isolated VMs/network namespaces and synthetic data for experiments.
 
-**Finish:** update only explicitly approved status/handoff artifacts. Include PR URL, full commit SHA, exact changed paths, command outputs, unresolved findings and recovery steps. A completed PR does not mean a task is ACCEPTED.
+**Finish:** complete the full handoff in [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md), submit PR and STOP. Agents do not update STATUS.md; a merged PR does not mean ACCEPTED.
 
 ## Agent conduct and escalation
 
@@ -95,7 +102,7 @@ Additional cargo audit, deny, fuzz and platform tests are task-specific and must
 - **Before G0:** architecture/documentation inspection and proposal only.
 - **After G0, before G1:** requirements, threat model, specification drafts and vetted dependency research only. **No actual security protocol implementation.**
 - **After G1:** reviewed implementation in isolated lab per approved work orders; never an internet-facing public deployment by default.
-- **After G2:** owner-authorized limited pilot and packaging work; **not a production-security claim**.
+- **After G2:** controlled follow-on packaging/onboarding work; **no external pilot is authorized** by G2 alone. Any externally reachable pilot requires a separately authorized work order and risk review; not a production-security claim.
 - **After G3:** production release only for audited, documented and tested platforms.
 - **After G4:** enterprise/provider claims only within actually measured limits.
 
@@ -103,13 +110,6 @@ If substantive cryptographic construction or trust boundaries change after revie
 
 ## Review quality: definition of done
 
-A task is complete for agent handoff **only when**:
-1. The expected deliverables exist at the documented paths.
-2. All acceptance criteria are individually marked PASS / FAIL / NOT RUN with evidence.
-3. Relevant regression and negative cases were executed—or documented as blockers.
-4. Changes are isolated to approved scope and delivered on a task branch/PR.
-5. Rollback is documented and any actual rollback test described honestly.
-6. Decisions and residual risks are written down, not buried in a summary.
-7. The agent stops and requests review.
+Use the full mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) completion/handoff fields (actual PR URL, tests, risks, rollback tested or NOT RUN). Only the owner accepts a task in STATUS.md. The agent always stops.
 
 See [TASK_CATALOG.md](TASK_CATALOG.md) for step-by-step cards and [TRACEABILITY.md](TRACEABILITY.md) for security requirement mapping.
