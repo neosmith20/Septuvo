@@ -2,7 +2,7 @@
 
 **Task ID (base M?-??, dotted subtask M?-??.?, or hygiene H-???):**
 **Canonical work order/handoff ([docs/WORK_ORDER_TEMPLATE.md](../docs/WORK_ORDER_TEMPLATE.md)):**
-**Owner approval and status ledger ([docs/STATUS.md](../docs/STATUS.md)):**
+**Owner `APPROVED WORK ORDER` comment permalink (mirrored in [docs/STATUS.md](../docs/STATUS.md)):**
 **Predecessor task ACCEPTED evidence:**
 **Required gate and owner approval evidence:**  
 **Gate satisfied (if applicable):**  
@@ -16,6 +16,6 @@
 - Is a DECISIONS.md entry and external re-review required?
 
 ### Tests, rollback and handoff
-Use **all** fields in [docs/WORK_ORDER_TEMPLATE.md](../docs/WORK_ORDER_TEMPLATE.md); report PASS/FAIL/NOT RUN with command evidence and whether rollback was tested. Status is **IN REVIEW** until owner records ACCEPTED in STATUS.md. STOP.
+Use **all** fields in [docs/WORK_ORDER_TEMPLATE.md](../docs/WORK_ORDER_TEMPLATE.md); report PASS/FAIL/NOT RUN with command evidence and whether rollback was tested. Status is **IN REVIEW** until the owner comments `ACCEPTED <ID>` on this pull request after reviewing it. STOP.
 
 **Do not check a box or mark PASS unless the command/result is real. Never claim independent audit without an audit report.**

@@ -35,7 +35,7 @@ For **Codex, Claude Code, Dex or any other agent**. Copy this template for **eve
 - **Unresolved blockers / exact decisions needed**:
 - **Rollback tested? What and where?**:
 - **Actual required gate and owner-recorded state in STATUS.md**:
-- **Owner acceptance evidence (if any; never agent-approved)**:
+- **Owner acceptance: permalink of the owner's `ACCEPTED <ID>` comment (if any; never agent-approved)**:
 - **One next proposed task only (not started)**:
 - **STOP — await owner review before next milestone**:
 
