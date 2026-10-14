@@ -30,12 +30,12 @@ Use dates in `YYYY-MM-DD` UTC and permalinks. A blank approval reference means *
 | Task ID | State | Predecessor | Owner decision date (UTC) | Work-order approval | Completion evidence |
 | --- | --- | --- | --- | --- | --- |
 | M0-01 | ACCEPTED | — | 2026-10-14 | [Approval on issue #9](https://github.com/neosmith20/Septuvo/issues/9#issuecomment-6161523935) | [PR #12](https://github.com/neosmith20/Septuvo/pull/12) — `docs/reviews/M0-01-audit.md` |
-| M0-02 | READY | M0-01 | 2026-10-14 | [Approval on issue #18](https://github.com/neosmith20/Septuvo/issues/18#issuecomment-6162237599) | — |
-| M0-03 | NOT STARTED | M0-02 | — | — | — |
-| M1-01 | NOT STARTED | M0-03 | — | — | — |
-| M1-02 | NOT STARTED | M1-01 | — | — | — |
-| M1-03 | NOT STARTED | M1-02 | — | — | — |
-| M1-04 | NOT STARTED | M1-03 | — | — | — |
+| M0-02 | ACCEPTED | M0-01 | 2026-10-14 | [Approval on issue #18](https://github.com/neosmith20/Septuvo/issues/18#issuecomment-6162237599) | [PR #21](https://github.com/neosmith20/Septuvo/pull/21) — `docs/reviews/M0-02-owner-decisions.md`; [acceptance on PR #21](https://github.com/neosmith20/Septuvo/pull/21#issuecomment-6162871333) |
+| M0-03 | READY | M0-02 | 2026-10-14 | [Approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162805811) | — |
+| M1-01 | READY | M0-03 | 2026-10-14 | [Milestone M1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162806536) | — |
+| M1-02 | READY | M1-01 | 2026-10-14 | [Milestone M1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162806536) | — |
+| M1-03 | READY | M1-02 | 2026-10-14 | [Milestone M1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162806536) | — |
+| M1-04 | READY | M1-03 | 2026-10-14 | [Milestone M1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162806536) | — |
 | M2-01 | NOT STARTED | M1-04 | — | — | — |
 | M2-02 | NOT STARTED | M2-01 | — | — | — |
 | M2-03 | NOT STARTED | M2-02 | — | — | — |
@@ -77,10 +77,10 @@ Use dates in `YYYY-MM-DD` UTC and permalinks. A blank approval reference means *
 
 | Task ID | State | Predecessor | Owner decision date (UTC) | Work-order approval | Completion evidence |
 | --- | --- | --- | --- | --- | --- |
-| N1-01 | NOT STARTED | — | — | — | — |
-| N1-02 | NOT STARTED | N1-01 | — | — | — |
-| N1-03 | NOT STARTED | N1-02 | — | — | — |
-| N1-04 | NOT STARTED | N1-03 | — | — | — |
+| N1-01 | READY | — | 2026-10-14 | [Milestone N1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162807229) | — |
+| N1-02 | READY | N1-01 | 2026-10-14 | [Milestone N1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162807229) | — |
+| N1-03 | READY | N1-02 | 2026-10-14 | [Milestone N1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162807229) | — |
+| N1-04 | READY | N1-03 | 2026-10-14 | [Milestone N1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162807229) | — |
 
 ## Dotted subtasks (owner authorized separately)
 
@@ -100,7 +100,8 @@ Use separate `H-001`, `H-002` etc. IDs for work outside the 43 base tasks; they 
 | H-002 | ACCEPTED | 2026-10-14 | Owner instruction 2026-10-14: record D-021 option C; fix catalog predecessors and work-order status line; align color-board type sizes | [PR #5](https://github.com/neosmith20/Septuvo/pull/5) |
 | H-003 | ACCEPTED | 2026-10-14 | Retroactive owner acceptance 2026-10-14 (owner reviewed and committed the files) | Brand kit corrections: guidelines PDF, brand README, root .gitignore ([c3195eb](https://github.com/neosmith20/Septuvo/commit/c3195eb)); color board colors ([160fbde](https://github.com/neosmith20/Septuvo/commit/160fbde)) |
 | H-004 | ACCEPTED | 2026-10-14 | Owner instruction 2026-10-14: document public repository, active ruleset and security features; record D-022/D-023 | [PR #7](https://github.com/neosmith20/Septuvo/pull/7) |
-| H-005 | READY | 2026-10-14 | [Approval on issue #17](https://github.com/neosmith20/Septuvo/issues/17#issuecomment-6162227517) | — |
+| H-005 | ACCEPTED | 2026-10-14 | [Approval on issue #17](https://github.com/neosmith20/Septuvo/issues/17#issuecomment-6162227517) | [PR #20](https://github.com/neosmith20/Septuvo/pull/20) and scope update [PR #22](https://github.com/neosmith20/Septuvo/pull/22); [acceptance on PR #20](https://github.com/neosmith20/Septuvo/pull/20#issuecomment-6162868345) |
+| H-006 | ACCEPTED | 2026-10-14 | [Approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162805074) | Lean execution process (D-030): [PR #24](https://github.com/neosmith20/Septuvo/pull/24); [acceptance on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162833818) |
 
 ## Allowed task states
 
