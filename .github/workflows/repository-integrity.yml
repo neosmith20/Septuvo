@@ -20,6 +20,7 @@ jobs:
       - name: Checkout repository (pinned release)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, verified 2026-10-13
         with:
+          ref: ${{ github.base_ref || 'main' }}
           persist-credentials: false
       - name: Validate planning documents and repository links
         run: python3 scripts/check_repository.py
