@@ -1,50 +1,63 @@
-# Septuvo GitHub repository protection — owner setup instructions
+# Septuvo GitHub repository protection
 
-**Repository:** `neosmith20/Septuvo` (private personal-account repository)
-**Current status:** Settings below are **proposed, not activated**. GitHub's rulesets API returned: `403 — Upgrade to GitHub Pro or make this repository public to enable this feature.` The GitHub connector also cannot modify repository admin/security settings. **Do not change repository visibility to work around this.**
+**Repository:** `neosmith20/Septuvo` — **public** personal-account repository since 2026-10-14 (owner decision [D-022](../DECISIONS.md)).
+**Last verified:** 2026-10-14 (UTC), read back through the GitHub API. Re-verify after any settings change; this page records state, it does not enforce it.
 
-## Activation order (important)
+## Active controls on `main`
 
-1. Keep the repository **private**. If the account becomes eligible for private repository rulesets (e.g. GitHub Pro), open **Settings → Rules → Rulesets → New ruleset → New branch ruleset**.
-2. Merge the reviewed security-workflow PR through the normal existing process before making `repository-integrity` a required status check. Confirm that the `Repository Integrity / repository-integrity` job has **actually completed successfully** on the repository.
-3. Create a branch ruleset with **Ruleset name:** `Septuvo — protect main`, **Enforcement:** `Active`, **Target branches:** `main` (exact branch; not `*`), **Bypass list:** empty by default.
-4. Select **Restrict deletions**, **Block force pushes**, **Require linear history**, and **Require a pull request before merging**.
-5. Configure pull requests for **0 required approving reviews for now** (solo owner cannot approve own PR), **Require conversation resolution: ON**, **Require code owner review: OFF**, **Require approval of most recent push: OFF**. Add a one-review requirement **only after another trusted collaborator with write access can approve**.
-6. Enable **Require status checks to pass**, select the **existing** status check `repository-integrity` from the actual successful GitHub Actions job, and enable **Require branch to be up to date** (strict). Do not type a guessed check name or mandate a nonexistent job.
-7. Save the ruleset, verify enforcement is **Active**, and confirm `main` rejects a direct push, deletion and force-push (use UI/permissions or an appropriate controlled test; do not attempt destructive tests on the live branch).
-8. Ensure repository merge methods are compatible with linear history: **allow Squash merge** (recommended) and optionally Rebase; **disable Merge commits** if desired. Those are separate settings under **Settings → General → Pull Requests**. This is an owner-only UI action; not performed here.
+Ruleset **`Septuvo — protect main`** (source: [MAIN_RULESET.json](MAIN_RULESET.json)) — enforcement **Active**, target `refs/heads/main`, **bypass list empty** (nobody, including the owner, can bypass it).
 
-A prospective API body is at [MAIN_RULESET.json](MAIN_RULESET.json). It is a **prepared template, not an applied GitHub rule**. It can be reviewed and submitted with admin-authorized GitHub API access once eligible; do not assume uploading the JSON to the repository activates it. Explicitly confirm ruleset permissions and the latest API schema first.
+| Rule | Effect |
+| --- | --- |
+| Require a pull request before merging | No direct pushes to `main`. 0 required approvals (a solo owner cannot approve their own PR); conversation resolution required; stale reviews dismissed on push |
+| Required status check `repository-integrity` | The [Repository Integrity](../../.github/workflows/repository-integrity.yml) workflow must pass, and the branch must be up to date with `main` (strict) |
+| Restrict deletions | `main` cannot be deleted |
+| Block force pushes | History on `main` cannot be rewritten |
+| Require linear history | Merge with **Squash and merge** (or rebase); merge commits are rejected |
 
-**Rationale:** Enforced PR flow and CI without accidental solo-maintainer lockout. Do not add required signed commits until each agent/CI identity has a working signing workflow and a verified test merge. Do not require a second reviewer until such a reviewer exists. Keep emergency changes via reviewed PRs; avoid broad “admin bypass” roles by default.
+Confirmed in practice: owner ledger change [PR #6](https://github.com/neosmith20/Septuvo/pull/6) went through a pull request, passed `repository-integrity` and was squash-merged.
 
-## Security & analysis (manual UI review)
+The ruleset also carries GitHub's default `require_extra_approval_for_unattributed_changes: true`. Its effect with 0 required approvals has not been observed yet; if a PR unexpectedly asks for an approval, review this setting first.
 
-Go to **Settings → Advanced Security** (GitHub may group this under Security and quality), review feature availability for this private *user-owned* repository:
+## Security features
 
-| Feature | Recommendation | Scope / caveat |
+| Feature | State (verified 2026-10-14) | Notes |
 | --- | --- | --- |
-| Dependabot alerts | **Enable** | Available for private repositories; requires settings toggle; not switched on by adding a YAML file |
-| Dependabot security updates | **Enable**, if offered | Separate security-update setting; generates PRs for vulnerable dependencies |
-| Dependabot version updates | **Prepared** by `.github/dependabot.yml` | Starts from default branch once merged; covers GitHub Actions now and Cargo once manifests exist |
-| GitHub Actions | **Enable** and allow only needed actions | Current workflow needs pinned `actions/checkout`; no broad write permission or secrets |
-| Actions workflow token | **Read-only by default** | Settings → Actions → General → Workflow permissions; minimize privileges |
-| Secret scanning / push protection | **Enable if eligible** | Free features differ for private *personal* repositories; do not claim active unless shown as active |
-| CodeQL/GitHub Code Security | **Only if eligible/licensed** | Private personal-repo access may not be available; do not enable a paid feature or claim code scanning without verification |
-| Private vulnerability reporting | Not a substitute for a private reporting channel today | Feature is generally designed for public repositories; maintain [SECURITY.md](../../SECURITY.md) and agree on a secure channel before launch |
-| Branch and release permissions | Keep owner/admin access narrow | Review installed GitHub Apps/SSH keys/agents; revoke unused access |
-| Account protection | **Enable 2FA/passkey** | Keep recovery codes secure; audit PATs, deploy keys and active sessions |
+| Secret scanning | **Enabled** | Scans history and new pushes for known credential formats |
+| Push protection | **Enabled** | Blocks pushes that contain detected secrets |
+| Dependabot security updates | **Enabled** | Opens PRs for vulnerable dependencies (requires Dependabot alerts, so alerts are on) |
+| Private vulnerability reporting | **Enabled** | Reporting path for [SECURITY.md](../../SECURITY.md): Security tab → *Report a vulnerability* |
+| Dependabot version updates | Configured by [`.github/dependabot.yml`](../../.github/dependabot.yml) | GitHub Actions now; Cargo once a `Cargo.toml` exists (M3) |
+| Non-provider secret patterns, validity checks | Disabled | Optional; not required at this stage |
+| GitHub Actions permissions / workflow token default | **Not verified** | The agent connection cannot read Actions settings. The integrity workflow itself requests only `contents: read` and pins `actions/checkout` to a full commit SHA |
+| CodeQL / code scanning | Not enabled | Revisit when Rust code exists (M3) |
 
-## Verify settings and state
+Alert lists (Security tab) are not readable through the agent connection; the owner reviews them in the GitHub UI.
 
-After enabling any control, return to Settings and confirm its effective state. Check PR workflow results from the **Actions** tab, and test a disposable PR against `main` to confirm required checks and approval settings behave as expected. Document date, operator and screenshots or settings export privately.
+## Who can change what
 
-**Do not** enable all five security gates in [ROADMAP.md](../ROADMAP.md) simply because GitHub controls are activated. Those gates concern the VPN product, not GitHub settings. There is no implemented cryptographic protocol or released application yet.
+- **Agents** (Claude, ChatGPT/Codex or others) work through the owner's GitHub account under [D-023](../DECISIONS.md). They may push task branches and open pull requests. They do **not** merge, push to `main`, edit [STATUS.md](../STATUS.md), or change repository settings, rulesets or visibility. The ruleset makes direct pushes to `main` impossible for everyone; the remaining limits are procedural because GitHub cannot tell agent actions from owner actions on one account.
+- **Owner** reviews each PR's files and check result, then merges. Owner alone records approvals in STATUS.md (through a PR, as with PR #6).
+- Commits made by Claude carry `Claude` as the git author, so they can be told apart in history.
 
-## Future hardened settings once the team grows
+## Public repository rules
 
-- Require **1 or 2 independent reviews**, dismiss stale approvals, and restrict bypass to narrowly justified emergency maintainers.
-- Enable required signed commits only after automation signing is verified.
-- Add Rust fmt/clippy/test/audit/dependency/license checks during M3, **then** mark observed stable check names required.
-- Consider secret scanning, CodeQL and artifact attestation according to actual plan/eligibility.
-- Protect release tags and publish signed artifacts only after release process and gate G3 approval.
+- Never commit secrets, private keys, tokens, real network details or user data. Push protection is a backstop, not a substitute.
+- The Septuvo name and brand kit are now publicly visible, while trademark and domain clearance is still open ([D-016](../DECISIONS.md)). Do not add ™/® symbols or claim rights until cleared.
+- Public visibility does not change any engineering gate: the repository still contains no VPN implementation, no audited protocol and no supported release.
+
+## If something goes wrong
+
+- **Locked out of merging** (for example the check workflow breaks): the owner can set the ruleset to *Disabled* under **Settings → Rules → Rulesets**, fix the problem through a PR, and set it back to *Active*. Record what happened.
+- **A secret is committed or reported:** rotate/revoke the secret first, then remove it; treat it as exposed even if removed from history.
+
+## Optional tidy-ups and future hardening
+
+- **Settings → General → Pull Requests:** untick *Allow merge commits* so only Squash/Rebase are offered (merge commits are already rejected by the ruleset).
+- Add Rust fmt/clippy/test/audit/dependency/license checks during M3, then make the observed check names required.
+- Require 1 approving review only once a second trusted reviewer with write access exists; consider a separate agent account at that point or before G3.
+- Require signed commits only after every agent/CI identity has a verified signing workflow.
+- Protect release tags and publish signed artifacts only after the release process and gate G3 approval.
+- Keep 2FA/passkeys on the owner account; periodically review installed GitHub Apps, tokens, deploy keys and sessions.
+
+**Do not** treat these GitHub controls as passing any product gate (G0–G4) in [ROADMAP.md](../ROADMAP.md). The gates concern the VPN product, not repository settings.
