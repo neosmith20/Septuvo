@@ -59,7 +59,13 @@ errors = []
 
 def ledger_rows(text):
     """Yield (kind, id, state, date, approval, evidence) for every ledger table row."""
+    in_fence = False
     for line in text.splitlines():
+        if FENCE.match(line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
         if not line.startswith("| "):
             continue
         cells = [c.strip() for c in line.strip().strip("|").split("|")]

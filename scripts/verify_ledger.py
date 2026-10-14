@@ -26,6 +26,7 @@ from urllib.parse import urlparse, urlunparse
 ROOT = Path(__file__).resolve().parents[1]
 REPO = os.environ.get("GITHUB_REPOSITORY", "neosmith20/Septuvo")
 API = "https://api.github.com"
+FENCE = re.compile(r"^\s*(```|~~~)")
 PERMALINK = re.compile(
     r"https://github\.com/(?P<repo>[^/\s()]+/[^/\s()]+)/(?:issues|pull)/(?P<num>\d+)#issuecomment-(?P<cid>\d+)"
 )
@@ -85,7 +86,13 @@ def api_get(path):
 
 
 def ledger_rows(text):
+    in_fence = False
     for line in text.splitlines():
+        if FENCE.match(line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
         if not line.startswith("| "):
             continue
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
