@@ -29,7 +29,7 @@ Use dates in `YYYY-MM-DD` UTC and permalinks. A blank approval reference means *
 
 | Task ID | State | Predecessor | Owner decision date (UTC) | Work-order approval | Completion evidence |
 | --- | --- | --- | --- | --- | --- |
-| M0-01 | NOT STARTED | — | — | — | — |
+| M0-01 | READY | — | 2026-10-14 | [Approval on issue #9](https://github.com/neosmith20/Septuvo/issues/9) | — |
 | M0-02 | NOT STARTED | M0-01 | — | — | — |
 | M0-03 | NOT STARTED | M0-02 | — | — | — |
 | M1-01 | NOT STARTED | M0-03 | — | — | — |
