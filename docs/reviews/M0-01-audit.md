@@ -120,7 +120,7 @@ The same agent that performed this audit wrote parts of the audited material ear
 - **Evidence:** the rule requires "rationale, rejected alternatives, consequences and owner authorization" for each decision, but D-001…D-020 carry no dates, approver or rejected alternatives, and use 12 distinct state labels: Owner confirmed, Owner confirmed (working copy), Direction agreed, Goal, Candidate (three variants), BLOCKED, Proposed sequencing, Policy direction, OPEN, Unmeasured aspiration, Product requirement. Only D-021…D-023 are dated.
 - **Why it matters:** it is unclear which entries the owner actually approved ("Direction agreed" — by whom, when?). G0 requires reviewed decisions.
 - **Proposed correction:** define a short state vocabulary (for example: Owner decided / Candidate / Open / Blocked) with a date and approval reference for every "Owner decided" row. Most naturally done in **M0-02**, which already owns `docs/DECISIONS.md`, rather than in M0-01.1.
-- **Status:** DEFERRED to M0-02 (owner decision, 2026-10-14).
+- **Status:** RESOLVED (M0-02) — four labels (Owner decided / Candidate / Open / Blocked) applied to every decision row, with dates and links; see [M0-02-owner-decisions.md](M0-02-owner-decisions.md).
 
 ### A-07 — Requirement and test text names candidate primitives (Low)
 
