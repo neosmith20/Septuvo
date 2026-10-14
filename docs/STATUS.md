@@ -83,11 +83,13 @@ M0-01.1 is a conditional correction task: if M0-01 finds defects, the owner auth
 
 ## Owner-directed hygiene, branding and administration
 
-Use separate `H-001`, `H-002` etc. IDs for work outside the 43 base tasks; they never change the base task order or approve a gate. Owner must record a separately approved scope and completion evidence. The current documentation audit remediation is proposed as H-001; the owner has not yet entered acceptance.
+Use separate `H-001`, `H-002` etc. IDs for work outside the 43 base tasks; they never change the base task order or approve a gate. Owner must record a separately approved scope and completion evidence. H-001 and H-003 were accepted retroactively on 2026-10-14 (no written work order existed beforehand).
 
 | ID | State | Owner decision date (UTC) | Work-order approval | Completion evidence |
 | --- | --- | --- | --- | --- |
-| H-001 | NOT STARTED | — | — | Proposed documentation workflow fixes |
+| H-001 | ACCEPTED | 2026-10-14 | Retroactive owner acceptance 2026-10-14 (no prior written work order) | Documentation workflow fixes: [PR #4](https://github.com/neosmith20/Septuvo/pull/4) |
+| H-002 | ACCEPTED | 2026-10-14 | Owner instruction 2026-10-14: record D-021 option C; fix catalog predecessors and work-order status line; align color-board type sizes | [PR #5](https://github.com/neosmith20/Septuvo/pull/5) |
+| H-003 | ACCEPTED | 2026-10-14 | Retroactive owner acceptance 2026-10-14 (owner reviewed and committed the files) | Brand kit corrections: guidelines PDF, brand README, root .gitignore ([c3195eb](https://github.com/neosmith20/Septuvo/commit/c3195eb)); color board colors ([160fbde](https://github.com/neosmith20/Septuvo/commit/160fbde)) |
 
 ## Allowed task states
 
