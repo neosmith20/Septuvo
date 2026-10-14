@@ -6,7 +6,7 @@ For **Codex, Claude Code, Dex or any other agent**. Copy this template for **eve
 
 - **Task ID / milestone**: M?-?? / M?-??.? / H-??? (registered in STATUS.md)
 - **Predecessor task accepted? Evidence link**:
-- **Status**: NOT STARTED / READY / IN PROGRESS / BLOCKED / IN REVIEW / ACCEPTED / REJECTED / REWORK
+- **Status** (choose one): `NOT STARTED` | `READY` | `IN PROGRESS` | `BLOCKED` | `IN REVIEW` | `ACCEPTED` | `REJECTED / REWORK`
 - **Exact owner approval, dated permalink and ledger entry in STATUS.md**:
 - **Required gate**: G? (evidence/link; or “not applicable — documentation-only”)
 - **Objective (one sentence)**:

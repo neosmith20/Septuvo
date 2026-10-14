@@ -130,8 +130,8 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 
 - **Entry / prerequisites:** M2-03 accepted; internal draft reviewed; external G1 still pending.
 - **Approved output locations:** `docs/protocol/test-vectors.md`, `docs/protocol/conformance-plan.md`.
-- **Exact work:** Documentation only: propose wire-fixture formats, negative cases, state/replay scenarios, future property-test requirements and independent implementation conformance methodology. **Do not compute test vectors or write crypto/protocol generators, property-test code, or live-network code before G1.** D-021 is OPEN; request owner choice rather than generating executable evidence.
-- **Acceptance evidence:** Every P-01..P-14 item maps to a section or explicitly OPEN finding. Computed vectors are NOT RUN/BLOCKED pending owner D-021 choice and G1 reviewer acceptance of proposed evidence plan; no live-network code.
+- **Exact work:** Documentation only: propose wire-fixture formats, negative cases, state/replay scenarios, future property-test requirements and independent implementation conformance methodology. **Do not compute test vectors or write crypto/protocol generators, property-test code, or live-network code before G1.** Per D-021 (owner decision: option C), computed vectors are deferred until after G1.
+- **Acceptance evidence:** Every P-01..P-14 item maps to a section or explicitly OPEN finding. Computed vectors are recorded as NOT RUN (deferred to after G1 by D-021 option C); the plan states how they will be produced and checked after G1 and is submitted for G1 reviewer acceptance; no live-network code.
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M2-05 automatically.
 
 ### M2-05 — Obtain external protocol assessment and G1 decision
@@ -147,7 +147,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 
 ### M3-01 — Create minimal Rust workspace and quality baseline
 
-- **Entry / prerequisites:** G1 passed; owner approves source skeleton.
+- **Entry / prerequisites:** M2-05 accepted; G1 passed; owner approves source skeleton.
 - **Approved output locations:** `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, `crates/`, `.github/workflows/`, `docs/build/`.
 - **Exact work:** Propose and approve exact crate boundaries; add minimal compilable Rust skeleton, license metadata, pinned compiler policy, fmt/clippy/test CI, dependency/license/secret scanning as approved.
 - **Acceptance evidence:** Clean bootstrap on supported Linux CI; fmt/clippy/tests actually run; no transports, handshakes, VPN drivers or unnecessary crates.
@@ -338,7 +338,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 
 ### M8-01 — Commission independent security audit
 
-- **Entry / prerequisites:** Lab and product evidence ready; owner approves external engagement.
+- **Entry / prerequisites:** M7-05 accepted; lab and product evidence ready; owner approves external engagement.
 - **Approved output locations:** `docs/reviews/G3-audit-scope.md`, `confidential reviewer report reference`.
 - **Exact work:** Supply exact protocol and implementation revision, build reproducibility and test corpus to qualified independent reviewers; include OS policy, update chain, crypto and privileged boundaries.
 - **Acceptance evidence:** Auditor identity/scope/date/commit identified; findings classified; no agent-generated report represented as independent audit.

@@ -52,7 +52,7 @@ The project intends to develop an original VPN wire protocol and a Rust-native c
 5. [Roadmap](docs/ROADMAP.md) — order and G0–G4 gates.
 6. [Architecture](docs/ARCHITECTURE.md) and [security model](docs/SECURITY_MODEL.md) — technical requirements.
 7. [Protocol review checklist](docs/PROTOCOL_REVIEW_CHECKLIST.md) and [test matrix](docs/TEST_MATRIX.md).
-8. [Decision register](docs/DECISIONS.md), including **OPEN** D-021.
+8. [Decision register](docs/DECISIONS.md), including D-021 (pre-G1 test vectors deferred until after G1).
 9. [Canonical work order / handoff](docs/WORK_ORDER_TEMPLATE.md) and [traceability](docs/TRACEABILITY.md).
 10. [Security policy](SECURITY.md) and [GitHub security setup](docs/security/GITHUB_SECURITY_SETUP.md).
 11. [Brand kit](brand/README.md) and [brand guidelines](brand/Septuvo_Brand_Guidelines.pdf).
