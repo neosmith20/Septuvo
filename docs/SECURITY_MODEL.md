@@ -2,6 +2,8 @@
 
 **Draft pending external specialist review.** It is NOT an independent audit or a complete cryptographic security proof.
 
+The detailed version 1 threat model — trust boundaries, assets, adversaries, assumptions, the mapping of S-01…S-13 to adversaries, newly exposed risks and non-goals — is in [spec/threats.md](spec/threats.md) (M1-01). This file keeps the baseline lists (D-028) and the requirements.
+
 ## Assets
 
 - Device long-term identity private keys, ephemeral session secrets, symmetric traffic keys, enrollment invitations.
@@ -17,6 +19,9 @@
 - Compromised management credential/control-plane node; malicious tenant in shared provider infrastructure.
 - Attacker storing encrypted traffic for later quantum cryptanalysis.
 - Untrusted dependency/update artifacts and privileged local application abuse.
+- Malicious or compromised **enrolled** device trying to reach destinations it is not authorized for (added in M1-01).
+- Party controlling the server's host, such as a VPS provider: sees exit traffic after decryption; the server is a trusted endpoint, so this is disclosed rather than defended against (added in M1-01).
+- Unprivileged local process on the device trying to use the privileged Septuvo service (added in M1-01).
 
 ## Out of scope as blanket guarantees
 
