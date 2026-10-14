@@ -2,7 +2,7 @@
 
 **Planning blueprint, not an authorization to code.** Read [AGENT_OPERATIONS.md](AGENT_OPERATIONS.md), [AGENTS.md](../AGENTS.md), [ROADMAP.md](ROADMAP.md), [SECURITY_MODEL.md](SECURITY_MODEL.md) and the [work-order template](WORK_ORDER_TEMPLATE.md) before using any task card.
 
-**Rules applying to every card:** Consult the owner-edited [STATUS.md](STATUS.md). The owner must authorize exactly one card's work order. The immediately preceding task must be owner-accepted (unless the card explicitly describes a gate-only decision). Named output paths are intended deliverables, **not an unrestricted permission to create files**. If they need changing, get a written scope update. The current gate must have recorded evidence. Commit only scoped files on a task branch, attach test logs, request review and **STOP**. Never infer that describing a later milestone authorizes starting it.
+**Rules applying to every card:** Consult [STATUS.md](STATUS.md), the mirror of owner decision comments (D-025). The owner must authorize exactly one card's work order. The immediately preceding task must be owner-accepted (unless the card explicitly describes a gate-only decision). Named output paths are intended deliverables, **not an unrestricted permission to create files**. If they need changing, get a written scope update. The current gate must have recorded evidence. Commit only scoped files on a task branch, attach test logs, request review and **STOP**. Never infer that describing a later milestone authorizes starting it.
 
 ## Fixed task order
 
@@ -28,7 +28,7 @@
 
 ## Standard per-task completion evidence
 
-Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff form. Every task remains IN REVIEW until owner acceptance in STATUS.md. Base cards, dotted subtasks and H maintenance IDs each require separately approved work orders.
+Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff form. Every task remains IN REVIEW until the owner comments `ACCEPTED <ID>` (mirrored in STATUS.md). Base cards, dotted subtasks and H maintenance IDs each require separately approved work orders.
 
 ## M0 — Repository baseline and owner approval
 
