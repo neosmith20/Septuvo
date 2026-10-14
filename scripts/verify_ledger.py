@@ -23,7 +23,10 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
-ROOT = Path(__file__).resolve().parents[1]
+# The tree to check. CI runs these scripts from the trusted base branch and
+# points SEPTUVO_ROOT at the pull request's files (H-008), so a pull request
+# cannot weaken the checks that judge it.
+ROOT = Path(os.environ.get("SEPTUVO_ROOT") or Path(__file__).resolve().parents[1]).resolve()
 REPO = os.environ.get("GITHUB_REPOSITORY", "neosmith20/Septuvo")
 API = "https://api.github.com"
 FENCE = re.compile(r"^\s*(```|~~~)")
