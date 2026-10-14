@@ -41,7 +41,7 @@ Only the owner can pass a gate or accept a task, by a `GATE <Gn> PASSED` or `ACC
 
 ## Deterministic dispatch algorithm
 
-Read the [STATUS.md](STATUS.md) mirror and verify the owner's decision comments on GitHub. Select the **first base task NOT ACCEPTED** whose predecessor **IS ACCEPTED** (M0-01 has no predecessor). If an earlier task is blocked, under review or rejected, **do not skip it**. The ledger records owner decisions only (READY, ACCEPTED, REJECTED / REWORK and gate states); IN PROGRESS and IN REVIEW are detected from open branches and pull requests for the task ID.
+Read the [STATUS.md](STATUS.md) mirror and verify the owner's decision comments on GitHub. Select the **first base task NOT ACCEPTED** whose predecessor **IS ACCEPTED** (M0-01 has no predecessor). Inside an approved milestone work order, the next task of that milestone becomes eligible when the previous one is complete (D-030). After G0, track N1 may run in parallel with the base track under the same rules. If an earlier task is blocked, under review or rejected, **do not skip it**. The ledger records owner decisions only (READY, ACCEPTED, REJECTED / REWORK and gate states); IN PROGRESS and IN REVIEW are detected from open branches and pull requests for the task ID.
 
 ~~~text
 read live Git state, task catalog, STATUS.md and all approval evidence
@@ -52,11 +52,11 @@ if IN REVIEW: wait for owner; STOP
 if BLOCKED: report the same blocker, STOP (do not select next task)
 if REJECTED / REWORK: request renewed scope and rework only this task; STOP
 if IN PROGRESS: reconcile actual branch/PR and resume only authorized work
-if predecessor is not ACCEPTED (except M0-01): STOP
+if predecessor is not ACCEPTED (except M0-01, or inside the same approved milestone): STOP
 if required dotted subtasks are not accepted/waived by owner: STOP
 if M0-02 and M0-01 identified defects, require accepted M0-01.1
 if required gate is not PASSED: STOP
-if no owner `APPROVED WORK ORDER <ID>` comment exists for the exact work order: draft only; STOP
+if no owner `APPROVED WORK ORDER <ID>` comment exists for the task or its milestone: draft only; STOP
 implement exactly one approved task on its approved branch
 run tests, submit PR with PASS/FAIL/NOT RUN evidence; STOP
 ~~~
@@ -65,9 +65,11 @@ run tests, submit PR with PASS/FAIL/NOT RUN evidence; STOP
 
 - Base engineering tasks: `M0-01` ... `M9-05`, exactly **43** ordered IDs from TASK_CATALOG.md.
 - Separately owner-approved subtasks: `M0-01.1`, `M7-01.1`, `M8-02.1`, `M9-02.1`, etc. Parent is not accepted until required subtasks are accepted or explicitly waived by owner.
+- Track N1 (parallel, after G0, before G1): `N1-01` … `N1-04` (D-029, D-030).
+- Milestone work orders: `M1`, `M2`, `N1` … one approval covers every task in that milestone's work order (D-030).
 - Owner-directed work outside roadmap: `H-001`, `H-002`, etc. for hygiene, repository administration or brand. Never imply a gate or parent task passed.
 - Every class requires an owner `APPROVED WORK ORDER <ID>` comment on its own work-order issue; never auto-dispatch subtasks or H tasks.
-- Use **one ID per work order and PR**. The only handoff format is [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md).
+- **One ID per work order** (a task, a milestone or an H task). A pull request may implement several tasks of one approved milestone and may carry proposed work-order files for later tasks (D-030). The only handoff format is [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md).
 
 ## Standard change workflow
 
@@ -101,7 +103,7 @@ Additional cargo audit, deny, fuzz and platform tests are task-specific and must
 ## Stage and release boundaries
 
 - **Before G0:** documentation inspection, owner-approved documentation corrections and decisions (M0 tasks and H tasks) and proposals only; no code.
-- **After G0, before G1:** requirements, threat model, specification drafts and vetted dependency research only. **No actual security protocol implementation.**
+- **After G0, before G1:** requirements, threat model, specification drafts and vetted dependency research, plus track N1 non-crypto lab work (D-029). **No actual security protocol implementation.**
 - **After G1:** reviewed implementation in isolated lab per approved work orders; never an internet-facing public deployment by default.
 - **After G2:** controlled follow-on packaging/onboarding work; **no external pilot is authorized** by G2 alone. Any externally reachable pilot requires a separately authorized work order and risk review; not a production-security claim.
 - **After G3:** production release only for audited, documented and tested platforms.

@@ -4,7 +4,7 @@ For **Codex, Claude Code, Dex or any other agent**. Copy this template for **eve
 
 ## Work order
 
-- **Task ID / milestone**: M?-?? / M?-??.? / H-??? (registered in STATUS.md)
+- **Task ID / milestone**: M?-?? / M?-??.? / N1-?? / H-??? / a whole milestone such as M1 or N1 (registered in STATUS.md; D-030)
 - **Predecessor task accepted? Evidence link**:
 - **Status** (choose one): `NOT STARTED` | `READY` | `IN PROGRESS` | `BLOCKED` | `IN REVIEW` | `ACCEPTED` | `REJECTED / REWORK`
 - **Owner approval: permalink of the owner's `APPROVED WORK ORDER <ID>` comment, its UTC date, and the STATUS.md ledger entry**:

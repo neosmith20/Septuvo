@@ -1,6 +1,6 @@
 # Septuvo — owner-controlled engineering roadmap
 
-**Status: initial blueprint. Not an authorization to code or a schedule.** Follow [AGENTS.md](../AGENTS.md), [AGENT_OPERATIONS.md](AGENT_OPERATIONS.md), [TASK_CATALOG.md](TASK_CATALOG.md), [TRACEABILITY.md](TRACEABILITY.md) and the [work-order template](WORK_ORDER_TEMPLATE.md). This file defines stages; the task catalog defines **exact per-task inputs, outputs and verification**. If any documents conflict, stop and record the ambiguity—do not choose independently. Milestones advance **in the order below**, with exactly one narrowly scoped task per agent checkpoint. Owner must explicitly approve every new gate and work order. An agent must never continue to the next milestone because time remains.
+**Status: initial blueprint. Not an authorization to code or a schedule.** Follow [AGENTS.md](../AGENTS.md), [AGENT_OPERATIONS.md](AGENT_OPERATIONS.md), [TASK_CATALOG.md](TASK_CATALOG.md), [TRACEABILITY.md](TRACEABILITY.md) and the [work-order template](WORK_ORDER_TEMPLATE.md). This file defines stages; the task catalog defines **exact per-task inputs, outputs and verification**. If any documents conflict, stop and record the ambiguity—do not choose independently. Milestones advance **in the order below**, except that track N1 runs in parallel after G0 (D-029). Under the lean process (D-030) the owner may approve a whole milestone with one comment; agents still finish one task at a time and stop at the end of each approved work order. Owner must explicitly approve every gate and work order. An agent must never continue to the next milestone because time remains.
 
 ## Gate summary
 
@@ -13,6 +13,23 @@
 | G4 | Provider isolation, availability, measured capacity and operational controls | [STATUS.md](STATUS.md) |
 
 Only an owner `GATE <Gn> PASSED` comment, mirrored in the ledger (D-025), can pass a gate. All gates are initially PENDING.
+
+## Lean execution (D-030)
+
+- **One approval per milestone.** `APPROVED WORK ORDER M1` approves every task in the M1 work order and `ACCEPTED M1` accepts them all. Single task IDs still work.
+- **Work orders as files.** A work order may be a file under `docs/work-orders/` in a pull request. The approved revision is that file at the pull request's head commit when the owner's approval comment is posted. One pull request may carry several proposed work orders.
+- **Batched pull requests.** Inside an approved milestone, an agent may deliver several tasks in one pull request (one commit per task), still finishing them one at a time and in order.
+- **Two tracks after G0.** Track S: M1 requirements, then the M2 SVP specification. Track N1: the non-crypto Rust foundation below. Each track needs its own milestone approval.
+- **Unchanged:** no cryptographic or protocol implementation before G1 and a qualified outside review; every gate needs an owner `GATE` comment; every change goes through a pull request that the owner merges.
+
+## N1 — non-crypto Rust foundation (parallel track, after G0, before G1; lab only)
+
+- **N1-01:** Rust workspace skeleton, pinned toolchain and CI (format, lint, tests); no cryptography crates.
+- **N1-02:** Route and LAN-exception policy model as pure, table-tested logic (IPv4/IPv6, overlapping prefixes, fail-closed default); no operating-system changes.
+- **N1-03:** Linux lab harness in disposable network namespaces: apply and roll back route/firewall/DNS kill-switch policy and prove protected traffic is blocked when no VPN path exists. No tunnel and no traffic carrying.
+- **N1-04:** CLI scaffolding and the four-stage connection-status model (adapter, authenticated peer, reachability, DNS — D-020), without networking.
+
+**Acceptance:** builds and tests pass in CI and in the lab; nothing in N1 implements SVP, encryption, key handling or a data tunnel. N1 output feeds M5-01 and M5-02 later.
 
 ## M0 — repository baseline and owner sign-off (FIRST)
 
@@ -111,6 +128,6 @@ Only an owner `GATE <Gn> PASSED` comment, mirrored in the ledger (D-025), can pa
 
 ## Execution sequence and discipline
 
-**One owner-approved agent work order at a time, regardless of agent or tool.** Use the 43-card [TASK_CATALOG.md](TASK_CATALOG.md); each task must name files, expected behavior, non-goals, test commands, known risks, rollback and its exact stop point. Branch + PR for every change, code or documentation; owner reviews before merge and explicitly selects the next item. Re-check prior task state at each handoff. Agents must never infer completion from a timeout, create their own security decisions, publish an experimental VPN publicly, or skip to a “fun” feature.
+**One owner-approved agent work order at a time per track, regardless of agent or tool.** Use the 43-card [TASK_CATALOG.md](TASK_CATALOG.md); each task must name files, expected behavior, non-goals, test commands, known risks, rollback and its exact stop point. Branch + PR for every change, code or documentation; owner reviews before merge and explicitly selects the next item. Re-check prior task state at each handoff. Agents must never infer completion from a timeout, create their own security decisions, publish an experimental VPN publicly, or skip to a “fun” feature.
 
-**Current next action:** inspect [STATUS.md](STATUS.md) (mirror of owner decisions), then M0-01 audit → M0-01.1 corrections if findings exist → M0-02 decisions → M0-03 G0 evidence, each separately owner-approved and accepted. Only then may the owner record G0 passage. **No cryptographic/protocol implementation before G1.**
+**Current next action:** inspect [STATUS.md](STATUS.md) (mirror of owner decisions). M0-01, M0-01.1 and M0-02 are complete; next is M0-03 (G0 evidence) → owner `GATE G0 PASSED` → track S (M1, then the M2 SVP specification) and track N1 in parallel → reviewer search and M2-05 → G1. **No cryptographic/protocol implementation before G1.**

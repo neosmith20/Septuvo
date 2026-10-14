@@ -7,9 +7,9 @@
 ## Work-order and task approval procedure
 
 1. Agent drafts [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) for one exact task/scope and stops.
-2. Owner comments `APPROVED WORK ORDER <ID>` on the GitHub issue or PR that contains the work order. The approved revision is the issue/PR description as it stood when the approval comment was posted. A PR, merge or CI pass alone is not approval.
+2. Owner comments `APPROVED WORK ORDER <ID>` on the GitHub issue or PR that contains the work order. The approved revision is the issue/PR description as it stood when the approval comment was posted. A PR, merge or CI pass alone is not approval. A work order may cover a whole milestone (`APPROVED WORK ORDER M1`), or be a file under `docs/work-orders/` in a pull request, in which case the approved revision is that file at the pull request's head commit when the comment was posted (D-030).
 3. Agent verifies the owner's comment on GitHub (author is the owner, exact text), the predecessor, task scope and gate before proceeding; its pull request mirrors the approval below (READY, UTC date, permalink). Changes to scope require a fresh explicit owner approval comment.
-4. Agent submits completion evidence/PR and stops. After review the owner comments `ACCEPTED <ID>` (or `REJECTED <ID>`) on the pull request; the next agent pull request mirrors it with the evidence. A merge alone is not acceptance.
+4. Agent submits completion evidence/PR and stops. After review the owner comments `ACCEPTED <ID>` (or `REJECTED <ID>`) on the pull request, where `<ID>` may be a milestone such as `M1`; the next agent pull request mirrors it with the evidence. A merge alone is not acceptance.
 5. Owner alone passes or fails a gate, by commenting `GATE <Gn> PASSED` (or `FAILED`) on the gate-evidence pull request after reviewing the exact evidence and any required independent reviewer report. G1 and G3 still require independent review; no agent may self-approve.
 6. The owner may also edit this file directly through a pull request; agents must never record a decision that has no matching owner comment.
 
@@ -72,6 +72,15 @@ Use dates in `YYYY-MM-DD` UTC and permalinks. A blank approval reference means *
 | M9-03 | NOT STARTED | M9-02 | — | — | — |
 | M9-04 | NOT STARTED | M9-03 | — | — | — |
 | M9-05 | NOT STARTED | M9-04 | — | — | — |
+
+## Track N1 (non-crypto, after G0, before G1)
+
+| Task ID | State | Predecessor | Owner decision date (UTC) | Work-order approval | Completion evidence |
+| --- | --- | --- | --- | --- | --- |
+| N1-01 | NOT STARTED | — | — | — | — |
+| N1-02 | NOT STARTED | N1-01 | — | — | — |
+| N1-03 | NOT STARTED | N1-02 | — | — | — |
+| N1-04 | NOT STARTED | N1-03 | — | — | — |
 
 ## Dotted subtasks (owner authorized separately)
 

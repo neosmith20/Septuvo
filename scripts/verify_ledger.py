@@ -4,7 +4,8 @@
 For each ledger row that records an owner decision, fetch the linked GitHub
 comment and require that it was written by the repository owner, sits on the
 linked issue or pull request, and reads exactly the expected decision text
-(for example `APPROVED WORK ORDER M0-02`), on the UTC date recorded in the row.
+(for example `APPROVED WORK ORDER M0-02`, or the milestone form
+`APPROVED WORK ORDER M0` allowed by D-030), on the UTC date recorded in the row.
 
 Standard library only. Needs network access to api.github.com and uses
 GITHUB_TOKEN when set. Exit codes: 0 verified, 1 mismatch found,
@@ -31,6 +32,19 @@ NEEDS_APPROVAL = {"READY", "IN PROGRESS", "IN REVIEW", "ACCEPTED", "REJECTED / R
 # Rows recorded by the owner directly before D-025 (2026-10-14).
 LEGACY_APPROVAL = {"H-001", "H-002", "H-003", "H-004"}
 LEGACY_DECISION = LEGACY_APPROVAL | {"M0-01", "M0-01.1"}
+
+
+def milestone_of(ident):
+    """M1-02 -> M1, M0-01.1 -> M0, N1-03 -> N1; H tasks have no milestone (D-030)."""
+    m = re.match(r"^((?:M|N)\d+)-\d+", ident)
+    return m.group(1) if m else None
+
+
+def decision_texts(word, ident):
+    texts = [f"{word} {ident}"]
+    if milestone_of(ident):
+        texts.append(f"{word} {milestone_of(ident)}")
+    return texts
 
 
 class Unverifiable(Exception):
@@ -67,7 +81,7 @@ def ledger_rows(text):
             yield "gate", ident, cells[1], cells[2], "", cells[3]
         elif re.fullmatch(r"M\d+-\d+\.\d+", ident) and len(cells) == 6:
             yield "task", ident, cells[2], cells[3], cells[4], cells[5]
-        elif re.fullmatch(r"M\d+-\d+", ident) and len(cells) == 6:
+        elif re.fullmatch(r"(?:M|N)\d+-\d+", ident) and len(cells) == 6:
             yield "task", ident, cells[1], cells[3], cells[4], cells[5]
         elif re.fullmatch(r"H-\d{3}", ident) and len(cells) == 5:
             yield "task", ident, cells[1], cells[2], cells[3], cells[4]
@@ -81,7 +95,7 @@ def main():
     owner = repo_info["owner"]["login"]
     errors, verified = [], 0
 
-    def verify(ident, cell, expected, date, purpose):
+    def verify(ident, cell, expected_texts, date, purpose):
         nonlocal verified
         links = PERMALINK.findall(cell)
         if not links:
@@ -96,14 +110,14 @@ def main():
                 continue
             ok_author = comment["user"]["login"] == owner and comment.get("author_association") == "OWNER"
             ok_place = comment["issue_url"].rstrip("/").endswith(f"/issues/{num}")
-            ok_text = comment["body"].strip() == expected
+            ok_text = comment["body"].strip() in expected_texts
             ok_date = date is None or comment["created_at"][:10] == date
             if ok_author and ok_place and ok_text and ok_date:
                 verified += 1
                 return
             problems = [name for name, ok in (("not written by the owner", ok_author),
                                               (f"not on #{num}", ok_place),
-                                              (f"text is not exactly {expected!r}", ok_text),
+                                              (f"text is not one of {expected_texts!r}", ok_text),
                                               (f"date differs from {date}", ok_date)) if not ok]
             errors.append(f"{ident}: {purpose} comment {cid}: " + "; ".join(problems))
             return
@@ -112,16 +126,16 @@ def main():
     for kind, ident, state, date, approval, evidence in ledger_rows(ledger):
         if kind == "gate":
             if state in {"PASSED", "FAILED"}:
-                verify(ident, evidence, f"GATE {ident} {state}", date, "gate decision")
+                verify(ident, evidence, [f"GATE {ident} {state}"], date, "gate decision")
             continue
         if state not in NEEDS_APPROVAL:
             continue
         decided = state in {"ACCEPTED", "REJECTED / REWORK"}
         if ident not in LEGACY_APPROVAL:
-            verify(ident, approval, f"APPROVED WORK ORDER {ident}", None if decided else date, "approval")
+            verify(ident, approval, decision_texts("APPROVED WORK ORDER", ident), None if decided else date, "approval")
         if decided and ident not in LEGACY_DECISION:
             word = "ACCEPTED" if state == "ACCEPTED" else "REJECTED"
-            verify(ident, evidence, f"{word} {ident}", date, "acceptance" if word == "ACCEPTED" else "rejection")
+            verify(ident, evidence, decision_texts(word, ident), date, "acceptance" if word == "ACCEPTED" else "rejection")
 
     if errors:
         for error in errors:

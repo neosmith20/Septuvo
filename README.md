@@ -57,7 +57,7 @@ The project intends to develop an original VPN wire protocol and a Rust-native c
 10. [Security policy](SECURITY.md) and [GitHub security setup](docs/security/GITHUB_SECURITY_SETUP.md).
 11. [Brand kit](brand/README.md) and [brand guidelines](brand/Septuvo_Brand_Guidelines.pdf).
 
-**Start with M0-01 documentation audit only after a scoped owner-approved work order.** All gates are pending; no agent is authorized to invent SVP cryptography or skip a review.
+**Current stage:** M0 is nearly complete. Next come G0, then the SVP specification and a non-crypto Rust foundation in parallel (see *Lean execution* in [ROADMAP.md](docs/ROADMAP.md)). All gates are pending; no agent is authorized to invent SVP cryptography or skip a review.
 
 ## Current availability
 
