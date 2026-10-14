@@ -21,6 +21,7 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = os.environ.get("GITHUB_REPOSITORY", "neosmith20/Septuvo")
@@ -51,8 +52,20 @@ class Unverifiable(Exception):
     pass
 
 
+def build_validated_url(base_url: str, path: str) -> str:
+    try:
+        if "/../" in path or re.search(r"/%2e%2e/", path, re.IGNORECASE):
+            raise ValueError("Invalid path")
+        parsed = urlparse(base_url)
+        parsed = parsed._replace(path=path)
+        return urlunparse(parsed)
+    except Exception:
+        raise ValueError("Invalid URL")
+
+
 def api_get(path):
-    request = urllib.request.Request(API + path, headers={
+    url = build_validated_url(API, path)
+    request = urllib.request.Request(url, headers={
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
         "User-Agent": "septuvo-verify-ledger",
