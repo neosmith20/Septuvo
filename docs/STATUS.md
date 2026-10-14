@@ -19,7 +19,7 @@ Use dates in `YYYY-MM-DD` UTC and permalinks. A blank approval reference means *
 
 | Gate | State | Owner decision date (UTC) | Evidence and reviewed revision |
 | --- | --- | --- | --- |
-| G0 | PENDING | — | — |
+| G0 | PASSED | 2026-10-14 | [Gate decision on PR #25](https://github.com/neosmith20/Septuvo/pull/25#issuecomment-6162915062) — evidence [`docs/reviews/G0.md`](reviews/G0.md) as merged in [PR #25](https://github.com/neosmith20/Septuvo/pull/25) |
 | G1 | PENDING | — | — |
 | G2 | PENDING | — | — |
 | G3 | PENDING | — | — |
@@ -31,7 +31,7 @@ Use dates in `YYYY-MM-DD` UTC and permalinks. A blank approval reference means *
 | --- | --- | --- | --- | --- | --- |
 | M0-01 | ACCEPTED | — | 2026-10-14 | [Approval on issue #9](https://github.com/neosmith20/Septuvo/issues/9#issuecomment-6161523935) | [PR #12](https://github.com/neosmith20/Septuvo/pull/12) — `docs/reviews/M0-01-audit.md` |
 | M0-02 | ACCEPTED | M0-01 | 2026-10-14 | [Approval on issue #18](https://github.com/neosmith20/Septuvo/issues/18#issuecomment-6162237599) | [PR #21](https://github.com/neosmith20/Septuvo/pull/21) — `docs/reviews/M0-02-owner-decisions.md`; [acceptance on PR #21](https://github.com/neosmith20/Septuvo/pull/21#issuecomment-6162871333) |
-| M0-03 | READY | M0-02 | 2026-10-14 | [Approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162805811) | — |
+| M0-03 | ACCEPTED | M0-02 | 2026-10-14 | [Approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162805811) | [PR #25](https://github.com/neosmith20/Septuvo/pull/25) — `docs/reviews/G0.md`; [acceptance on PR #25](https://github.com/neosmith20/Septuvo/pull/25#issuecomment-6162913527) |
 | M1-01 | READY | M0-03 | 2026-10-14 | [Milestone M1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162806536) | — |
 | M1-02 | READY | M1-01 | 2026-10-14 | [Milestone M1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162806536) | — |
 | M1-03 | READY | M1-02 | 2026-10-14 | [Milestone M1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162806536) | — |
