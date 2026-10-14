@@ -2,11 +2,13 @@
 
 **Planning blueprint, not an authorization to code.** Read [AGENT_OPERATIONS.md](AGENT_OPERATIONS.md), [AGENTS.md](../AGENTS.md), [ROADMAP.md](ROADMAP.md), [SECURITY_MODEL.md](SECURITY_MODEL.md) and the [work-order template](WORK_ORDER_TEMPLATE.md) before using any task card.
 
-**Rules applying to every card:** Consult [STATUS.md](STATUS.md), the mirror of owner decision comments (D-025). The owner must authorize exactly one card's work order. The immediately preceding task must be owner-accepted (unless the card explicitly describes a gate-only decision). Named output paths are intended deliverables, **not an unrestricted permission to create files**. If they need changing, get a written scope update. The current gate must have recorded evidence. Commit only scoped files on a task branch, attach test logs, request review and **STOP**. Never infer that describing a later milestone authorizes starting it.
+**Rules applying to every card:** Consult [STATUS.md](STATUS.md), the mirror of owner decision comments (D-025). The owner authorizes each work order, which may cover one card or a whole milestone (D-030). The immediately preceding task must be owner-accepted, except inside an approved milestone work order, where tasks run in order and the owner accepts the milestone at its end. Named output paths are intended deliverables, **not an unrestricted permission to create files**. If they need changing, get a written scope update. The current gate must have recorded evidence. Commit only scoped files on a task branch, attach test logs, request review and **STOP**. Never infer that describing a later milestone authorizes starting it.
 
 ## Fixed task order
 
 **M0:** M0-01 → (M0-01.1 corrections when audit finds defects) → M0-02 → M0-03
+
+**Track N1 (parallel, after G0, before G1):** N1-01 → N1-02 → N1-03 → N1-04
 
 **M1:** M1-01 → M1-02 → M1-03 → M1-04
 
@@ -28,7 +30,7 @@
 
 ## Standard per-task completion evidence
 
-Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff form. Every task remains IN REVIEW until the owner comments `ACCEPTED <ID>` (mirrored in STATUS.md). Base cards, dotted subtasks and H maintenance IDs each require separately approved work orders.
+Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff form. Every task remains IN REVIEW until the owner comments `ACCEPTED <ID>` (mirrored in STATUS.md). Base cards (singly or per milestone), N1 cards, dotted subtasks and H maintenance IDs require approved work orders (D-030).
 
 ## M0 — Repository baseline and owner approval
 
@@ -59,9 +61,9 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 ### M0-03 — Plan review resources, lab and change control
 
 - **Entry / prerequisites:** M0-02 accepted.
-- **Approved output locations:** `docs/reviews/M0-03-review-plan.md`, `docs/reviews/G0.md`.
-- **Exact work:** Document qualified outside protocol reviewer requirements, lab resource limits, safe network isolation, branching/reviewer roles, release rights and acceptance process; prepare G0 evidence package.
-- **Acceptance evidence:** Owner decides G0 explicitly; identify reviewer funding/access and lab feasibility; if missing, gate remains PENDING.
+- **Approved output locations:** `docs/reviews/G0.md`.
+- **Exact work:** Prepare the G0 evidence package in one document: scope, decisions and their states, open questions, acceptance criteria for M1, M2 and N1, the lab plan for D-026, change control (D-023, D-025, the `main` ruleset) and the outside-reviewer plan (requirements and search plan; the search itself happens during M2, when there is a specification to review).
+- **Acceptance evidence:** Owner decides G0 with `GATE G0 PASSED` or `GATE G0 FAILED`; missing items are listed as OPEN rather than silently assumed.
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin the next milestone automatically.
 
 
@@ -136,7 +138,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 
 ### M2-05 — Obtain external protocol assessment and G1 decision
 
-- **Entry / prerequisites:** M2-04 accepted; qualified external reviewer available.
+- **Entry / prerequisites:** M2-04 accepted; qualified external reviewer identified (the agent helps the owner search, including free or low-cost options).
 - **Approved output locations:** `docs/reviews/G1.md`, `reviewer report/artifacts as permitted`, `docs/DECISIONS.md`.
 - **Exact work:** Arrange qualified independent assessment of exact specification revision, respond to findings in small reviewed revisions, and assemble evidence for owner approval.
 - **Acceptance evidence:** Reviewer identity/qualification, exact reviewed commit, findings, residual risk and owner decision recorded; no agent may self-certify G1; remain BLOCKED if review unavailable.
@@ -217,7 +219,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 
 ### M5-01 — Implement route and LAN-policy model
 
-- **Entry / prerequisites:** M4-04 accepted; M1 policies approved.
+- **Entry / prerequisites:** M4-04 accepted; M1 policies approved; builds on N1-02 where accepted.
 - **Approved output locations:** `crates/septuvo-policy/`, `tests/policy/`.
 - **Exact work:** Separate route selection from authorization; model strict/approved-LAN/custom modes, exclusions, overlapping prefixes, remote home subnets and IPv4/IPv6 paths.
 - **Acceptance evidence:** Table-driven route tests cover local NAS, remote NAS, exit path and conflicts; no default RFC1918 trust or silent cleartext route.
@@ -225,7 +227,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 
 ### M5-02 — Implement OS-enforced kill switch and DNS policy
 
-- **Entry / prerequisites:** M5-01 accepted; dedicated lab permissions granted.
+- **Entry / prerequisites:** M5-01 accepted; dedicated lab permissions granted; builds on N1-03 where accepted.
 - **Approved output locations:** `crates/septuvo-policy/`, `tests/lab/leaks/`, `docs/build/linux-policy.md`.
 - **Exact work:** Apply atomic/recoverable Linux route/firewall/DNS transitions with explicit underlay exceptions; test reconnect, update, crash and VPN loss under hostile network.
 - **Acceptance evidence:** Captured proof protected IPv4, IPv6 and DNS do not leak after failures; exceptions are narrowly approved; host routing can be restored.
@@ -412,10 +414,48 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin the next milestone automatically.
 
 
+
+## Track N1 — Non-crypto Rust foundation (parallel, after G0, before G1)
+
+Lab-only work allowed by D-029 and D-030. **Never** an SVP handshake, packet format, key handling, encryption or a data tunnel, and no cryptography crates. The owner may approve the whole track with `APPROVED WORK ORDER N1`.
+
+### N1-01 — Rust workspace skeleton and CI
+
+- **Entry / prerequisites:** G0 passed; approved N1 (or N1-01) work order.
+- **Approved output locations:** `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, `crates/septuvo-policy/`, `crates/septuvo-cli/`, `.github/workflows/rust.yml`, `docs/build/README.md`.
+- **Exact work:** Minimal compilable workspace with two crates; pinned toolchain; CI running format, lint (warnings denied) and tests; GitHub Actions pinned to full commit SHAs with read-only permissions; no third-party crates unless the approved work order lists them.
+- **Acceptance evidence:** CI green on GitHub; no network, cryptography or operating-system-changing code.
+- **Stop point:** Submit the scoped evidence and PR for owner review.
+
+### N1-02 — Route and LAN-exception policy model (pure logic)
+
+- **Entry / prerequisites:** N1-01 complete within the approved N1 work order, or accepted.
+- **Approved output locations:** `crates/septuvo-policy/`.
+- **Exact work:** Data model and decision function for protected versus exempt destinations: full tunnel, explicitly approved LAN destinations, custom split prefixes, IPv4 and IPv6, overlapping prefixes, deterministic conflict resolution and a fail-closed default; no implicit trust of RFC1918 ranges (D-006).
+- **Acceptance evidence:** Table-driven unit tests for the home-NAS, remote-NAS, exit-path and conflict cases of D-027; invalid input rejected; no operating-system calls.
+- **Stop point:** Submit the scoped evidence and PR for owner review.
+
+### N1-03 — Linux namespace lab harness for kill switch and DNS policy
+
+- **Entry / prerequisites:** N1-02 complete within the approved N1 work order, or accepted.
+- **Approved output locations:** `tests/lab/namespaces/`, `docs/build/lab.md`.
+- **Exact work:** Scripts and a test harness that, inside disposable network namespaces on a lab VM or a GitHub-hosted runner, apply and roll back firewall/route/DNS rules generated from the N1-02 model and check that protected IPv4, IPv6 and DNS traffic is blocked when no VPN path exists while approved exceptions work. Root privileges only inside the disposable lab machine; no tunnel, no internet traffic, no change to any real host.
+- **Acceptance evidence:** Reproducible leak tests pass; rollback leaves no rules behind; limitations documented.
+- **Stop point:** Submit the scoped evidence and PR for owner review.
+
+### N1-04 — CLI scaffolding and connection-status model
+
+- **Entry / prerequisites:** N1-03 complete within the approved N1 work order, or accepted.
+- **Approved output locations:** `crates/septuvo-cli/`.
+- **Exact work:** Command structure (for example `status` and `policy check`) using the standard library only; a status model with four independent stages — adapter, authenticated peer, reachability, DNS (D-020) — represented as data; no networking.
+- **Acceptance evidence:** Unit tests show that "adapter up" never implies "connected".
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M3 or any cryptography.
+
 ## Task catalog invariants
 
-1. Each of the **43 base tasks** has a unique ID and a prerequisite, bounded output, actions, acceptance evidence and a stop point. Conditional dotted subtasks and owner-directed H work are separately recorded/approved in [STATUS.md](STATUS.md) and do not change the 43-base-task count.
+1. Each of the **43 base tasks** has a unique ID and a prerequisite, bounded output, actions, acceptance evidence and a stop point. Conditional dotted subtasks and owner-directed H work are separately recorded/approved in [STATUS.md](STATUS.md) and do not change the 43-base-task count; nor do track N1 cards.
 2. No agent can approve G0–G4, external review, a domain/trademark claim, production readiness or a public release on the owner's behalf.
 3. M2 spec proposals, the ML-KEM/ML-DSA/HKDF/AES-GCM candidate choices (D-010, D-011, D-012, D-024) and packet wire fields must not become a deployed handshake before G1, even if a code generator could implement them quickly.
 4. A Rust workspace, GUI, installer, mobile extension, control-plane cluster or gateway capability does **not** exist merely because this catalog names a target path.
 5. At any interruption, read repository history, compare accepted tasks and resume only with explicit authorization for the next scoped work order.
+6. Track N1 never contains cryptography, SVP wire handling or a data tunnel; anything beyond that requires G1.

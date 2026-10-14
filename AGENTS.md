@@ -21,14 +21,14 @@ Only the exact task and files named in an approved work order are in scope. Read
 ## Absolute red lines
 
 - **No invented cryptography:** no custom ciphers, signature schemes, KEM combiners, KDFs, GCM nonces, handshake transcript conventions or homegrown entropy sources. Candidate primitives are NOT a protocol design.
-- **No real SVP handshake, executable packet format, key management, or cryptographic tunnel code before Gate G1** is satisfied by documented specialist review and owner approval. Research notes, specification drafts and isolated non-security simulators are allowed if explicitly scoped.
+- **No real SVP handshake, executable packet format, key management, or cryptographic tunnel code before Gate G1** is satisfied by documented specialist review and owner approval. Research notes, specification drafts and isolated non-security simulators are allowed if explicitly scoped, as is track N1 non-crypto lab work after G0 (D-029, D-030).
 - Do not transplant TLS/WireGuard constructions without new analysis. A standards-compliant primitive does not make an original VPN protocol secure.
 - No hard-coded private keys, static demo nonces, logging plaintext keys, disabling certificate/identity checks, insecure RNGs or unencrypted fallback paths. No acceptance of a convenient “demo exception” for the production code path.
 - No silent downgrade of post-quantum policy, security suites, verification, kill switch, DNS handling or IPv6 protections.
 - Never “fix” a failing test by weakening requirements, deleting tests, marking them skipped, or reporting simulated evidence as real.
 - No unapproved dependency additions, privilege escalation, kernel/driver installations, public port openings, real router/VPS alterations, external traffic generation, data deletion, telemetry, remote SaaS dependencies or device enrollment.
 - No release tags, binary publishing, claiming external audits, changing repo visibility, DNS purchases or trademark claims without explicit owner approval.
-- No unrelated rewrites, opportunistic features or speculative performance shortcuts. **One scoped task per checkpoint.**
+- No unrelated rewrites, opportunistic features or speculative performance shortcuts. **One approved work order (a task or a milestone) per checkpoint, finished one task at a time.**
 - Do not claim literal 100% Rust across mobile/OS runtime if native OS frameworks, system drivers or glue are needed. Keep all **Septuvo-owned security-critical logic in Rust** and inventory external code/native interfaces.
 - Treat remote packets, configuration, peer identity, management APIs and control-plane data as hostile input.
 

@@ -43,7 +43,8 @@ HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 CATALOG_ID = re.compile(r"^### (M\d+-\d+) —", re.MULTILINE)
 ROADMAP_ID = re.compile(r"\*\*(M\d+-\d+):\*\*")
 SUBTASK_ID = re.compile(r"^### (M\d+-\d+\.\d+) —", re.MULTILINE)
-VALID_WORK_ID = re.compile(r"^(?:M\d+-\d+(?:\.\d+)?|H-\d{3})$")
+VALID_WORK_ID = re.compile(r"^(?:M\d+-\d+(?:\.\d+)?|N\d+-\d+|H-\d{3})$")
+N_CARD_ID = re.compile(r"^### (N\d+-\d+) —", re.MULTILINE)
 PERMALINK = re.compile(r"https://github\.com/neosmith20/Septuvo/(?:issues|pull)/\d+#issuecomment-\d+")
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TASK_STATES = {"NOT STARTED", "READY", "IN PROGRESS", "BLOCKED", "IN REVIEW", "ACCEPTED", "REJECTED / REWORK"}
@@ -67,7 +68,7 @@ def ledger_rows(text):
             yield "gate", ident, cells[1], cells[2], "", cells[3]
         elif re.fullmatch(r"M\d+-\d+\.\d+", ident) and len(cells) == 6:
             yield "task", ident, cells[2], cells[3], cells[4], cells[5]
-        elif re.fullmatch(r"M\d+-\d+", ident) and len(cells) == 6:
+        elif re.fullmatch(r"(?:M|N)\d+-\d+", ident) and len(cells) == 6:
             yield "task", ident, cells[1], cells[3], cells[4], cells[5]
         elif re.fullmatch(r"H-\d{3}", ident) and len(cells) == 5:
             yield "task", ident, cells[1], cells[2], cells[3], cells[4]
@@ -142,6 +143,10 @@ if not errors:
         errors.append("Duplicate task ID in ledger.")
     if not set(catalog_ids).issubset(set(ledger_ids)):
         errors.append("STATUS.md must list all 43 base task IDs.")
+    n_cards = N_CARD_ID.findall(catalog)
+    n_rows = [i for i in ledger_ids if i.startswith("N")]
+    if sorted(n_cards) != sorted(n_rows):
+        errors.append(f"Track N task cards {n_cards} do not match STATUS.md rows {n_rows}.")
     for ident in ledger_ids + SUBTASK_ID.findall(catalog):
         if not VALID_WORK_ID.fullmatch(ident):
             errors.append(f"Invalid work ID: {ident}")
