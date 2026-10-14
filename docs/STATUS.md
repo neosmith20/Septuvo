@@ -1,13 +1,13 @@
 # Septuvo — owner-controlled task and gate ledger
 
-**This is the authoritative record of owner approvals.** Initial baseline only: all 43 base tasks are NOT STARTED and all gates are PENDING. No approval is implied by creating this file.
+**This is the authoritative record of owner approvals.** It was created as a baseline with every task NOT STARTED and every gate PENDING; the tables below show the current state. No approval is implied by creating this file.
 
 **OWNER ONLY:** Agents must not edit this file, even on task branches. The owner updates it using an owner-authored commit or pull request under normal GitHub protections, with dates and permalinks. Only the owner may record work-order authorization, acceptance, task waiver, or G0–G4 passage. Missing/stale evidence means STOP.
 
 ## Work-order and task approval procedure
 
 1. Agent drafts [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) for one exact task/scope and stops.
-2. Owner comments `APPROVED WORK ORDER <ID>` with a link to the exact work-order revision in a GitHub issue/PR, then **personally records** status **READY**, UTC date and the comment/work-order links below. A PR, merge or CI pass alone is not approval.
+2. Owner comments `APPROVED WORK ORDER <ID>` on the GitHub issue or PR that contains the work order, then **personally records** status **READY**, the UTC date and the permalink of that approval comment below. The approved revision is the issue/PR description as it stood when the approval comment was posted. A PR, merge or CI pass alone is not approval.
 3. Agent verifies ledger, approval, predecessor, task scope and gate before proceeding. Changes to scope require a fresh explicit approval, recorded by owner.
 4. Agent submits completion evidence/PR and stops. Owner alone marks **ACCEPTED** (or **REJECTED / REWORK**) and records date plus evidence.
 5. Owner alone sets a gate to **PASSED** (or **FAILED**) after reviewing exact gate evidence and required independent reviewer report. Owner must record date and links. G1 and G3 still require independent review; no agent may self-approve.
@@ -29,7 +29,7 @@ Use dates in `YYYY-MM-DD` UTC and permalinks. A blank approval reference means *
 
 | Task ID | State | Predecessor | Owner decision date (UTC) | Work-order approval | Completion evidence |
 | --- | --- | --- | --- | --- | --- |
-| M0-01 | READY | — | 2026-10-14 | [Approval on issue #9](https://github.com/neosmith20/Septuvo/issues/9) | — |
+| M0-01 | ACCEPTED | — | 2026-10-14 | [Approval on issue #9](https://github.com/neosmith20/Septuvo/issues/9#issuecomment-6161523935) | [PR #12](https://github.com/neosmith20/Septuvo/pull/12) — `docs/reviews/M0-01-audit.md` |
 | M0-02 | NOT STARTED | M0-01 | — | — | — |
 | M0-03 | NOT STARTED | M0-02 | — | — | — |
 | M1-01 | NOT STARTED | M0-03 | — | — | — |
@@ -79,7 +79,7 @@ M0-01.1 is a conditional correction task: if M0-01 finds defects, the owner auth
 
 | Subtask ID | Parent | State | Owner decision date (UTC) | Work-order approval | Completion evidence |
 | --- | --- | --- | --- | --- | --- |
-| M0-01.1 | M0-01 | NOT STARTED | — | — | Conditional / not authorized |
+| M0-01.1 | M0-01 | READY | 2026-10-14 | [Approval on issue #13](https://github.com/neosmith20/Septuvo/issues/13#issuecomment-6161852650) | — |
 
 ## Owner-directed hygiene, branding and administration
 
