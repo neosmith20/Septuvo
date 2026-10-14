@@ -132,6 +132,8 @@ def slug(heading):
 
 def anchors_of(path):
     seen, out = {}, set()
+    if not path.is_file() or path.is_symlink():
+        return out
     in_fence = False
     for line in path.read_text(encoding="utf-8").splitlines():
         if FENCE.match(line):
@@ -149,8 +151,11 @@ def anchors_of(path):
 
 
 for rel in REQUIRED:
-    if not (ROOT / rel).is_file():
+    full_path = ROOT / rel
+    if not full_path.is_file():
         errors.append(f"Required file missing: {rel}")
+    elif full_path.is_symlink():
+        errors.append(f"Required file is a symlink: {rel}")
 
 if not errors:
     catalog = (ROOT / "docs/TASK_CATALOG.md").read_text(encoding="utf-8")
@@ -190,11 +195,15 @@ if not errors:
         if gate not in roadmap or gate not in agents:
             errors.append(f"Gate is missing from roadmap or agent rules: {gate}")
 
-markdown_paths = sorted(p for p in ROOT.rglob("*.md") if ".git" not in p.relative_to(ROOT).parts)
+markdown_paths = sorted(p for p in ROOT.rglob("*.md") 
+                        if ".git" not in p.relative_to(ROOT).parts and p.is_file() and not p.is_symlink())
 anchor_cache = {}
 
 for path in markdown_paths:
     rel_path = path.relative_to(ROOT)
+    if not path.is_file() or path.is_symlink():
+        errors.append(f"{rel_path}: not a regular file (symlink or special file)")
+        continue
     text = path.read_text(encoding="utf-8")
     if not text.endswith("\n"):
         errors.append(f"{rel_path}: missing final newline")
