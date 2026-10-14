@@ -90,6 +90,7 @@ Use separate `H-001`, `H-002` etc. IDs for work outside the 43 base tasks; they 
 | H-001 | ACCEPTED | 2026-10-14 | Retroactive owner acceptance 2026-10-14 (no prior written work order) | Documentation workflow fixes: [PR #4](https://github.com/neosmith20/Septuvo/pull/4) |
 | H-002 | ACCEPTED | 2026-10-14 | Owner instruction 2026-10-14: record D-021 option C; fix catalog predecessors and work-order status line; align color-board type sizes | [PR #5](https://github.com/neosmith20/Septuvo/pull/5) |
 | H-003 | ACCEPTED | 2026-10-14 | Retroactive owner acceptance 2026-10-14 (owner reviewed and committed the files) | Brand kit corrections: guidelines PDF, brand README, root .gitignore ([c3195eb](https://github.com/neosmith20/Septuvo/commit/c3195eb)); color board colors ([160fbde](https://github.com/neosmith20/Septuvo/commit/160fbde)) |
+| H-004 | ACCEPTED | 2026-10-14 | Owner instruction 2026-10-14: document public repository, active ruleset and security features; record D-022/D-023 | [PR #7](https://github.com/neosmith20/Septuvo/pull/7) |
 
 ## Allowed task states
 
