@@ -213,7 +213,7 @@ The same agent that performed this audit wrote parts of the audited material ear
 - **Location:** [scripts/check_repository.py](../../scripts/check_repository.py) lines 10–28 (`REQUIRED`), 29 (`LINK`), 46–49, 74–76.
 - **Evidence:** the link check scans README, AGENTS, SECURITY, `docs/**` and `.github/**` Markdown only, so `brand/README.md` and `brand/04 - Colors And Tokens/brand-tokens.md` are not checked; image links are excluded by the `(?<!!)` pattern; `#anchor` targets are not verified; `docs/security/*` and the PR template are not in `REQUIRED`; lines 46–49 test the same duplicate condition twice. This audit's own link and anchor check found no current breakage, so this is a coverage gap, not a present defect.
 - **Proposed correction:** extend the scan to all repository Markdown (excluding `.git`), include image links and anchors, add the missing required files, and remove the duplicate test. Changes to CI tooling need their own work order.
-- **Status:** OPEN — needs its own work order (CI tooling); excluded from M0-01.1.
+- **Status:** RESOLVED (H-005) — full-repository Markdown scan with image links and anchors, extra required files, duplicate test removed, ledger permalink checks.
 
 ### A-20 — Dependabot Cargo entry before a manifest exists (Low)
 

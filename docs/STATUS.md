@@ -1,17 +1,17 @@
-# Septuvo — owner-controlled task and gate ledger
+# Septuvo — task and gate ledger (mirror of owner decisions)
 
-**This is the authoritative record of owner approvals.** It was created as a baseline with every task NOT STARTED and every gate PENDING; the tables below show the current state. No approval is implied by creating this file.
+**This file mirrors the owner's decision comments.** It was created as a baseline with every task NOT STARTED and every gate PENDING; the tables below show the current state. No approval is implied by creating this file.
 
-**OWNER ONLY:** Agents must not edit this file, even on task branches. The owner updates it using an owner-authored commit or pull request under normal GitHub protections, with dates and permalinks. Only the owner may record work-order authorization, acceptance, task waiver, or G0–G4 passage. Missing/stale evidence means STOP.
+**Owner decisions are comments (D-025).** The owner decides only by posting one of these exact comments, alone in the comment, in the conversation of the task's GitHub issue or pull request: `APPROVED WORK ORDER <ID>`, `ACCEPTED <ID>`, `REJECTED <ID>`, `GATE <G0–G4> PASSED` or `GATE <G0–G4> FAILED`. Those comments are the authority; this file mirrors them. Agents may change this file **only** to mirror such comments, in their next pull request, with each comment's permalink and UTC date; any other change by an agent is forbidden, and the owner still reviews and merges every change. CI ([`scripts/verify_ledger.py`](../scripts/verify_ledger.py)) fails a pull request if a mirrored row has no matching owner comment. Rows H-001–H-004, M0-01 and M0-01.1 predate this rule and were edited by the owner directly. Missing or stale evidence means STOP.
 
 ## Work-order and task approval procedure
 
 1. Agent drafts [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) for one exact task/scope and stops.
-2. Owner comments `APPROVED WORK ORDER <ID>` on the GitHub issue or PR that contains the work order, then **personally records** status **READY**, the UTC date and the permalink of that approval comment below. The approved revision is the issue/PR description as it stood when the approval comment was posted. A PR, merge or CI pass alone is not approval.
-3. Agent verifies ledger, approval, predecessor, task scope and gate before proceeding. Changes to scope require a fresh explicit approval, recorded by owner.
-4. Agent submits completion evidence/PR and stops. Owner alone marks **ACCEPTED** (or **REJECTED / REWORK**) and records date plus evidence.
-5. Owner alone sets a gate to **PASSED** (or **FAILED**) after reviewing exact gate evidence and required independent reviewer report. Owner must record date and links. G1 and G3 still require independent review; no agent may self-approve.
-6. If an owner uses GitHub's protected PR process to update this ledger, the **owner** authors the ledger edit and merges it; agents must not modify or bypass it.
+2. Owner comments `APPROVED WORK ORDER <ID>` on the GitHub issue or PR that contains the work order. The approved revision is the issue/PR description as it stood when the approval comment was posted. A PR, merge or CI pass alone is not approval.
+3. Agent verifies the owner's comment on GitHub (author is the owner, exact text), the predecessor, task scope and gate before proceeding; its pull request mirrors the approval below (READY, UTC date, permalink). Changes to scope require a fresh explicit owner approval comment.
+4. Agent submits completion evidence/PR and stops. After review the owner comments `ACCEPTED <ID>` (or `REJECTED <ID>`) on the pull request; the next agent pull request mirrors it with the evidence. A merge alone is not acceptance.
+5. Owner alone passes or fails a gate, by commenting `GATE <Gn> PASSED` (or `FAILED`) on the gate-evidence pull request after reviewing the exact evidence and any required independent reviewer report. G1 and G3 still require independent review; no agent may self-approve.
+6. The owner may also edit this file directly through a pull request; agents must never record a decision that has no matching owner comment.
 
 Use dates in `YYYY-MM-DD` UTC and permalinks. A blank approval reference means **not authorized**.
 
@@ -75,7 +75,7 @@ Use dates in `YYYY-MM-DD` UTC and permalinks. A blank approval reference means *
 
 ## Dotted subtasks (owner authorized separately)
 
-M0-01.1 is a conditional correction task: if M0-01 finds defects, the owner authorizes and accepts M0-01.1 before M0-02. If none, the owner explicitly records the skip in M0-01 acceptance evidence. For M7-01, M8-02, M9-02 and similar cases, every `M7-01.1` style subtask must be owner-created here and accepted before its parent can become ACCEPTED. Agents cannot create ledger entries.
+M0-01.1 is a conditional correction task: if M0-01 finds defects, the owner authorizes and accepts M0-01.1 before M0-02. If none, the owner explicitly records the skip in M0-01 acceptance evidence. For M7-01, M8-02, M9-02 and similar cases, every `M7-01.1` style subtask needs its own owner approval comment and must be accepted before its parent can become ACCEPTED. Agents add rows only to mirror owner comments.
 
 | Subtask ID | Parent | State | Owner decision date (UTC) | Work-order approval | Completion evidence |
 | --- | --- | --- | --- | --- | --- |
@@ -83,7 +83,7 @@ M0-01.1 is a conditional correction task: if M0-01 finds defects, the owner auth
 
 ## Owner-directed hygiene, branding and administration
 
-Use separate `H-001`, `H-002` etc. IDs for work outside the 43 base tasks; they never change the base task order or approve a gate. Owner must record a separately approved scope and completion evidence. H-001 and H-003 were accepted retroactively on 2026-10-14 (no written work order existed beforehand).
+Use separate `H-001`, `H-002` etc. IDs for work outside the 43 base tasks; they never change the base task order or approve a gate. Each H task needs its own owner approval comment; agents mirror it here. H-001 and H-003 were accepted retroactively on 2026-10-14 (no written work order existed beforehand).
 
 | ID | State | Owner decision date (UTC) | Work-order approval | Completion evidence |
 | --- | --- | --- | --- | --- |

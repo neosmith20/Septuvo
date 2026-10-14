@@ -10,7 +10,7 @@ Ruleset **`Septuvo — protect main`** (source: [MAIN_RULESET.json](MAIN_RULESET
 | Rule | Effect |
 | --- | --- |
 | Require a pull request before merging | No direct pushes to `main`. 0 required approvals (a solo owner cannot approve their own PR); conversation resolution required; stale reviews dismissed on push |
-| Required status check `repository-integrity` | The [Repository Integrity](../../.github/workflows/repository-integrity.yml) workflow must pass, and the branch must be up to date with `main` (strict) |
+| Required status check `repository-integrity` | The [Repository Integrity](../../.github/workflows/repository-integrity.yml) workflow must pass, and the branch must be up to date with `main` (strict). It checks documentation integrity and verifies that every decision mirrored in STATUS.md matches an owner comment ([`verify_ledger.py`](../../scripts/verify_ledger.py)) |
 | Restrict deletions | `main` cannot be deleted |
 | Block force pushes | History on `main` cannot be rewritten |
 | Require linear history | Merge with **Squash and merge** (or rebase); merge commits are rejected |
@@ -29,15 +29,15 @@ The ruleset also carries GitHub's default `require_extra_approval_for_unattribut
 | Private vulnerability reporting | **Enabled** | Reporting path for [SECURITY.md](../../SECURITY.md): Security tab → *Report a vulnerability* |
 | Dependabot version updates | Configured by [`.github/dependabot.yml`](../../.github/dependabot.yml) | GitHub Actions now; Cargo once a `Cargo.toml` exists (M3) |
 | Non-provider secret patterns, validity checks | Disabled | Optional; not required at this stage |
-| GitHub Actions permissions / workflow token default | **Not verified** | The agent connection cannot read Actions settings. The integrity workflow itself requests only `contents: read` and pins `actions/checkout` to a full commit SHA |
+| GitHub Actions permissions / workflow token default | **Not verified** | The agent connection cannot read Actions settings. The integrity workflow itself requests only read access (`contents`, `issues`, `pull-requests`) and pins `actions/checkout` to a full commit SHA |
 | CodeQL code scanning (default setup) | **Enabled** | Languages: GitHub Actions, Python, Rust; default query suite; runs on PRs, pushes and weekly. First run on PR #7 passed |
 
 Alert lists (Security tab) are not readable through the agent connection; the owner reviews them in the GitHub UI.
 
 ## Who can change what
 
-- **Agents** (Claude, ChatGPT/Codex or others) work through the owner's GitHub account under [D-023](../DECISIONS.md). They may push task branches and open pull requests. They do **not** merge, push to `main`, edit [STATUS.md](../STATUS.md), or change repository settings, rulesets or visibility. The ruleset makes direct pushes to `main` impossible for everyone; the remaining limits are procedural because GitHub cannot tell agent actions from owner actions on one account.
-- **Owner** reviews each PR's files and check result, then merges. Owner alone records approvals in STATUS.md (through a PR, as with PR #6).
+- **Agents** (Claude, ChatGPT/Codex or others) work through the owner's GitHub account under [D-023](../DECISIONS.md). They may push task branches and open pull requests. They do **not** merge, push to `main`, or change repository settings, rulesets or visibility, and they change [STATUS.md](../STATUS.md) only to mirror owner decision comments (D-025). The ruleset makes direct pushes to `main` impossible for everyone; the remaining limits are procedural because GitHub cannot tell agent actions from owner actions on one account.
+- **Owner** reviews each PR's files and check result, then merges. Owner alone decides, by the exact comments listed in STATUS.md (`APPROVED WORK ORDER <ID>`, `ACCEPTED <ID>`, `REJECTED <ID>`, `GATE <Gn> PASSED/FAILED`).
 - Commits made by Claude carry `Claude` as the git author, so they can be told apart in history.
 
 ## Public repository rules
