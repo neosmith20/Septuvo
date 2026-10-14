@@ -1,0 +1,57 @@
+name: Rust
+
+# Track N1 (non-crypto foundation): format, lint and test the Rust workspace.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    name: rust (fmt, clippy, test)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, verified 2026-10-13
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned toolchain from rust-toolchain.toml
+        run: |
+          channel="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          test -n "$channel"
+          rustup toolchain install "$channel" --profile minimal --component rustfmt --component clippy
+          rustc --version
+          cargo --version
+
+      - name: No third-party crates (N1 work order)
+        run: |
+          if grep -q '^source = ' Cargo.lock; then
+            echo "Cargo.lock contains a third-party crate; N1 allows the standard library only." >&2
+            exit 1
+          fi
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      # Compiler and lint messages are also emitted as GitHub annotations, so
+      # failures are visible on the pull request without opening the raw log.
+      - name: Lint (warnings are errors)
+        run: |
+          set +e
+          cargo clippy --workspace --all-targets --locked --message-format=short -- -D warnings 2>&1 | tee clippy.txt
+          status=${PIPESTATUS[0]}
+          sed -n 's/^\([^: ]*\):\([0-9]*\):\([0-9]*\): \(error\|warning\)[^:]*: \(.*\)$/::error file=\1,line=\2,col=\3::\5/p' clippy.txt
+          exit "$status"
+
+      - name: Test
+        run: |
+          set +e
+          cargo test --workspace --locked --message-format=short 2>&1 | tee test.txt
+          status=${PIPESTATUS[0]}
+          sed -n 's/^\([^: ]*\):\([0-9]*\):\([0-9]*\): \(error\|warning\)[^:]*: \(.*\)$/::error file=\1,line=\2,col=\3::\5/p' test.txt
+          exit "$status"

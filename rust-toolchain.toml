@@ -1,0 +1,6 @@
+# Pinned Rust toolchain: the stable release current when N1-01 was written (2026-10-14).
+# Changing it is a reviewed pull request, never an automatic update.
+[toolchain]
+channel = "1.99.0"
+profile = "minimal"
+components = ["rustfmt", "clippy"]
