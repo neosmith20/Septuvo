@@ -10,7 +10,7 @@ Ruleset **`Septuvo — protect main`** (source: [MAIN_RULESET.json](MAIN_RULESET
 | Rule | Effect |
 | --- | --- |
 | Require a pull request before merging | No direct pushes to `main`. 0 required approvals (a solo owner cannot approve their own PR); conversation resolution required; stale reviews dismissed on push |
-| Required status check `repository-integrity` | The [Repository Integrity](../../.github/workflows/repository-integrity.yml) workflow must pass, and the branch must be up to date with `main` (strict). It checks documentation integrity and verifies that every decision mirrored in STATUS.md matches an owner comment ([`verify_ledger.py`](../../scripts/verify_ledger.py)) |
+| Required status check `repository-integrity` | The [Repository Integrity](../../.github/workflows/repository-integrity.yml) workflow must pass, and the branch must be up to date with `main` (strict). The status check is bound to the GitHub Actions integration (ID 15368) to prevent spoofing by other status producers. It checks documentation integrity and verifies that every decision mirrored in STATUS.md matches an owner comment ([`verify_ledger.py`](../../scripts/verify_ledger.py)) |
 | Restrict deletions | `main` cannot be deleted |
 | Block force pushes | History on `main` cannot be rewritten |
 | Require linear history | Merge with **Squash and merge** (or rebase); merge commits are rejected |
