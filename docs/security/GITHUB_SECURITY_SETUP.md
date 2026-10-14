@@ -30,7 +30,7 @@ The ruleset also carries GitHub's default `require_extra_approval_for_unattribut
 | Dependabot version updates | Configured by [`.github/dependabot.yml`](../../.github/dependabot.yml) | GitHub Actions now; Cargo once a `Cargo.toml` exists (M3) |
 | Non-provider secret patterns, validity checks | Disabled | Optional; not required at this stage |
 | GitHub Actions permissions / workflow token default | **Not verified** | The agent connection cannot read Actions settings. The integrity workflow itself requests only `contents: read` and pins `actions/checkout` to a full commit SHA |
-| CodeQL / code scanning | Not enabled | Revisit when Rust code exists (M3) |
+| CodeQL code scanning (default setup) | **Enabled** | Languages: GitHub Actions, Python, Rust; default query suite; runs on PRs, pushes and weekly. First run on PR #7 passed |
 
 Alert lists (Security tab) are not readable through the agent connection; the owner reviews them in the GitHub UI.
 
