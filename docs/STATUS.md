@@ -79,7 +79,7 @@ M0-01.1 is a conditional correction task: if M0-01 finds defects, the owner auth
 
 | Subtask ID | Parent | State | Owner decision date (UTC) | Work-order approval | Completion evidence |
 | --- | --- | --- | --- | --- | --- |
-| M0-01.1 | M0-01 | READY | 2026-10-14 | [Approval on issue #13](https://github.com/neosmith20/Septuvo/issues/13#issuecomment-6161852650) | — |
+| M0-01.1 | M0-01 | ACCEPTED | 2026-10-14 | [Approval on issue #13](https://github.com/neosmith20/Septuvo/issues/13#issuecomment-6161852650) | [PR #15](https://github.com/neosmith20/Septuvo/pull/15) |
 
 ## Owner-directed hygiene, branding and administration
 
