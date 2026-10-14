@@ -34,7 +34,7 @@
 
 **S-03 Key lifecycle:** hardware-backed storage where available, credible entropy, unique per-direction keys, forward secrecy, secure rekey/rotation/revocation, lifecycle across process crashes and restarts. Define exact secret-erasure limitations.
 
-**S-04 AEAD safety:** formally specified per-key nonce uniqueness, packet-number and epoch handling, verified associated data, ciphertext length limits and replay windows. A retransmission or process restart cannot reuse an AES-GCM key/nonce combination.
+**S-04 AEAD safety:** formally specified per-key nonce uniqueness, packet-number and epoch handling, verified associated data, ciphertext length limits and replay windows. A retransmission or process restart cannot reuse an AEAD key/nonce combination (e.g. AES-GCM, candidate D-010).
 
 **S-05 Downgrade safety:** no unauthenticated algorithm/version fallback. Explicit policy for unsupported peers and cryptographic agility.
 

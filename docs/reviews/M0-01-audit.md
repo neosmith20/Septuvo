@@ -80,7 +80,7 @@ The same agent that performed this audit wrote parts of the audited material ear
 - **Evidence:** D-023: "owner approval is the owner's merge plus the instruction recorded in the PR." AGENT_OPERATIONS: "A PR, issue, comment by another agent, merge or green CI alone is not authorization." STATUS: "Owner comments `APPROVED WORK ORDER <ID>` … A PR, merge or CI pass alone is not approval."
 - **Why it matters:** the PR description is written by the agent. Read literally, D-023 lets an agent record an "instruction" in its own PR text and treat the owner's merge as approval of it, which is the outcome the other two documents exist to prevent. The two procedures also produce different evidence (merge vs. comment + ledger).
 - **Proposed correction:** narrow D-023 to account access only, and state that approval is defined solely by STATUS.md step 2 (owner-authored `APPROVED WORK ORDER` comment plus owner ledger entry); a merge accepts the reviewed change but is never approval of new scope, and text written by an agent is never evidence of an owner instruction. *Needs owner decision.*
-- **Status:** OPEN
+- **Status:** RESOLVED (M0-01.1) — D-023 narrowed; approval rule added to AGENT_OPERATIONS.md *What constitutes approval*.
 
 ### A-02 — Inconsistent rules for pushing to `main` (Medium)
 
@@ -88,7 +88,7 @@ The same agent that performed this audit wrote parts of the audited material ear
 - **Evidence:** AGENTS: "do not push directly to main unless the owner explicitly directs it." AGENT_OPERATIONS: "Leave main untouched; propose changes through a PR." ROADMAP: "Branch + PR for code" (implies non-code may not need a PR). D-023: "Agents never merge, push to `main` …". The active ruleset blocks direct pushes for everyone with no bypass.
 - **Why it matters:** an agent reading AGENTS.md alone would believe a direct push is allowed on owner instruction; that is now impossible and contradicts D-023. The ROADMAP wording suggests documentation changes could skip a PR.
 - **Proposed correction:** use one sentence in all three rule documents: "Every change, code or documentation, goes through a task branch and pull request; agents never push to, merge into, or force-push `main`." Reference the ruleset in GITHUB_SECURITY_SETUP.md.
-- **Status:** OPEN
+- **Status:** RESOLVED (M0-01.1) — one push rule in AGENTS.md, AGENT_OPERATIONS.md and ROADMAP.md, matching D-023 and the `main` ruleset.
 
 ### A-03 — Nobody records IN PROGRESS or IN REVIEW (Medium)
 
@@ -96,7 +96,7 @@ The same agent that performed this audit wrote parts of the audited material ear
 - **Evidence:** the algorithm branches on ledger states: "if IN REVIEW: wait for owner; STOP" and "if IN PROGRESS: reconcile actual branch/PR". STATUS.md: "Agents must not edit this file", and the procedure only has the owner record READY, ACCEPTED or REJECTED / REWORK.
 - **Why it matters:** after an agent starts or submits work, the ledger still shows READY. A second agent (or the same one after an interruption) following the algorithm would see READY and could start the same task again or treat it as not yet submitted.
 - **Proposed correction (choose one):** (a) the owner also records IN PROGRESS / IN REVIEW; or (b) keep the ledger to owner decisions only and add a dispatch step: "before starting a READY task, search open pull requests and branches for its ID; if one exists, treat the task as IN PROGRESS / IN REVIEW." Option (b) adds no owner workload. *Needs owner decision.*
-- **Status:** OPEN
+- **Status:** RESOLVED (M0-01.1) — dispatch detects IN PROGRESS / IN REVIEW from open branches and pull requests; the ledger records owner decisions only.
 
 ### A-04 — Work-order revision cannot be pinned for issue-based approvals (Medium)
 
@@ -104,7 +104,7 @@ The same agent that performed this audit wrote parts of the audited material ear
 - **Evidence:** step 2 requires "a link to the exact work-order revision in a GitHub issue/PR" and the ledger to hold "the comment/work-order links". The M0-01 row links `https://github.com/neosmith20/Septuvo/issues/9` rather than the approval comment, and a GitHub issue description has no permanent per-revision link (only edit history).
 - **Why it matters:** this applies to the approval of this very task. If an issue description is edited after approval, the ledger cannot show which version was approved.
 - **Proposed correction:** define the approved revision as "the issue or PR description as it stood when the owner's approval comment was posted, and the ledger links the approval comment's permalink" (for M0-01: `https://github.com/neosmith20/Septuvo/issues/9#issuecomment-6161523935`). Alternatively, keep work orders as files in a PR so the commit SHA identifies the revision. *Needs owner decision on which form to use.*
-- **Status:** OPEN
+- **Status:** RESOLVED — AGENT_OPERATIONS.md and WORK_ORDER_TEMPLATE.md updated in M0-01.1; STATUS.md procedure step 2 updated by the owner in [PR #14](https://github.com/neosmith20/Septuvo/pull/14).
 
 ### A-05 — KDF choice is ambiguous; HKDF has no decision entry (Medium)
 
@@ -112,7 +112,7 @@ The same agent that performed this audit wrote parts of the audited material ear
 - **Evidence:** ROADMAP M2-02 instructs drafting "KEM validation/combiner, HKDF, key confirmation"; TASK_CATALOG calls HKDF one of the "candidate choices"; D-013's area is "HKDF / handshake / AEAD nonces / packet framing" with "Details undecided … BLOCKED"; P-05 asks for "extract/expand steps" (HKDF terminology). No decision row lists HKDF, or any KDF, as a candidate the way D-010…D-012 do for the cipher, KEM and signature.
 - **Why it matters:** an agent drafting M2-02 would reasonably treat HKDF as already chosen, which is exactly the "candidate becomes fact" drift DECISIONS.md warns against (line 43).
 - **Proposed correction:** either add a decision row "KDF: HKDF (RFC 5869) — Candidate, not approved" alongside D-010…D-012, or make ROADMAP M2-02, the invariant and P-05 KDF-neutral ("the KDF and its extract/expand or equivalent steps"). *Needs owner decision.*
-- **Status:** OPEN
+- **Status:** RESOLVED (M0-01.1) — HKDF recorded as candidate D-024; D-013, ROADMAP M2-02, TASK_CATALOG invariant 3 and P-05 reference it.
 
 ### A-06 — Decision states lack attribution and use many labels (Medium)
 
@@ -120,7 +120,7 @@ The same agent that performed this audit wrote parts of the audited material ear
 - **Evidence:** the rule requires "rationale, rejected alternatives, consequences and owner authorization" for each decision, but D-001…D-020 carry no dates, approver or rejected alternatives, and use 12 distinct state labels: Owner confirmed, Owner confirmed (working copy), Direction agreed, Goal, Candidate (three variants), BLOCKED, Proposed sequencing, Policy direction, OPEN, Unmeasured aspiration, Product requirement. Only D-021…D-023 are dated.
 - **Why it matters:** it is unclear which entries the owner actually approved ("Direction agreed" — by whom, when?). G0 requires reviewed decisions.
 - **Proposed correction:** define a short state vocabulary (for example: Owner decided / Candidate / Open / Blocked) with a date and approval reference for every "Owner decided" row. Most naturally done in **M0-02**, which already owns `docs/DECISIONS.md`, rather than in M0-01.1.
-- **Status:** OPEN
+- **Status:** DEFERRED to M0-02 (owner decision, 2026-10-14).
 
 ### A-07 — Requirement and test text names candidate primitives (Low)
 
@@ -128,7 +128,7 @@ The same agent that performed this audit wrote parts of the audited material ear
 - **Evidence:** P-04: "Ephemeral X25519/ML-KEM roles"; S-04: "cannot reuse an AES-GCM key/nonce combination"; T1: "Corrupt tag/signature/ML-KEM ciphertext". D-010 and D-011 list these as candidates only, and D-010 also allows ChaCha20-Poly1305.
 - **Why it matters:** the requirements should hold whichever primitives are finally chosen; naming one candidate implies selection and would leave the requirement incomplete if a different suite were approved.
 - **Proposed correction:** phrase generically with the candidate in parentheses, e.g. S-04 "… cannot reuse an AEAD key/nonce combination (e.g. AES-GCM, candidate D-010)"; P-04 "classical and post-quantum KEM roles (candidate D-011: X25519 + ML-KEM-768)"; T1 "corrupt KEM ciphertext".
-- **Status:** OPEN
+- **Status:** RESOLVED (M0-01.1) — S-04, P-04 and T1 worded generically with the candidates in parentheses.
 
 ### A-08 — Two different file lists for M0-01 (Low)
 
@@ -136,91 +136,91 @@ The same agent that performed this audit wrote parts of the audited material ear
 - **Evidence:** catalog: "README, license, AGENTS, roadmap, architecture, security model, decisions, task catalog, and traceability". ROADMAP: "README, license, AGENTS.md, architecture, threat model, decision register, protocol checklist, roadmap and test matrix". The catalog omits the protocol checklist and test matrix; the ROADMAP omits the task catalog and traceability; neither mentions STATUS.md, AGENT_OPERATIONS.md or the work-order template.
 - **Why it matters:** the scope of this task depended on which document was read. This audit used the union plus the process files, as approved in the work order.
 - **Proposed correction:** make both read "all planning documents listed in the approved work order (at minimum: …)" with one identical list.
-- **Status:** OPEN
+- **Status:** RESOLVED (M0-01.1) — identical file list in ROADMAP.md and TASK_CATALOG.md.
 
 ### A-09 — M9-01 does not name its predecessor (Low)
 
 - **Location:** [TASK_CATALOG.md](../TASK_CATALOG.md) M9-01 *Entry / prerequisites* (line 376); [STATUS.md](../STATUS.md) M9-01 row (line 70).
 - **Evidence:** catalog: "G3 passed for applicable core; enterprise scope owner-approved." The ledger lists predecessor M8-04. Every other card names its ledger predecessor (checked by script).
 - **Proposed correction:** "M8-04 accepted; G3 passed for applicable core; enterprise scope owner-approved."
-- **Status:** OPEN
+- **Status:** RESOLVED (M0-01.1).
 
 ### A-10 — README present-tense wording (Low)
 
 - **Location:** [README.md](../../README.md) line 5 and *Official product names* (line 17).
 - **Evidence:** line 5: "*Private by design. Powerful by nature. Simple for everyone.*" — not recorded in D-002, which lists only "Security Without Compromise." Line 17 describes SVP as an "Independent, openly specified networking protocol", while line 7 states there is no "published SVP wire protocol".
 - **Proposed correction:** either record the secondary tagline in D-002 (as aspiration) or remove it; change line 17 to "Independent networking protocol, to be openly specified".
-- **Status:** OPEN
+- **Status:** RESOLVED (M0-01.1) — secondary tagline kept and recorded in D-002 as an aspiration (owner decision); SVP row reworded.
 
 ### A-11 — "SVP protocol" naming (Low)
 
 - **Location:** [SECURITY.md](../../SECURITY.md) line 5 ("audited SVP protocol"); [ARCHITECTURE.md](../ARCHITECTURE.md) line 20 ("independent SVP protocol state machine"); [ROADMAP.md](../ROADMAP.md) line 36 heading ("formal SVP protocol specification"); [TASK_CATALOG.md](../TASK_CATALOG.md) line 103 heading ("SVP protocol specification").
 - **Evidence:** D-001 names it "Septuvo Protocol (SVP)", so "SVP protocol" expands to *Septuvo Protocol protocol*. TRACEABILITY and TEST_MATRIX expect consistent naming ("Four official names", T0).
 - **Proposed correction:** use "SVP" or "Septuvo Protocol (SVP)", e.g. "SVP specification", "SVP state machine".
-- **Status:** OPEN
+- **Status:** RESOLVED (M0-01.1) — all four occurrences.
 
 ### A-12 — State vocabulary drift (Low)
 
 - **Location:** [TASK_CATALOG.md](../TASK_CATALOG.md) M5-05 *Acceptance evidence* (line 255) and M7-05 *Acceptance evidence* (line 333); compare [STATUS.md](../STATUS.md) line 13 and *Allowed task states* (line 97).
 - **Evidence:** M5-05: "G2 owner PASS/FAIL recorded explicitly" while gates use PASSED / FAILED. M7-05: "each platform separately ACCEPTED or UNSUPPORTED" — UNSUPPORTED is not a defined task state and ACCEPTED is a task state, not a platform state.
 - **Proposed correction:** M5-05 "G2 recorded by the owner as PASSED or FAILED"; M7-05 "each platform recorded as supported or unsupported in the platform matrix".
-- **Status:** OPEN
+- **Status:** RESOLVED (M0-01.1).
 
 ### A-13 — T0 and T4 are not traced (Low)
 
 - **Location:** [TRACEABILITY.md](../TRACEABILITY.md) (all tables); [TEST_MATRIX.md](../TEST_MATRIX.md) T0 (line 5) and T4 (line 39).
 - **Evidence:** TRACEABILITY references T1, T2, T3 and T5 only. D-018 (public performance goals) has no traceability row and no row cites T4; the "Four official names" row does not cite T0.
 - **Proposed correction:** add T0 to the "Four official names" row and T4 to a performance row (D-018). Can be folded into M1-04, which owns TRACEABILITY.md.
-- **Status:** OPEN
+- **Status:** RESOLVED (M0-01.1) — T0 cited on the official-names row; new D-018 performance row cites T4.
 
 ### A-14 — STATUS.md header is stale (Low)
 
 - **Location:** [STATUS.md](../STATUS.md) line 3.
 - **Evidence:** "Initial baseline only: all 43 base tasks are NOT STARTED and all gates are PENDING." M0-01 is READY and four H tasks are ACCEPTED.
 - **Proposed correction (owner-only file):** "Created as a baseline with all tasks NOT STARTED and all gates PENDING; the tables below are the current state."
-- **Status:** OPEN
+- **Status:** RESOLVED by the owner in [PR #14](https://github.com/neosmith20/Septuvo/pull/14) (owner-only file).
 
 ### A-15 — Pre-G0 boundary omits permitted edits (Low)
 
 - **Location:** [AGENT_OPERATIONS.md](../AGENT_OPERATIONS.md) *Stage and release boundaries* (line 102).
 - **Evidence:** "Before G0: architecture/documentation inspection and proposal only." Yet M0-01.1 corrects documents, M0-02 writes `docs/DECISIONS.md` (TASK_CATALOG line 54), and H-001…H-004 changed documents and brand assets before G0.
 - **Proposed correction:** "Before G0: documentation inspection, owner-approved documentation corrections (M0 tasks and H tasks) and proposals only; no code."
-- **Status:** OPEN
+- **Status:** RESOLVED (M0-01.1).
 
 ### A-16 — H-002 and H-004 approvals cite chat instructions (Low)
 
 - **Location:** [STATUS.md](../STATUS.md) H-002 (line 91) and H-004 (line 93) rows; rule at line 16.
 - **Evidence:** both rows record "Owner instruction 2026-10-14: …" as the work-order approval. Those instructions were given in a chat session outside the repository, so there is no permalink, contrary to "Use dates in `YYYY-MM-DD` UTC and permalinks." The completion evidence (PR #5, PR #7) does link correctly.
 - **Proposed correction:** no change needed for accepted history if the owner considers the PR merges sufficient; for future H tasks, use the issue-based approval used for M0-01 (subject to A-04).
-- **Status:** OPEN
+- **Status:** NO ACTION — accepted history; future approvals follow the A-04 rule.
 
 ### A-17 — G3 described as a GitHub gate (Low)
 
 - **Location:** [SECURITY.md](../../SECURITY.md) *Release and support rules* (line 23); compare [GITHUB_SECURITY_SETUP.md](../security/GITHUB_SECURITY_SETUP.md) line 63.
 - **Evidence:** SECURITY.md: "until GitHub release approval gate **G3**". GITHUB_SECURITY_SETUP.md: "The gates concern the VPN product, not repository settings."
 - **Proposed correction:** "until the production release gate **G3** in the engineering roadmap".
-- **Status:** OPEN
+- **Status:** RESOLVED (M0-01.1).
 
 ### A-18 — M0 acceptance item without an owner (Low)
 
 - **Location:** [ROADMAP.md](../ROADMAP.md) M0 *Acceptance* (line 25).
 - **Evidence:** "every “must” has a validation location" is a G0 acceptance criterion, but no M0 task card (M0-01, M0-02, M0-03) is asked to produce that mapping, and this audit's approved scope did not include it. TRACEABILITY covers S-01…S-13 and selected product requirements, not every "must" in the documents.
 - **Proposed correction:** assign it explicitly (for example to M0-03's G0 evidence package) or reword it to "every security requirement S-01…S-13 and every product requirement in TRACEABILITY.md has a validation location".
-- **Status:** OPEN
+- **Status:** RESOLVED (M0-01.1) — criterion reworded in the ROADMAP M0 acceptance line.
 
 ### A-19 — Integrity script coverage gaps (Low)
 
 - **Location:** [scripts/check_repository.py](../../scripts/check_repository.py) lines 10–28 (`REQUIRED`), 29 (`LINK`), 46–49, 74–76.
 - **Evidence:** the link check scans README, AGENTS, SECURITY, `docs/**` and `.github/**` Markdown only, so `brand/README.md` and `brand/04 - Colors And Tokens/brand-tokens.md` are not checked; image links are excluded by the `(?<!!)` pattern; `#anchor` targets are not verified; `docs/security/*` and the PR template are not in `REQUIRED`; lines 46–49 test the same duplicate condition twice. This audit's own link and anchor check found no current breakage, so this is a coverage gap, not a present defect.
 - **Proposed correction:** extend the scan to all repository Markdown (excluding `.git`), include image links and anchors, add the missing required files, and remove the duplicate test. Changes to CI tooling need their own work order.
-- **Status:** OPEN
+- **Status:** OPEN — needs its own work order (CI tooling); excluded from M0-01.1.
 
 ### A-20 — Dependabot Cargo entry before a manifest exists (Low)
 
 - **Location:** [.github/dependabot.yml](../../.github/dependabot.yml) line 13.
 - **Evidence:** `package-ecosystem: "cargo"` is configured although no `Cargo.toml` exists until M3-01. The file's own comment acknowledges this. Depending on GitHub's behaviour this may show a configuration warning in the Dependabot view; this was not observable from the workspace (NOT RUN).
 - **Proposed correction:** no action required; the owner has previously accepted this. Optionally move the Cargo entry into the M3-01 work order.
-- **Status:** OPEN
+- **Status:** NO ACTION — owner accepted; the Cargo entry stays until M3-01.
 
 ## Owner decisions needed
 

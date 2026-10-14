@@ -18,11 +18,11 @@ Only owner-edited, dated ledger entries can pass a gate. All gates are initially
 
 **Goal:** a coherent blueprint before any cryptographic/network implementation.
 
-- **M0-01:** Audit README, license, AGENTS.md, architecture, threat model, decision register, protocol checklist, roadmap and test matrix for contradictions and claims. Documentation only. If defects exist, owner authorizes conditional **M0-01.1** corrections and accepts them before M0-02.
+- **M0-01:** Audit README, license, AGENTS.md, SECURITY.md, roadmap, task catalog, STATUS ledger, agent operations handbook, work-order template, architecture, security model (threat model), decision register, traceability, test matrix and protocol checklist for contradictions and claims. Documentation only. If defects exist, owner authorizes conditional **M0-01.1** corrections and accepts them before M0-02.
 - **M0-02:** Resolve each open scope/implementation-language/platform question with the owner; record approvals/rejected alternatives in DECISIONS.md. The four names in D-001 are already owner-confirmed.
 - **M0-03:** Agree on a staged review plan, external protocol-review expertise and practical test hardware. Define version-control/PR practices and review owners.
 
-**Acceptance:** docs link correctly; every “must” has a validation location; no candidate crypto listed as an approved construction; brand/domain clearance marked pending; written G0 owner approval recorded. **STOP until G0.**
+**Acceptance:** docs link correctly; every security requirement S-01…S-13 and every product requirement in TRACEABILITY.md has a validation location; no candidate crypto listed as an approved construction; brand/domain clearance marked pending; written G0 owner approval recorded. **STOP until G0.**
 
 ## M1 — threat model and requirements
 
@@ -33,10 +33,10 @@ Only owner-edited, dated ledger entries can pass a gate. All gates are initially
 
 **Acceptance:** S-01..S-13 mapped to protocols, components and T-tests; unresolved decisions identified; owner approves requirements. **No packet protocol code.**
 
-## M2 — formal SVP protocol specification (G1)
+## M2 — formal SVP specification (G1)
 
 - **M2-01:** Compare existing reviewed constructions, Rust crypto library maturity, protocols/standards and licensing. Propose suites with alternatives and explicit dependency risks.
-- **M2-02:** Draft exact full handshake and identity protocol: transcript, mutual authentication, trust roots, KEM validation/combiner, HKDF, key confirmation, errors and downgrade behavior.
+- **M2-02:** Draft exact full handshake and identity protocol: transcript, mutual authentication, trust roots, KEM validation/combiner, KDF schedule (HKDF candidate, D-024), key confirmation, errors and downgrade behavior.
 - **M2-03:** Draft packet grammar, AEAD nonce/replay semantics, key epochs, rotation limits, retransmission, migration, reassembly, MTU and anti-amplification controls.
 - **M2-04:** Draft **documentation-only** test-vector *formats*, state diagrams and conformance cases. No computed vectors, generator/property-test code, crypto/protocol code or live networking before G1. Per D-021 (option C), computed vectors are deferred until after G1; the external G1 reviewer must assess whether the documentation-only plan is sufficient.
 - **M2-05:** Obtain qualified external cryptographic/protocol review, log findings, remediate and obtain owner G1 sign-off on exact specification revision.
@@ -111,6 +111,6 @@ Only owner-edited, dated ledger entries can pass a gate. All gates are initially
 
 ## Execution sequence and discipline
 
-**One owner-approved agent work order at a time, regardless of agent or tool.** Use the 43-card [TASK_CATALOG.md](TASK_CATALOG.md); each task must name files, expected behavior, non-goals, test commands, known risks, rollback and its exact stop point. Branch + PR for code; owner reviews before merge and explicitly selects the next item. Re-check prior task state at each handoff. Agents must never infer completion from a timeout, create their own security decisions, publish an experimental VPN publicly, or skip to a “fun” feature.
+**One owner-approved agent work order at a time, regardless of agent or tool.** Use the 43-card [TASK_CATALOG.md](TASK_CATALOG.md); each task must name files, expected behavior, non-goals, test commands, known risks, rollback and its exact stop point. Branch + PR for every change, code or documentation; owner reviews before merge and explicitly selects the next item. Re-check prior task state at each handoff. Agents must never infer completion from a timeout, create their own security decisions, publish an experimental VPN publicly, or skip to a “fun” feature.
 
 **Current next action:** inspect owner-maintained [STATUS.md](STATUS.md), then M0-01 audit → M0-01.1 corrections if findings exist → M0-02 decisions → M0-03 G0 evidence, each separately owner-approved and accepted. Only then may the owner record G0 passage. **No cryptographic/protocol implementation before G1.**

@@ -13,7 +13,7 @@ These tests are **requirements**, not performed results. No test has passed mere
 
 - Known-answer and interoperability vectors, real entropy in production path.
 - Malformed/short/truncated/oversized/fuzzed packets never panic, escape bounds or allocate without limit.
-- Corrupt tag/signature/ML-KEM ciphertext, wrong identity, expired enrollment, version mismatch, replay and downgrade attempts fail closed.
+- Corrupt tag/signature/KEM ciphertext, wrong identity, expired enrollment, version mismatch, replay and downgrade attempts fail closed.
 - Loss/reordering/duplicates during handshake, key rotation, session migration and restart do not reuse AEAD nonce or bypass identity.
 - Concurrent packet workers cannot race counters/epochs; crash recovery cannot replay stale key state.
 - Capture and inspect packets to verify no plaintext data goes on untrusted interface.

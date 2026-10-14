@@ -16,7 +16,7 @@ Only the exact task and files named in an approved work order are in scope. Read
 2. Inspect branch, HEAD, repository status, existing commits and current file contents. Never trust an earlier handoff without verification.
 3. Report exact task ID, allowed files, known dependencies, acceptance criteria, risks, rollback and expected stopping point.
 4. Check required gate approvals and the specific owner-approved work order. **No approval = no implementation.** Documentation proposals are allowed only within an approved task. Document the blocker instead of guessing.
-5. Work on a narrow task branch and propose a PR for **every change**; do not push directly to main unless the owner explicitly directs it. Do not force-push or self-merge.
+5. Work on a narrow task branch and propose a PR for **every change**, code or documentation; agents never push to, merge into, or force-push `main` (the `main` ruleset also blocks direct pushes).
 
 ## Absolute red lines
 
