@@ -38,7 +38,7 @@ Only owner-edited, dated ledger entries can pass a gate. All gates are initially
 - **M2-01:** Compare existing reviewed constructions, Rust crypto library maturity, protocols/standards and licensing. Propose suites with alternatives and explicit dependency risks.
 - **M2-02:** Draft exact full handshake and identity protocol: transcript, mutual authentication, trust roots, KEM validation/combiner, HKDF, key confirmation, errors and downgrade behavior.
 - **M2-03:** Draft packet grammar, AEAD nonce/replay semantics, key epochs, rotation limits, retransmission, migration, reassembly, MTU and anti-amplification controls.
-- **M2-04:** Draft **documentation-only** test-vector *formats*, state diagrams and conformance cases. No computed vectors, generator/property-test code, crypto/protocol code or live networking before G1. D-021 is an OPEN owner decision; the external G1 reviewer must assess evidence sufficiency.
+- **M2-04:** Draft **documentation-only** test-vector *formats*, state diagrams and conformance cases. No computed vectors, generator/property-test code, crypto/protocol code or live networking before G1. Per D-021 (option C), computed vectors are deferred until after G1; the external G1 reviewer must assess whether the documentation-only plan is sufficient.
 - **M2-05:** Obtain qualified external cryptographic/protocol review, log findings, remediate and obtain owner G1 sign-off on exact specification revision.
 
 **Acceptance:** every P-01..P-14 item answered, traceable, independently reviewed and owner-approved. Reopen G1 on material changes. **STOP until G1.**

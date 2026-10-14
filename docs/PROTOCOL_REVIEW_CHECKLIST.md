@@ -18,7 +18,7 @@
 | P-10 | MTU & fragmentation | UDP payload limits, handshake fragmentation/reassembly, malicious memory caps and retransmits |
 | P-11 | Resource protection | Anti-amplification, address validation, rate limits, parsing budgets, unauthenticated computation |
 | P-12 | Error semantics | Fail-closed state transitions, timeouts, disconnect, reconnect, version mismatch |
-| P-13 | Wire fixtures | Before G1: documentation-only test formats, negative cases and a conformance plan; exact method for computed vectors is OPEN owner decision D-021. **No Septuvo executable crypto/protocol code or generator before G1.** Qualified reviewer must accept pre-G1 evidence as sufficient or block G1. After G1: implement and verify canonical computed test vectors, invalid cases and deterministic test fixtures isolated from production RNG |
+| P-13 | Wire fixtures | Before G1: documentation-only test formats, negative cases and a conformance plan; per owner decision D-021 (option C), computed vectors are deferred until after G1. **No Septuvo executable crypto/protocol code or generator before G1.** Qualified reviewer must accept pre-G1 evidence as sufficient or block G1. After G1: implement and verify canonical computed test vectors, invalid cases and deterministic test fixtures isolated from production RNG |
 | P-14 | Protocol analysis | Review record, formal/model-checking artifacts if feasible, known assumptions and residual risks |
 
 ## Acceptance / prohibition
