@@ -17,14 +17,36 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: Checkout repository (pinned release)
+      # Two checkouts (H-008): the files under review come from the pull
+      # request, but the check scripts always come from the trusted base
+      # branch, so a pull request cannot edit the checks that judge it.
+      - name: Checkout files under review
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, verified 2026-10-13
         with:
-          ref: ${{ github.base_ref || 'main' }}
+          path: review
           persist-credentials: false
+      - name: Checkout trusted check scripts (base branch)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, verified 2026-10-13
+        with:
+          ref: ${{ github.base_ref || github.sha }}
+          path: trusted
+          sparse-checkout: scripts
+          persist-credentials: false
+      - name: Select check scripts
+        run: |
+          if grep -q SEPTUVO_ROOT trusted/scripts/check_repository.py trusted/scripts/verify_ledger.py; then
+            echo "CHECKS=trusted/scripts" >> "$GITHUB_ENV"
+          else
+            # Only possible until H-008 itself is on the base branch.
+            echo "::warning::Base-branch scripts predate H-008; using this pull request's scripts for this run only."
+            echo "CHECKS=review/scripts" >> "$GITHUB_ENV"
+          fi
       - name: Validate planning documents and repository links
-        run: python3 scripts/check_repository.py
+        env:
+          SEPTUVO_ROOT: ${{ github.workspace }}/review
+        run: python3 "$CHECKS/check_repository.py"
       - name: Verify owner decisions mirrored in docs/STATUS.md (D-025)
         env:
+          SEPTUVO_ROOT: ${{ github.workspace }}/review
           GITHUB_TOKEN: ${{ github.token }}
-        run: python3 scripts/verify_ledger.py
+        run: python3 "$CHECKS/verify_ledger.py"
