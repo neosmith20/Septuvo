@@ -17,3 +17,6 @@ $RECYCLE.BIN/
 # Linux file managers
 .directory
 .Trash-*
+
+# Rust build output (N1 onward)
+/target/
