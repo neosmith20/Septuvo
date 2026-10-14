@@ -1,0 +1,20 @@
+# Septuvo Rust workspace (track N1: non-crypto foundation, D-029/D-030).
+# No third-party crates: every dependency must be approved in a work order first.
+
+[workspace]
+resolver = "3"
+members = ["crates/septuvo-policy", "crates/septuvo-cli"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/neosmith20/Septuvo"
+publish = false
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
