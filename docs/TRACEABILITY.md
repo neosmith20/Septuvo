@@ -1,41 +1,115 @@
 # Septuvo — requirement and evidence traceability
 
-This is a **planned** traceability map. No listed test is considered run or passed. Test case IDs are proposed identifiers; test code/files must only be added under authorized work orders.
+This is a **planned** traceability map (baseline from M1-04). No listed test is considered run or passed unless its row says where real results are recorded. Test IDs are proposed identifiers; test code and files are added only under authorized work orders.
+
+**Sources:** security requirements S-01…S-13 in [SECURITY_MODEL.md](SECURITY_MODEL.md); adversaries ADV-* in [spec/threats.md](spec/threats.md); network requirements NP-* in [spec/network-policies.md](spec/network-policies.md); identity and privacy requirements (ID, EN, KS, RV, AD, PR, LO) in [spec/identity-and-privacy.md](spec/identity-and-privacy.md); platform status in [spec/platform-feasibility.md](spec/platform-feasibility.md); test levels T0–T5 in [TEST_MATRIX.md](TEST_MATRIX.md).
+
+## Components
+
+| ID | Component | Exists today? |
+| --- | --- | --- |
+| C-APP | Unprivileged app and CLI (`crates/septuvo-cli`) | Skeleton (N1-01) |
+| C-NODE | Privileged node service: sessions, policy application, local control (TB-1) | No |
+| C-POL | Policy engine (`crates/septuvo-policy`) | Yes, pure logic (N1-02) |
+| C-OSNET | OS enforcement: routes, firewall (kill switch), DNS | Lab harness planned (N1-03) |
+| C-SVP | SVP handshake and session state machine | No — after G1 |
+| C-PKT | Packet engine: encryption, replay protection, framing | No — after G1 |
+| C-ID | Identity, enrollment, key storage, revocation | No |
+| C-GW | Septuvo Server gateway: per-device authorization, NAT, forwarding | No |
+| C-REL | Build, release, signing and update | CI checks only |
+| C-CP | Organization/provider control plane | No — M9 |
 
 ## Security requirements (S-01 through S-13)
 
-| ID | Primary engineering owner/task | Planned evidence / negative test | Minimum gate |
-| --- | --- | --- | --- |
-| S-01 authenticated key agreement | M2-02/03, M3-03/04 | T1: wrong peer, forged auth, transcript mix-up, handshake order, version and role confusion | G1 design; G3 production |
-| S-02 hybrid PQ goal | M2-01/02/05, M3-03 | T1: reviewed KEM/composition, future-recording threat, downgraded/cross-suite handshake rejected | G1 reviewed design; G3 audit |
-| S-03 key lifecycle | M2-03, M3-03/04, M4-03 | T1: key derivation and separation, expiration, rekey with loss, recovery, stale key rejection | G1; G3 |
-| S-04 AEAD nonce/replay | M2-03, M3-04, M4-03 | T1: crash/restart, worker concurrency, epoch overlap, counter rollover, duplicate/invalid ciphertext | G1; G3 |
-| S-05 downgrade prevention | M2-02, M3-04 | T1: version negotiation tampering, cipher mismatch, PQ-required policy against old peers | G1; G3 |
-| S-06 session replay/migration | M2-03, M3-04, M4-03, M7-05 | T1/T3: replay windows, rebind to new address, spoofed migration, Wi-Fi/mobile roam | G1; G3 |
-| S-07 resource/DoS bounds | M2-03, M3-02, M5-04, M9-04 | T1/T5: malformed/oversized frames, pre-auth amplification and allocation, brute-rate fairness | G1; G3/G4 |
-| S-08 hostile network fail closed | M1-02, M5-01/02, M7-01/05 | T2/T3: UDP endpoint failure, DNS/IPv6 leakage, interface roam, sleep, crash, LAN opt-in | G2 lab; G3 per OS |
-| S-09 least-privilege access | M1-02, M4-02, M5-01/03, M9-04 | T2/T5: route vs authorization, forbidden NAS subnet, cross-tenant reachability | G2; G4 provider |
-| S-10 safe enrollment/revocation | M1-03, M6-01 | T3: expired/replayed invite, private key exclusion, lost-device revoke and replacement | G3 |
-| S-11 control-plane separation | M1-03, M9-01/02/03 | T5: role authz, stolen control token, limited stale policy, outage/isolation | G4 |
-| S-12 signing/dependency/update | M3-01/03, M6-02, M7-03, M8-03 | T3/T5: dependency inventory, verified packages, rollback, provenance, secret scanning | G3 |
-| S-13 privacy/diagnostics | M1-03, M6-03, M7-02 | T3: logs omit keys/data, consent/retention documented, “adapter up” ≠ authenticated tunnel | G3 |
+| ID | Components | Adversaries | Tasks | Test IDs | Minimum gate |
+| --- | --- | --- | --- | --- | --- |
+| S-01 authenticated key agreement | C-SVP, C-ID | ADV-01, ADV-02, ADV-07 | M2-02/03, M3-03/04 | T1-HS-01, T1-HS-02 | G1 design; G3 production |
+| S-02 hybrid PQ goal | C-SVP | ADV-04 | M2-01/02/05, M3-03 | T1-HS-03, T1-DG-01 | G1 reviewed design; G3 audit |
+| S-03 key lifecycle | C-SVP, C-PKT, C-ID | ADV-05, ADV-10, ADV-02 | M2-03, M3-03/04, M4-03 | T1-KL-01, T1-KL-02, T3-KS-01 | G1; G3 |
+| S-04 AEAD nonce/replay | C-PKT | ADV-01, ADV-02 | M2-03, M3-04, M4-03 | T1-AE-01, T1-AE-02, T1-KL-02 | G1; G3 |
+| S-05 downgrade prevention | C-SVP | ADV-01, ADV-02 | M2-02, M3-04 | T1-DG-01, T1-HS-02 | G1; G3 |
+| S-06 session replay/migration | C-PKT, C-SVP | ADV-01, ADV-02, ADV-03 | M2-03, M3-04, M4-03, M7-05 | T1-RP-01, T1-RP-02, T2-KS-05 | G1; G3 |
+| S-07 resource/DoS bounds | C-PKT, C-SVP, C-GW | ADV-03, ADV-07 | M2-03, M3-02, M5-04, M9-04 | T1-DOS-01, T1-DOS-02, T5-DOS-01 | G1; G3/G4 |
+| S-08 hostile network fail closed | C-OSNET, C-POL, C-NODE | ADV-01, ADV-02 | M1-02, N1-02, N1-03, M5-01/02, M7-01/05 | T2-POL-01, T2-KS-01…05, T2-DNS-01/02, T2-V6-01, T2-OV-01 | G2 lab; G3 per OS |
+| S-09 least-privilege access | C-GW, C-POL | ADV-07 | M1-02, M4-02, M5-01/03, M9-04 | T2-GW-01, T2-GW-02, T5-TEN-01 | G2; G4 provider |
+| S-10 safe enrollment/revocation | C-ID, C-GW | ADV-06, ADV-01, ADV-05 | M1-03, M6-01 | T3-EN-01, T3-EN-02, T3-RV-01, T3-RV-02 | G3 |
+| S-11 control-plane separation | C-NODE, C-GW; C-CP later | ADV-10, ADV-12 | M1-03, M9-01/02/03 | T3-AD-01; T5-CP-01 (M9) | G3 (local); G4 (control plane) |
+| S-12 signing/dependency/update | C-REL | ADV-09 | M3-01/03, M6-02, M7-03, M8-03 | T0-SC-01, T3-PKG-01, T3-REL-01 | G3 |
+| S-13 privacy/diagnostics | C-APP, C-NODE, C-GW | ADV-10, ADV-08, ADV-05 | M1-03, N1-04, M6-03, M7-02 | T3-ST-01, T3-LOG-01, T3-OFF-01 | G3 |
+
+Every S requirement has at least one adversary, component, test ID and gate: **no orphan requirement**.
+
+## Test ID catalogue
+
+| Test ID | Level | What it must show | Earliest task | Real results |
+| --- | --- | --- | --- | --- |
+| T0-SC-01 | T0 | CI: secret scanning, actions pinned by SHA, no unapproved crates, integrity checks | N1-01, H-007 | `repository-integrity` CI on every pull request; `Rust` CI once N1-01 is merged |
+| T1-HS-01 | T1 | Wrong or unknown peer identity and forged authentication are rejected | M3-03 | NOT RUN |
+| T1-HS-02 | T1 | Transcript, role or version tampering is rejected | M3-03 | NOT RUN |
+| T1-HS-03 | T1 | Hybrid key establishment cases specified by the G1 reviewer | M3-03 | NOT RUN |
+| T1-DG-01 | T1 | Version, suite and post-quantum-required downgrades fail closed | M3-04 | NOT RUN |
+| T1-KL-01 | T1 | Key separation, expiry, rekey under loss, stale keys rejected | M3-04 | NOT RUN |
+| T1-KL-02 | T1 | Crash and restart never reuse a key/nonce pair | M4-03 | NOT RUN |
+| T1-AE-01 | T1 | Nonce uniqueness across workers and epochs; counter rollover | M4-03 | NOT RUN |
+| T1-AE-02 | T1 | Corrupt tag, ciphertext or length rejected | M3-04 | NOT RUN |
+| T1-RP-01 | T1 | Duplicates and old packets dropped by the replay window | M3-04 | NOT RUN |
+| T1-RP-02 | T1 | Authenticated endpoint change accepted; spoofed migration rejected | M4-03 | NOT RUN |
+| T1-DOS-01 | T1 | Malformed, oversized and fuzzed input: no panic, bounded memory | M3-02 | NOT RUN |
+| T1-DOS-02 | T1 | Pre-authentication amplification and rate limits within bounds | M3-04 | NOT RUN |
+| T2-POL-01 | T2 | Policy decisions for journeys A and B, overlaps and fail-closed defaults (NP-E7, NP-E8) | N1-02 | `Rust` CI on the first N1 pull request (passing results count once it is merged) |
+| T2-POL-02 | T2 | Hostile or invalid policy text rejected | N1-02 | `Rust` CI on the first N1 pull request (passing results count once it is merged) |
+| T2-KS-01 | T2 | Protected IPv4 and IPv6 dropped with no VPN path (NP-E1, NP-E3) | N1-03 | NOT RUN |
+| T2-KS-02 | T2 | Approved LAN exceptions and underlay exceptions still work with the path down (NP-U1…U4) | N1-03 | NOT RUN |
+| T2-KS-03 | T2 | Rules survive a service crash and are repaired on restart (NP-E5) | N1-03, M5 | NOT RUN |
+| T2-KS-04 | T2 | Apply and roll back leave no rules behind (NP-E6) | N1-03 | NOT RUN |
+| T2-KS-05 | T2 | Network change, sleep/wake and reconnect leave no leak window (NP-E2, NP-E4) | M5, M7 | NOT RUN |
+| T2-DNS-01 | T2 | Full tunnel: DNS only through the tunnel; ports 53/853 elsewhere dropped (NP-D1, NP-D5) | N1-03, M5 | NOT RUN |
+| T2-DNS-02 | T2 | Split: home domains never sent to underlay DNS (NP-D2) | M5 | NOT RUN |
+| T2-V6-01 | T2 | IPv6 dropped when the tunnel lacks IPv6; router advertisements cannot bypass (NP-6.1, NP-6.2) | N1-03, M5 | NOT RUN |
+| T2-OV-01 | T2 | Overlapping subnets: home traffic never delivered locally (NP-S5) | M5 | NOT RUN |
+| T2-GW-01 | T2 | Gateway drops destinations a device is not authorized for (NP-G1) | M5 | NOT RUN |
+| T2-GW-02 | T2 | Device-to-device blocked by default; spoofed tunnel sources dropped (NP-G2, NP-G3) | M5 | NOT RUN |
+| T2-J-A | T2 | Journey A end to end (NP-S2) | M5, G2 | NOT RUN |
+| T2-J-B | T2 | Journey B end to end (NP-S1) | M5, G2 | NOT RUN |
+| T2-J-AB | T2 | Journeys A and B through the home server (NP-S3) and the approved-NAS case (NP-S4) | M5, G2 | NOT RUN |
+| T3-EN-01 | T3 | Expired, reused, wrong-fingerprint and over-attempted invitations rejected; no private key in any invitation (EN-1…6) | M6-01 | NOT RUN |
+| T3-EN-02 | T3 | Administrator confirmation code flow (EN-7) | M6-01 | NOT RUN |
+| T3-RV-01 | T3 | Revocation: new handshakes refused, sessions closed at once, persisted (RV-1, RV-2) | M6-01 | NOT RUN |
+| T3-RV-02 | T3 | Changed server identity refused with a warning (RV-5) | M6-01 | NOT RUN |
+| T3-KS-01 | T3 | Key files and stores have the stated protection; keys excluded from backups (KS-1…3) | M6, M7 | NOT RUN |
+| T3-AD-01 | T3 | Node service rejects unauthorized local callers (AD-4) | M6 | NOT RUN |
+| T3-ST-01 | T3 | Four independent status stages; "adapter up" never shown as connected (D-020) | N1-04 (model), M6-03 (UI) | NOT RUN |
+| T3-LOG-01 | T3 | Logs and diagnostics contain no secrets, payloads or DNS names (PR-2…5) | M6-03 | NOT RUN |
+| T3-OFF-01 | T3 | Offline self-hosted install and enrollment; no external network calls (LO-1, LO-2) | M6 | NOT RUN |
+| T3-UI-01 | T3 | Closing the app keeps the tunnel; explicit disconnect works (D-019) | M6-03, M7 | NOT RUN |
+| T3-PKG-01 | T3 | Signed install, update and uninstall with complete cleanup | M6-02, M7 | NOT RUN |
+| T3-REL-01 | T3 | Signed builds, provenance and SBOM | M8-03 | NOT RUN |
+| T4-PERF-01 | T4 | Reproducible throughput, latency and resource benchmarks | M4-04, M9-05 | NOT RUN |
+| T5-TEN-01 | T5 | Tenant isolation with overlapping address space | M9 | NOT RUN |
+| T5-CP-01 | T5 | Control-plane outage and bounded revocation propagation | M9 | NOT RUN |
+| T5-DOS-01 | T5 | Fairness and bounded pre-authentication cost under abusive tenants | M9 | NOT RUN |
 
 ## Additional product requirements
 
-| Feature | Source decision | Responsible tasks | Evidence |
-| --- | --- | --- | --- |
-| Four official names | D-001 | M0-01 and every UI/docs task | T0: README/docs/UX name checks |
-| Independent Layer 3 Rust core | D-003..D-005 | M2–M4 | Wire spec; Rust source/dependency inventory; lab interop |
-| AES-256-GCM preferred, not pre-approved | D-010 | M2-01..05, M3-03 | Reviewed suite + hardware benchmarks |
-| Always-untrusted physical network | D-006 | M1-02, M5, M7 | Hostile local-network and leak tests |
-| User opt-in direct LAN while VPN exits elsewhere | D-006 | M1-02, M5-01..03 | Home NAS vs exit routing and firewall tests |
-| Standalone no mandatory vendor account | D-007 | M6-01..04 | Fresh offline self-hosted installation |
-| Easy end-user installation, no builds | D-008 | M6-02..04, M7 | Installer and novice usability tests |
-| Enterprise/provider capability | D-009 | M9 | Separate real idle/active concurrency benchmarks and isolation |
-| Measured performance goals | D-018 | M4-04, M9-05 | T4: reproducible lab benchmarks; no unmeasured claims |
-| Third-party OS/native dependencies transparently inventoried | D-005, D-015 | M3-01, M7-01/04 | Platform matrix and dependency audit |
-| Desktop UI status and close behavior | D-019, D-020 | M6-03, M7-02/03 | Connection-stage diagnostics and UX tests |
-| Domain/trademark suitability | D-016 | Owner + counsel, outside protocol tasks | Formal clearance prior to commercialization |
+| Feature | Source decision | Components | Responsible tasks | Test IDs / evidence |
+| --- | --- | --- | --- | --- |
+| Four official names | D-001 | all | M0-01 and every UI/docs task | T0: README/docs/UX name checks |
+| Independent Layer 3 Rust core | D-003..D-005 | C-SVP, C-PKT | M2–M4 | Wire spec; Rust source/dependency inventory; lab interop |
+| AES-256-GCM preferred, not pre-approved | D-010 | C-PKT | M2-01..05, M3-03 | Reviewed suite + hardware benchmarks (T4-PERF-01) |
+| Always-untrusted physical network | D-006 | C-OSNET, C-POL | M1-02, N1-02, N1-03, M5, M7 | T2-POL-01, T2-KS-01…05 |
+| User opt-in direct LAN while VPN exits elsewhere | D-006 | C-POL, C-OSNET | M1-02, N1-02, M5-01..03 | T2-POL-01, T2-KS-02, T2-J-AB |
+| Version 1 journeys A and B | D-027 | C-POL, C-OSNET, C-GW | M1-02, N1-02, M5, G2 | T2-J-A, T2-J-B, T2-J-AB |
+| Standalone, no mandatory vendor account | D-007 | C-ID, C-NODE | M1-03, M6-01..04 | T3-OFF-01 |
+| No mandatory telemetry; minimal diagnostics | D-017 | C-APP, C-NODE | M1-03, M6-03 | T3-LOG-01, T3-OFF-01 |
+| Easy end-user installation, no builds | D-008 | C-REL | M6-02..04, M7 | T3-PKG-01; novice usability tests |
+| Enterprise/provider capability | D-009 | C-CP, C-GW | M9 | T5-TEN-01, T5-CP-01; real idle/active concurrency benchmarks |
+| Measured performance goals | D-018 | C-PKT | M4-04, M9-05 | T4-PERF-01; no unmeasured claims |
+| Third-party OS/native dependencies transparently inventoried | D-005, D-015 | all | M1-04, M3-01, M7-01/04 | [spec/platform-feasibility.md](spec/platform-feasibility.md); dependency audit |
+| Platform order and honest support claims | D-014 | all | M1-04, M7 | [spec/platform-feasibility.md](spec/platform-feasibility.md); T2/T3 per OS |
+| Desktop UI close behavior | D-019 | C-APP, C-NODE | M6-03, M7-02/03 | T3-UI-01 |
+| Four-stage connection status | D-020 | C-APP, C-NODE | N1-04, M6-03 | T3-ST-01 |
+| Non-crypto Rust foundation (track N1) | D-029, D-030 | C-POL, C-OSNET, C-APP | N1-01…N1-04 | T0-SC-01, T2-POL-01/02, T2-KS-01…04, T3-ST-01 |
+| Domain/trademark suitability | D-016 | — | Owner + counsel, outside protocol tasks | Formal clearance prior to commercialization |
 
 ## Blockers versus optional work
 
@@ -45,7 +119,7 @@ This is a **planned** traceability map. No listed test is considered run or pass
 - **Hard stop:** no G4 means no “million users” or provider capacity claims.
 - **Optional future feature:** Layer 2 bridging is explicitly *not* part of SVP v1.
 - **Optional infrastructure:** coordination service or relay, never a hard dependency for supported standalone operation.
-- **Unresolved platform fact:** literal 100% Rust end-to-end depends on OS-native VPN frameworks; Septuvo-owned security-critical code is Rust, all native glue must be disclosed.
+- **Unresolved platform fact:** literal 100% Rust end-to-end depends on OS-native VPN frameworks; Septuvo-owned security-critical code is Rust, all native glue must be disclosed ([spec/platform-feasibility.md](spec/platform-feasibility.md)).
 
 ## Evidence review rubric
 
