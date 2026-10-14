@@ -30,7 +30,7 @@ Use dates in `YYYY-MM-DD` UTC and permalinks. A blank approval reference means *
 | Task ID | State | Predecessor | Owner decision date (UTC) | Work-order approval | Completion evidence |
 | --- | --- | --- | --- | --- | --- |
 | M0-01 | ACCEPTED | — | 2026-10-14 | [Approval on issue #9](https://github.com/neosmith20/Septuvo/issues/9#issuecomment-6161523935) | [PR #12](https://github.com/neosmith20/Septuvo/pull/12) — `docs/reviews/M0-01-audit.md` |
-| M0-02 | NOT STARTED | M0-01 | — | — | — |
+| M0-02 | READY | M0-01 | 2026-10-14 | [Approval on issue #18](https://github.com/neosmith20/Septuvo/issues/18#issuecomment-6162237599) | — |
 | M0-03 | NOT STARTED | M0-02 | — | — | — |
 | M1-01 | NOT STARTED | M0-03 | — | — | — |
 | M1-02 | NOT STARTED | M1-01 | — | — | — |
@@ -91,6 +91,7 @@ Use separate `H-001`, `H-002` etc. IDs for work outside the 43 base tasks; they 
 | H-002 | ACCEPTED | 2026-10-14 | Owner instruction 2026-10-14: record D-021 option C; fix catalog predecessors and work-order status line; align color-board type sizes | [PR #5](https://github.com/neosmith20/Septuvo/pull/5) |
 | H-003 | ACCEPTED | 2026-10-14 | Retroactive owner acceptance 2026-10-14 (owner reviewed and committed the files) | Brand kit corrections: guidelines PDF, brand README, root .gitignore ([c3195eb](https://github.com/neosmith20/Septuvo/commit/c3195eb)); color board colors ([160fbde](https://github.com/neosmith20/Septuvo/commit/160fbde)) |
 | H-004 | ACCEPTED | 2026-10-14 | Owner instruction 2026-10-14: document public repository, active ruleset and security features; record D-022/D-023 | [PR #7](https://github.com/neosmith20/Septuvo/pull/7) |
+| H-005 | READY | 2026-10-14 | [Approval on issue #17](https://github.com/neosmith20/Septuvo/issues/17#issuecomment-6162227517) | — |
 
 ## Allowed task states
 
