@@ -9,11 +9,10 @@ Septuvo is **pre-implementation**. There is no installable VPN, audited SVP prot
 If you discover an issue affecting future Septuvo code, cryptographic design, dependencies, enrollment, credentials, or network policy:
 
 1. **Do not post exploitable details, live credentials, private keys, access tokens, or affected user data in public GitHub issues, PRs, or discussions.**
-2. Contact the repository maintainer through a previously established private channel and request a confidential disclosure process. No dedicated security mailbox has been verified; **do not assume one exists**.
-3. If GitHub Security Advisories/private reporting are enabled for the repository, follow the reporting path shown on the repository's Security tab.
-4. Provide a minimal description, affected commit/version/platform, impact, reproduction in a private lab, and any proposed mitigation.
+2. Report privately through GitHub: open the repository's **Security** tab and choose **Report a vulnerability**. GitHub private vulnerability reporting is enabled for this repository (verified 2026-10-14). No dedicated security mailbox exists; **do not assume one does**.
+3. Provide a minimal description, affected commit/version/platform, impact, reproduction in a private lab, and any proposed mitigation.
 
-If there is no established private contact route, **do not disclose secrets publicly**; request a secure reporting channel without including exploit details.
+If private reporting is unavailable for any reason, **do not disclose secrets or exploit details publicly**; open a minimal public issue asking for a secure reporting channel, without technical details.
 
 ## Response expectations
 
