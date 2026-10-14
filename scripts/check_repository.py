@@ -12,6 +12,7 @@ REQUIRED = (
     "AGENTS.md",
     "LICENSE",
     "docs/ROADMAP.md",
+    "docs/STATUS.md",
     "docs/TASK_CATALOG.md",
     "docs/AGENT_OPERATIONS.md",
     "docs/ARCHITECTURE.md",
@@ -28,6 +29,9 @@ REQUIRED = (
 LINK = re.compile(r"(?<!!)\[[^\]\n]+\]\(([^)\n]+)\)")
 CATALOG_ID = re.compile(r"^### (M\d+-\d+) —", re.MULTILINE)
 ROADMAP_ID = re.compile(r"\*\*(M\d+-\d+):\*\*")
+SUBTASK_ID = re.compile(r"^### (M\d+-\d+\.\d+) —", re.MULTILINE)
+VALID_WORK_ID = re.compile(r"^(?:M\d+-\d+(?:\.\d+)?|H-\d{3})$")
+LEDGER_ROW = re.compile(r"^\| (M\d+-\d+(?:\.\d+)?|H-\d{3}) \|", re.MULTILINE)
 errors = []
 
 for rel in REQUIRED:
@@ -39,10 +43,24 @@ if not errors:
     roadmap = (ROOT / "docs/ROADMAP.md").read_text(encoding="utf-8")
     catalog_ids = CATALOG_ID.findall(catalog)
     roadmap_ids = ROADMAP_ID.findall(roadmap)
+    if len(catalog_ids) != 43 or len(catalog_ids) != len(set(catalog_ids)):
+        errors.append(f"Expected exactly 43 unique base tasks; found {len(catalog_ids)}.")
     if not catalog_ids or len(catalog_ids) != len(set(catalog_ids)):
         errors.append("Task catalog IDs are missing or duplicated.")
     if catalog_ids != roadmap_ids:
         errors.append("Task catalog IDs do not match roadmap order.")
+    ledger = (ROOT / "docs/STATUS.md").read_text(encoding="utf-8")
+    ledger_ids = LEDGER_ROW.findall(ledger)
+    if len(ledger_ids) != len(set(ledger_ids)):
+        errors.append("Duplicate task ID in owner ledger.")
+    if not set(catalog_ids).issubset(set(ledger_ids)):
+        errors.append("STATUS.md must list all 43 base task IDs.")
+    for ident in ledger_ids + SUBTASK_ID.findall(catalog):
+        if not VALID_WORK_ID.fullmatch(ident):
+            errors.append(f"Invalid work ID: {ident}")
+    for gate in ("G0", "G1", "G2", "G3", "G4"):
+        if not re.search(rf"^\| {gate} \| (?:PENDING|PASSED|FAILED) \|", ledger, re.MULTILINE):
+            errors.append(f"Owner gate ledger missing or invalid: {gate}")
     security_model = (ROOT / "docs/SECURITY_MODEL.md").read_text(encoding="utf-8")
     traceability = (ROOT / "docs/TRACEABILITY.md").read_text(encoding="utf-8")
     for i in range(1, 14):

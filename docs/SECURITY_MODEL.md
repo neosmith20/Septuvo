@@ -58,7 +58,7 @@
 
 Before real SVP crypto code (**G1**): a full wire specification, exact KEM/signature choices, formal identity model, KDF schedule, transcript, AEAD nonce/epoch arithmetic, replay model, fragmentation/amplification controls, error handling and threat analysis must be reviewed by a qualified external protocol/security expert and approved by the owner.
 
-Before external pilot (**G2**): lab tunnel interoperability and negative tests (malformed packets, corrupted tags, forged peers, stale replay, downgrade attempts, loss, rekey, migration), crash and leak tests. These are lab results, **not** a security audit.
+Before advancement beyond controlled lab qualification (**G2**): lab tunnel interoperability and negative tests (malformed packets, corrupted tags, forged peers, stale replay, downgrade attempts, loss, rekey, migration), crash and leak tests. These are lab results, **not** a security audit.
 
 Before production/public claims (**G3**): independent audit of protocol and implementation, documented findings and remediation, cross-platform OS policy validation, signed update/release procedures, vulnerability reporting and incident plan.
 
