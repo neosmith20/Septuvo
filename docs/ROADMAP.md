@@ -12,7 +12,7 @@
 | G3 | Independent security audit, remediation, signed release builds, platform validation | [STATUS.md](STATUS.md) |
 | G4 | Provider isolation, availability, measured capacity and operational controls | [STATUS.md](STATUS.md) |
 
-Only owner-edited, dated ledger entries can pass a gate. All gates are initially PENDING.
+Only an owner `GATE <Gn> PASSED` comment, mirrored in the ledger (D-025), can pass a gate. All gates are initially PENDING.
 
 ## M0 — repository baseline and owner sign-off (FIRST)
 
@@ -113,4 +113,4 @@ Only owner-edited, dated ledger entries can pass a gate. All gates are initially
 
 **One owner-approved agent work order at a time, regardless of agent or tool.** Use the 43-card [TASK_CATALOG.md](TASK_CATALOG.md); each task must name files, expected behavior, non-goals, test commands, known risks, rollback and its exact stop point. Branch + PR for every change, code or documentation; owner reviews before merge and explicitly selects the next item. Re-check prior task state at each handoff. Agents must never infer completion from a timeout, create their own security decisions, publish an experimental VPN publicly, or skip to a “fun” feature.
 
-**Current next action:** inspect owner-maintained [STATUS.md](STATUS.md), then M0-01 audit → M0-01.1 corrections if findings exist → M0-02 decisions → M0-03 G0 evidence, each separately owner-approved and accepted. Only then may the owner record G0 passage. **No cryptographic/protocol implementation before G1.**
+**Current next action:** inspect [STATUS.md](STATUS.md) (mirror of owner decisions), then M0-01 audit → M0-01.1 corrections if findings exist → M0-02 decisions → M0-03 G0 evidence, each separately owner-approved and accepted. Only then may the owner record G0 passage. **No cryptographic/protocol implementation before G1.**
