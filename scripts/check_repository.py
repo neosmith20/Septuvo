@@ -50,7 +50,16 @@ DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TASK_STATES = {"NOT STARTED", "READY", "IN PROGRESS", "BLOCKED", "IN REVIEW", "ACCEPTED", "REJECTED / REWORK"}
 GATE_STATES = {"PENDING", "PASSED", "FAILED"}
 NEEDS_APPROVAL = {"READY", "IN PROGRESS", "IN REVIEW", "ACCEPTED", "REJECTED / REWORK"}
-# Rows recorded by the owner directly before D-025 (2026-10-14).
+# Immutable baseline for rows recorded by the owner directly before D-025 (2026-10-14).
+# Each entry: (state, date, approval_substring, evidence_substring)
+LEGACY_BASELINE = {
+    "H-001": ("ACCEPTED", "2026-10-14", "Retroactive owner acceptance 2026-10-14", "Documentation workflow fixes: [PR #4]"),
+    "H-002": ("ACCEPTED", "2026-10-14", "Owner instruction 2026-10-14: record D-021 option C", "[PR #5]"),
+    "H-003": ("ACCEPTED", "2026-10-14", "Retroactive owner acceptance 2026-10-14", "Brand kit corrections: guidelines PDF"),
+    "H-004": ("ACCEPTED", "2026-10-14", "Owner instruction 2026-10-14: document public repository", "[PR #7]"),
+    "M0-01": ("ACCEPTED", "2026-10-14", "[Approval on issue #9]", "[PR #12]"),
+    "M0-01.1": ("ACCEPTED", "2026-10-14", "[Approval on issue #13]", "[PR #15]"),
+}
 LEGACY_APPROVAL = {"H-001", "H-002", "H-003", "H-004"}
 LEGACY_DECISION = LEGACY_APPROVAL | {"M0-01", "M0-01.1"}
 
@@ -95,12 +104,21 @@ def check_ledger(ledger):
         if state not in TASK_STATES:
             errors.append(f"{where}: invalid task state {state!r}")
             continue
+        # Verify legacy rows match immutable baseline; if altered, require normal validation.
+        if ident in LEGACY_BASELINE:
+            expected_state, expected_date, expected_approval_substr, expected_evidence_substr = LEGACY_BASELINE[ident]
+            if (state != expected_state or date != expected_date or
+                expected_approval_substr not in approval or expected_evidence_substr not in evidence):
+                errors.append(f"{where}: legacy task row has been altered from its immutable baseline; "
+                             f"expected state={expected_state!r}, date={expected_date!r}, "
+                             f"approval containing {expected_approval_substr!r}, evidence containing {expected_evidence_substr!r}")
+            continue
         if state in NEEDS_APPROVAL:
             if not DATE.match(date):
                 errors.append(f"{where}: state {state} needs a YYYY-MM-DD date")
-            if ident not in LEGACY_APPROVAL and not PERMALINK.search(approval):
+            if not PERMALINK.search(approval):
                 errors.append(f"{where}: state {state} needs the owner approval comment permalink (D-025)")
-        if state in {"ACCEPTED", "REJECTED / REWORK"} and ident not in LEGACY_DECISION:
+        if state in {"ACCEPTED", "REJECTED / REWORK"}:
             if not PERMALINK.search(evidence):
                 errors.append(f"{where}: state {state} needs the owner decision comment permalink (D-025)")
 
