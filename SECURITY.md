@@ -2,7 +2,7 @@
 
 ## Project state
 
-Septuvo is **pre-implementation**. There is no installable VPN, audited SVP protocol, production release, or supported version. The repository's tagline is an aspiration, **not an assurance of security**.
+Septuvo is **pre-implementation**. There is no installable VPN, audited SVP specification or implementation, production release, or supported version. The repository's tagline is an aspiration, **not an assurance of security**.
 
 ## Reporting a potential vulnerability
 
@@ -20,4 +20,4 @@ The maintainer will triage reported issues according to impact and whether an im
 
 ## Release and support rules
 
-No version is supported or production-ready until GitHub release approval gate **G3** in [the engineering roadmap](docs/ROADMAP.md). A passing CI job is not an independent audit. Material handshake or protocol security changes require qualified external review and owner approval under the [agent rules](AGENTS.md).
+No version is supported or production-ready until the production release gate **G3** in [the engineering roadmap](docs/ROADMAP.md). A passing CI job is not an independent audit. Material handshake or protocol security changes require qualified external review and owner approval under the [agent rules](AGENTS.md).

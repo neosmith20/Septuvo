@@ -17,7 +17,7 @@ For **Septuvo Server**, the same guided install starts a standalone gateway on a
         [Septuvo node / privileged service: Rust]
           | identity & enrollment  | policy + routes + DNS + kill switch
           | session control        | key epochs / peer authentication
-          | independent SVP protocol state machine
+          | independent SVP state machine
           v
         [IP TUN interface] <--> [AEAD packet engine] <--> [UDP socket]
                                                         |

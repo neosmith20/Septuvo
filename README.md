@@ -14,7 +14,7 @@
 | --- | --- |
 | **Septuvo** | Company and primary brand |
 | **Septuvo VPN** | Consumer and business VPN software |
-| **Septuvo Protocol (SVP)** | Independent, openly specified networking protocol |
+| **Septuvo Protocol (SVP)** | Independent networking protocol, to be openly specified |
 | **Septuvo Server** | Self-hosted and commercial gateway software |
 
 The project intends to develop an original VPN wire protocol and a Rust-native core, not a fork or rebranding of WireGuard, OpenVPN or Tailscale.

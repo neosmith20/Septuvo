@@ -24,7 +24,7 @@ This is a **planned** traceability map. No listed test is considered run or pass
 
 | Feature | Source decision | Responsible tasks | Evidence |
 | --- | --- | --- | --- |
-| Four official names | D-001 | M0-01 and every UI/docs task | README/docs/UX name checks |
+| Four official names | D-001 | M0-01 and every UI/docs task | T0: README/docs/UX name checks |
 | Independent Layer 3 Rust core | D-003..D-005 | M2–M4 | Wire spec; Rust source/dependency inventory; lab interop |
 | AES-256-GCM preferred, not pre-approved | D-010 | M2-01..05, M3-03 | Reviewed suite + hardware benchmarks |
 | Always-untrusted physical network | D-006 | M1-02, M5, M7 | Hostile local-network and leak tests |
@@ -32,6 +32,7 @@ This is a **planned** traceability map. No listed test is considered run or pass
 | Standalone no mandatory vendor account | D-007 | M6-01..04 | Fresh offline self-hosted installation |
 | Easy end-user installation, no builds | D-008 | M6-02..04, M7 | Installer and novice usability tests |
 | Enterprise/provider capability | D-009 | M9 | Separate real idle/active concurrency benchmarks and isolation |
+| Measured performance goals | D-018 | M4-04, M9-05 | T4: reproducible lab benchmarks; no unmeasured claims |
 | Third-party OS/native dependencies transparently inventoried | D-005, D-015 | M3-01, M7-01/04 | Platform matrix and dependency audit |
 | Desktop UI status and close behavior | D-019, D-020 | M6-03, M7-02/03 | Connection-stage diagnostics and UX tests |
 | Domain/trademark suitability | D-016 | Owner + counsel, outside protocol tasks | Formal clearance prior to commercialization |

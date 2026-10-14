@@ -36,7 +36,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 
 - **Entry / prerequisites:** Owner-authorized documentation audit; G0 not yet required.
 - **Approved output locations:** `docs/reviews/M0-01-audit.md`.
-- **Exact work:** Compare README, license, AGENTS, roadmap, architecture, security model, decisions, task catalog, and traceability; list every mismatch with path/heading, severity and proposed correction; do not reinterpret a candidate as approved.
+- **Exact work:** Compare README, license, AGENTS.md, SECURITY.md, roadmap, task catalog, STATUS ledger, agent operations handbook, work-order template, architecture, security model (threat model), decision register, traceability, test matrix and protocol checklist; list every mismatch with path/heading, severity and proposed correction; do not reinterpret a candidate as approved.
 - **Acceptance evidence:** Report all cross-file naming, gates, crypto-state, relative links, requirements and task IDs; record unresolved findings as OPEN. No source or protocol edits.
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M0-02 automatically.
 
@@ -100,7 +100,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin the next milestone automatically.
 
 
-## M2 — SVP protocol specification and external G1 review
+## M2 — SVP specification and external G1 review
 
 ### M2-01 — Study existing constructions and Rust crypto candidates
 
@@ -252,7 +252,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Entry / prerequisites:** M5-04 accepted.
 - **Approved output locations:** `docs/reviews/G2.md`, `docs/TEST_MATRIX.md`.
 - **Exact work:** Collect reproducible interop, negative, leak, recovery, known-limit and privacy results; request owner decision on the precisely tested lab revision.
-- **Acceptance evidence:** G2 owner PASS/FAIL recorded explicitly, open issues triaged; a successful lab tunnel does NOT authorize public production.
+- **Acceptance evidence:** G2 recorded by the owner as PASSED or FAILED, open issues triaged; a successful lab tunnel does NOT authorize public production.
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin the next milestone automatically.
 
 
@@ -330,7 +330,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Entry / prerequisites:** M7-04 accepted only for target platforms actually implemented.
 - **Approved output locations:** `tests/mobile/`, `docs/reviews/M7-mobile.md`.
 - **Exact work:** Test Wi-Fi↔cellular switches, app sleep/wake, tunnel persistence, LTE/5G NAT cases, battery/thermal effects, device revoke, DNS and kill-switch leaks.
-- **Acceptance evidence:** Real-device test reports with OS versions and logs; each platform separately ACCEPTED or UNSUPPORTED, never blanket claims.
+- **Acceptance evidence:** Real-device test reports with OS versions and logs; each platform recorded separately as supported or unsupported in the platform matrix, never blanket claims.
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin the next milestone automatically.
 
 
@@ -373,7 +373,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 
 ### M9-01 — Design multi-tenant control plane and limited-stale policy
 
-- **Entry / prerequisites:** G3 passed for applicable core; enterprise scope owner-approved.
+- **Entry / prerequisites:** M8-04 accepted; G3 passed for applicable core; enterprise scope owner-approved.
 - **Approved output locations:** `docs/enterprise/control-plane.md`, `docs/enterprise/tenant-model.md`.
 - **Exact work:** Specify data-plane/control-plane boundaries, tenant identity/policy/IP overlap, bounded revocation, outage caching, secret storage and HA assumptions.
 - **Acceptance evidence:** Cross-tenant access denied by design, trust rules and revocation latencies explicit; owner approves architecture prior to implementation.
@@ -416,6 +416,6 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 
 1. Each of the **43 base tasks** has a unique ID and a prerequisite, bounded output, actions, acceptance evidence and a stop point. Conditional dotted subtasks and owner-directed H work are separately recorded/approved in [STATUS.md](STATUS.md) and do not change the 43-base-task count.
 2. No agent can approve G0–G4, external review, a domain/trademark claim, production readiness or a public release on the owner's behalf.
-3. M2 spec proposals, ML-KEM/ML-DSA/HKDF/AES-GCM candidate choices and packet wire fields must not become a deployed handshake before G1, even if a code generator could implement them quickly.
+3. M2 spec proposals, the ML-KEM/ML-DSA/HKDF/AES-GCM candidate choices (D-010, D-011, D-012, D-024) and packet wire fields must not become a deployed handshake before G1, even if a code generator could implement them quickly.
 4. A Rust workspace, GUI, installer, mobile extension, control-plane cluster or gateway capability does **not** exist merely because this catalog names a target path.
 5. At any interruption, read repository history, compare accepted tasks and resume only with explicit authorization for the next scoped work order.

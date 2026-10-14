@@ -9,8 +9,8 @@
 | P-01 | Threat and trust model | Assets, active/on-path/compromised peer, identity trust and quantum threat |
 | P-02 | Protocol version & wire format | Exact byte layouts, sizes, grammar, authenticated fields, reserved values, forward compatibility |
 | P-03 | Authenticated identity/enrollment | Long-term vs ephemeral keys, signature semantics, authority, verification, revocation and recovery |
-| P-04 | Hybrid handshake | Ephemeral X25519/ML-KEM roles; exact public-key/ciphertext validation; combiner construction and proofs; key confirmation |
-| P-05 | Transcript and KDF | Exact input encodings, domain separation, transcript hash, extract/expand steps, salt/labels, key separation |
+| P-04 | Hybrid handshake | Ephemeral classical and post-quantum KEM roles (candidate D-011: X25519 + ML-KEM-768); exact public-key/ciphertext validation; combiner construction and proofs; key confirmation |
+| P-05 | Transcript and KDF | KDF choice (candidate D-024: HKDF), exact input encodings, domain separation, transcript hash, extract/expand steps, salt/labels, key separation |
 | P-06 | Cipher suites | Exact AEAD choices, key lengths, authenticated negotiation, policies for failure/downgrade |
 | P-07 | Packet numbering | Exact nonce derivation, uniqueness under concurrency, retransmission, crash and failover |
 | P-08 | Replay & state | Session IDs, direction/epoch, bounded replay windows, resumption/migration, duplicate handling |
