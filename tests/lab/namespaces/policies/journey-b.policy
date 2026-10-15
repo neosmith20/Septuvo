@@ -1,0 +1,5 @@
+# Journey B (NP-S1) with one approved device on the local network (NP-S4):
+# everything through the tunnel; only the printer/NAS at 192.168.1.30 is direct.
+mode full-tunnel
+direct 192.168.1.30/32
+direct 2001:db8:1::30/128

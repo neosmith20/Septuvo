@@ -1,0 +1,4 @@
+# Overlapping subnets (NP-S5): the home network uses the same addresses as
+# the cafe network (192.168.1.0/24). The tunnel must win.
+mode split
+tunnel 192.168.1.0/24

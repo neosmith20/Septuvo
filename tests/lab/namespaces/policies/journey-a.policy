@@ -1,0 +1,4 @@
+# Journey A (NP-S2): only the home network goes through the tunnel.
+mode split
+tunnel 192.168.50.0/24
+tunnel 2001:db8:50::/64

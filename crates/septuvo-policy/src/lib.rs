@@ -5,9 +5,11 @@
 //! failing closed when the VPN path is down.
 //!
 //! Pure logic only: no operating-system calls, no networking and no
-//! cryptography (track N1, D-029). The routing and firewall rules that enforce
-//! these decisions on Linux are generated and tested in N1-03.
+//! cryptography (track N1, D-029). [`nft`] renders the Linux nftables kill
+//! switch for a policy as text; the namespace lab in `tests/lab/namespaces`
+//! applies and tests it (N1-03).
 
+pub mod nft;
 pub mod parse;
 pub mod policy;
 pub mod prefix;
