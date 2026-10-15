@@ -2,7 +2,7 @@
 
 **Planning blueprint, not an authorization to code.** Read [AGENT_OPERATIONS.md](AGENT_OPERATIONS.md), [AGENTS.md](../AGENTS.md), [ROADMAP.md](ROADMAP.md), [SECURITY_MODEL.md](SECURITY_MODEL.md) and the [work-order template](WORK_ORDER_TEMPLATE.md) before using any task card.
 
-**Rules applying to every card:** Consult [STATUS.md](STATUS.md), kept in sync with GitHub (D-031). The owner authorizes each milestone's work order in ordinary words; one authorization may cover one card or a whole milestone (D-030). The immediately preceding task must be complete, meaning delivered by a pull request the owner merged; inside an authorized milestone, tasks run in order. Named output paths are intended deliverables, **not an unrestricted permission to create files**. If they need changing, get a written scope update. The current gate must have recorded evidence. Commit only scoped files on a task branch, attach test logs, request review and **STOP**. Never infer that describing a later milestone authorizes starting it.
+**Rules applying to every card:** Consult [STATUS.md](STATUS.md), kept in sync with GitHub (D-031). The owner authorizes each milestone's work order in ordinary words; one authorization may cover one card or a whole milestone (D-030). The immediately preceding task must be complete, meaning delivered by a pull request the owner merged; inside an authorized milestone, tasks run in order. Named output paths are intended deliverables, **not an unrestricted permission to create files**. If they need changing, get a written scope update. The current gate must have recorded evidence. Commit only scoped files on a task branch, open the pull request yourself with test logs, and **STOP** for review; after the owner merges it, continue with the next task of the same milestone (D-034). Never infer that describing a later milestone authorizes starting it.
 
 ## Fixed task order
 
@@ -40,7 +40,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `docs/reviews/M0-01-audit.md`.
 - **Exact work:** Compare README, license, AGENTS.md, SECURITY.md, roadmap, task catalog, STATUS ledger, agent operations handbook, work-order template, architecture, security model (threat model), decision register, traceability, test matrix and protocol checklist; list every mismatch with path/heading, severity and proposed correction; do not reinterpret a candidate as approved.
 - **Acceptance evidence:** Report all cross-file naming, gates, crypto-state, relative links, requirements and task IDs; record unresolved findings as OPEN. No source or protocol edits.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M0-02 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M0-02 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M0-01.1 — Correct M0-01 audit defects (conditional)
 
@@ -56,7 +56,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `docs/reviews/M0-02-owner-decisions.md`, `docs/DECISIONS.md`.
 - **Exact work:** Present explicit yes/no choices for supported OS order, language exceptions, first lab platform, target user journeys, self-hosting and risk assumptions; record rationale and owner response.
 - **Acceptance evidence:** Every requested decision has a source/approval or is OPEN; never fill blanks or approve cryptographic details.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M0-03 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M0-03 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M0-03 — Plan review resources, lab and change control
 
@@ -75,7 +75,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `docs/spec/threats.md`, `docs/SECURITY_MODEL.md`.
 - **Exact work:** Describe assets, device/server/control-plane trust, hostile LAN/on-path attackers, endpoint compromise, recorded traffic, malicious tenants, update supply chain and realistic non-goals.
 - **Acceptance evidence:** Every S-01..S-13 security requirement cites at least one adversary and assumption; owner reviews newly exposed risks.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M1-02 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M1-02 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M1-02 — Define network and user journeys
 
@@ -83,7 +83,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `docs/spec/network-policies.md`.
 - **Exact work:** Write step-by-step home NAS direct access, away-from-home NAS access, VPN exit, explicit LAN exceptions, subnet overlap, IPv6/DNS behavior, routes, firewall and fail-closed failures.
 - **Acceptance evidence:** Each scenario declares packet path, expected DNS path, exception source, authentication and leakage failure; no claims that routing alone acts as kill switch.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M1-03 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M1-03 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M1-03 — Design enrollment, revocation and privacy requirements
 
@@ -91,7 +91,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `docs/spec/identity-and-privacy.md`.
 - **Exact work:** Document pinning/enrollment choices, single-use token semantics, key storage/recovery, revocation, policy expiry, local-only operation and telemetry retention/consent requirements.
 - **Acceptance evidence:** No invitation carries private keys; missing platform key-store capabilities and revocation bounds are called out explicitly.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M1-04 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M1-04 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M1-04 — Map requirements to tests and platforms
 
@@ -110,7 +110,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `docs/protocol/candidate-analysis.md`.
 - **Exact work:** Compare reviewed key exchanges, identity constructions, KEM/signature libraries, AEAD, latency/packet-size costs, licenses, unsafe/FFI use and maintenance; link standards and independent assessments.
 - **Acceptance evidence:** Give at least two viable approaches and explicit tradeoffs; preferred AES-256-GCM and hybrid KEM remain candidates until decision; no crypto code.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M2-02 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M2-02 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M2-02 — Draft identity and handshake specification
 
@@ -118,7 +118,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `docs/protocol/handshake.md`, `docs/protocol/state-machine.md`.
 - **Exact work:** Specify peer roles, trust roots, serialized transcript, negotiation binding, KEM combiner, KDF steps, key confirmation, authentication, timeout/error states and downgrade handling for specialist review.
 - **Acceptance evidence:** Every state transition and cryptographic input is explicit; unresolved constructions labeled BLOCKED, not invented or borrowed without review.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M2-03 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M2-03 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M2-03 — Draft transport, replay and key-lifecycle specification
 
@@ -126,7 +126,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `docs/protocol/wire-format.md`, `docs/protocol/key-lifecycle.md`.
 - **Exact work:** Specify byte-level parser grammar, AEAD authenticated fields and nonce invariants, packet numbers, anti-replay, epoch rollover, MTU/handshake fragmentation, amplification limits, roaming and crash recovery.
 - **Acceptance evidence:** Independent implementer could interpret each field unambiguously; collision/replay/downgrade/error cases documented; no implementation.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M2-04 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M2-04 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M2-04 — Prepare spec conformance and test-vector proposal
 
@@ -134,7 +134,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `docs/protocol/test-vectors.md`, `docs/protocol/conformance-plan.md`.
 - **Exact work:** Documentation only: propose wire-fixture formats, negative cases, state/replay scenarios, future property-test requirements and independent implementation conformance methodology. **Do not compute test vectors or write crypto/protocol generators, property-test code, or live-network code before G1.** Per D-021 (owner decision: option C), computed vectors are deferred until after G1.
 - **Acceptance evidence:** Every P-01..P-14 item maps to a section or explicitly OPEN finding. Computed vectors are recorded as NOT RUN (deferred to after G1 by D-021 option C); the plan states how they will be produced and checked after G1 and is submitted for G1 reviewer acceptance; no live-network code.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M2-05 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M2-05 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M2-05 — Obtain external protocol assessment and G1 decision
 
@@ -153,7 +153,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, `crates/`, `.github/workflows/`, `docs/build/`.
 - **Exact work:** Propose and approve exact crate boundaries; add minimal compilable Rust skeleton, license metadata, pinned compiler policy, fmt/clippy/test CI, dependency/license/secret scanning as approved.
 - **Acceptance evidence:** Clean bootstrap on supported Linux CI; fmt/clippy/tests actually run; no transports, handshakes, VPN drivers or unnecessary crates.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M3-02 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M3-02 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M3-02 — Implement bounded wire parsing
 
@@ -161,7 +161,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `crates/svp-wire/`, `tests/wire/`.
 - **Exact work:** Implement parsing/serialization of only reviewed SVP fields; limit lengths/allocations; reject unknown versions/invalid sizes; fuzz parsing without privileges.
 - **Acceptance evidence:** Reviewed canonical vectors, truncation, overlong frames and fuzz cases pass; no panics; no reinterpretation of fields.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M3-03 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M3-03 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M3-03 — Integrate approved cryptographic primitives
 
@@ -169,7 +169,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `crates/svp-crypto/`, `docs/build/crypto-dependencies.md`, `tests/crypto/`.
 - **Exact work:** Use reviewed Rust libraries and exact protocol KDF/signature/KEM/AEAD schedule; protect secret memory as documented; isolate random generation and per-direction keys.
 - **Acceptance evidence:** Known-answer vectors and negative key/signature/tag tests pass; dependency inventory and exception report complete; never claim primitive certification equals VPN certification.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M3-04 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M3-04 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M3-04 — Implement reviewed session state machine
 
@@ -188,7 +188,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `crates/septuvo-node/`, `crates/septuvo-engine/`, `tests/lab/transport/`.
 - **Exact work:** In approved Linux network namespaces/VMs, connect reviewed session engine to TUN and UDP using least privilege; provide cleanup scripts and failure recovery.
 - **Acceptance evidence:** Namespace-only fixtures can start/stop without changing live/default host routes or firewall; verify privilege boundaries and cleanup after forced crash.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M4-02 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M4-02 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M4-02 — Carry encrypted IPv4 and IPv6 in lab
 
@@ -196,7 +196,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `crates/septuvo-engine/`, `tests/lab/ipv4-ipv6/`.
 - **Exact work:** Tunnel bounded IPv4 and IPv6 packets between mutually authenticated lab nodes with negotiated reviewed sessions; enforce gateway destination permission.
 - **Acceptance evidence:** Traffic capture confirms no IP plaintext on UDP underlay; positive and unauthorized/invalid peer cases documented.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M4-03 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M4-03 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M4-03 — Verify failure, rekey, loss and recovery
 
@@ -204,7 +204,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `tests/lab/faults/`, `docs/reviews/M4-fault-evidence.md`.
 - **Exact work:** Exercise lost/reordered packets, MTU issues, key rollover, power/process restart, invalid tags, fake peers, session collisions and fallback behavior.
 - **Acceptance evidence:** No key/nonce reuse, auth bypass or plaintext leak; failures produce bounded errors and resource usage; identify all untested cases.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M4-04 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M4-04 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M4-04 — Record honest lab performance baseline
 
@@ -223,7 +223,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `crates/septuvo-policy/`, `tests/policy/`.
 - **Exact work:** Separate route selection from authorization; model strict/approved-LAN/custom modes, exclusions, overlapping prefixes, remote home subnets and IPv4/IPv6 paths.
 - **Acceptance evidence:** Table-driven route tests cover local NAS, remote NAS, exit path and conflicts; no default RFC1918 trust or silent cleartext route.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M5-02 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M5-02 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M5-02 — Implement OS-enforced kill switch and DNS policy
 
@@ -231,7 +231,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `crates/septuvo-policy/`, `tests/lab/leaks/`, `docs/build/linux-policy.md`.
 - **Exact work:** Apply atomic/recoverable Linux route/firewall/DNS transitions with explicit underlay exceptions; test reconnect, update, crash and VPN loss under hostile network.
 - **Acceptance evidence:** Captured proof protected IPv4, IPv6 and DNS do not leak after failures; exceptions are narrowly approved; host routing can be restored.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M5-03 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M5-03 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M5-03 — Verify home and remote access flows
 
@@ -239,7 +239,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `tests/lab/home-gateway/`, `docs/reviews/M5-user-journeys.md`.
 - **Exact work:** Model one directly reachable home NAS and one remote home subnet, plus optional separate exit; exercise LAN-allowed vs strict, same-CIDR conflicts and DNS reachability.
 - **Acceptance evidence:** Observed paths match M1 requirements, no cross-policy bypass and no blanket untrusted LAN access; cases that OS cannot support reported.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M5-04 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M5-04 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M5-04 — Fault-injection and soak lab qualification
 
@@ -247,7 +247,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `tests/lab/resilience/`, `docs/reviews/M5-resilience.md`.
 - **Exact work:** Run packet mutation, loss/reorder, **roaming (where available), fragmentation/MTU failures**, fuzz corpora, bounded-resource DoS simulations, IPv6/DNS leak checks, privilege/replay tests, memory/concurrency checks and extended soak tests within lab quotas.
 - **Acceptance evidence:** T1/T2 evidence with exact environments and quantitative observations; failed tests block progress; no live external load tests.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M5-05 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M5-05 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M5-05 — Assemble G2 lab gate decision
 
@@ -266,7 +266,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `crates/septuvo-node/`, `docs/spec/enrollment-user-flows.md`, `tests/enrollment/`.
 - **Exact work:** Build secure device enrollment and credential storage according to approved identity spec; implement expiration/revocation and zero-vendor-account standalone mode.
 - **Acceptance evidence:** Owner can onboard/revoke from isolated lab; stolen/expired invitation denied; no private keys in QR or logs; documented offline behavior.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M6-02 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M6-02 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M6-02 — Package self-hosted Linux server safely
 
@@ -274,7 +274,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `packaging/linux/`, `docs/install/linux-server.md`, `tests/install/`.
 - **Exact work:** Implement lab-installable **unsigned pre-release** Linux server packaging with automated install/uninstall, service supervision, least-privilege defaults, port/firewall guidance and rollback. Document signing plan; actual production release signing belongs to M8-03.
 - **Acceptance evidence:** Fresh lab install/uninstall/reboot tested; no unexpected public exposure, route leftovers or unapproved package installs.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M6-03 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M6-03 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M6-03 — Implement understandable setup and diagnostics
 
@@ -282,7 +282,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `crates/septuvo-cli/`, `apps/server-setup/`, `tests/diagnostics/`.
 - **Exact work:** Guide hosting and joining without compiling crates; expose distinct adapter, authenticated handshake, tunnel reachability and DNS status with useful failures.
 - **Acceptance evidence:** Novice script: install→create→enroll→connect→diagnose; wrong endpoint/key/firewall/DNS tested and accurately described.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M6-04 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M6-04 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M6-04 — Perform personal-use acceptance scenario
 
@@ -301,7 +301,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `apps/desktop/`, `crates/platform/`, `docs/build/platform-matrix.md`.
 - **Exact work:** Build minimal Rust-first UI/service boundary; integrate Linux then Windows/macOS only by separately owner-approved subtask, using OS VPN APIs and declared native glue.
 - **Acceptance evidence:** Per-OS TUN, privilege, DNS/firewall, install and restart tests pass independently; no platform marked supported without evidence.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M7-02 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M7-02 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M7-02 — Implement safe edit, close and connection-state UX
 
@@ -309,7 +309,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `apps/desktop/`, `tests/ux/`.
 - **Exact work:** Model edit-while-connected with authenticated disconnect/rekey/reconnect or safe refusal; tray/quit behavior explicit; show status by tested handshake/data/DNS stages.
 - **Acceptance evidence:** Editing does not expose plaintext or lose configuration; close-to-tray keeps intended tunnel; all failure states produce actionable messages.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M7-03 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M7-03 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M7-03 — Validate desktop packaging and accessibility
 
@@ -317,7 +317,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `packaging/desktop/`, `tests/install/`, `docs/reviews/M7-desktop.md`.
 - **Exact work:** Test UI on 1920x1080 and smaller windows; resizing/scrolling, keyboard access, updates, signed installers and uninstall; run security/leak regressions.
 - **Acceptance evidence:** Per-platform clean install/update/reboot/uninstall evidence; no inaccessible content and no route/firewall leftovers.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M7-04 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M7-04 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M7-04 — Integrate Android and iOS as separate reviewed platforms
 
@@ -325,7 +325,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `apps/mobile/`, `crates/platform/`, `docs/build/platform-matrix.md`.
 - **Exact work:** Reuse Rust security engine; use OS-required VPN extension/service bindings; record any Swift/Kotlin/native glue and OS single-VPN/background limitations.
 - **Acceptance evidence:** Real device per platform authenticates and carries encrypted IPv4/IPv6; cryptographic code stays Rust; platform exclusions and exceptions documented.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M7-05 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M7-05 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M7-05 — Validate real mobile lifecycle and connection safety
 
@@ -344,7 +344,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `docs/reviews/G3-audit-scope.md`, `confidential reviewer report reference`.
 - **Exact work:** Supply exact protocol and implementation revision, build reproducibility and test corpus to qualified independent reviewers; include OS policy, update chain, crypto and privileged boundaries.
 - **Acceptance evidence:** Auditor identity/scope/date/commit identified; findings classified; no agent-generated report represented as independent audit.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M8-02 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M8-02 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M8-02 — Remediate and re-review audit findings
 
@@ -352,7 +352,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `docs/reviews/G3-remediation.md`, `approved scoped code PRs`, `regression tests`.
 - **Exact work:** Address findings one owner-approved task/PR at a time, add reproducer and regression evidence, and send crypto-affecting changes back for required external review.
 - **Acceptance evidence:** No high/critical unresolved exploitable finding hidden; revised commit examined as needed; tests real, and change scope narrow.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M8-03 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M8-03 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M8-03 — Prepare signed, recoverable release process
 
@@ -360,7 +360,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `docs/release/`, `packaging/`, `.github/workflows/`.
 - **Exact work:** Establish SBOM and dependency/license inventory, sign/check installer provenance, update channels, rollback/revocation, security contact and incident runbooks.
 - **Acceptance evidence:** Fresh and upgrade installations verified on every claimed OS; release artifact signatures verified; signing keys not committed.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M8-04 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M8-04 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M8-04 — Request G3 owner release decision
 
@@ -379,7 +379,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `docs/enterprise/control-plane.md`, `docs/enterprise/tenant-model.md`.
 - **Exact work:** Specify data-plane/control-plane boundaries, tenant identity/policy/IP overlap, bounded revocation, outage caching, secret storage and HA assumptions.
 - **Acceptance evidence:** Cross-tenant access denied by design, trust rules and revocation latencies explicit; owner approves architecture prior to implementation.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M9-02 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M9-02 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M9-02 — Implement enterprise management in scoped slices
 
@@ -387,7 +387,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `crates/septuvo-control/`, `tests/enterprise/authz/`, `docs/enterprise/`.
 - **Exact work:** Implement provisioning and API auth first; then optional SSO/MFA and RBAC; test every role/tenant boundary with positive and negative fixtures.
 - **Acceptance evidence:** No unauthenticated management operation, missing authorization boundary or cross-tenant leakage; exact supported features documented.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M9-03 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M9-03 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M9-03 — Build HA and gateway placement controls
 
@@ -395,7 +395,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `crates/septuvo-control/`, `tests/enterprise/ha/`, `docs/enterprise/operations.md`.
 - **Exact work:** Add rate-limited enrollment/handshake control, gateway capacity selection, draining, cluster recovery and authenticated session/state migration if reviewed.
 - **Acceptance evidence:** Bounded loss, memory, CPU and outage behavior verified; no key/nonce reuse on migration; control plane cannot silently weaken data-plane policy.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M9-04 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M9-04 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M9-04 — Validate isolation under failure and abuse
 
@@ -403,7 +403,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 - **Approved output locations:** `tests/enterprise/isolation/`, `docs/reviews/M9-isolation.md`.
 - **Exact work:** Exercise overlapping tenant subnets, stolen/revoked credentials, malicious tenant packet floods in lab, control-plane outages and gateway failures.
 - **Acceptance evidence:** No cross-tenant unauthorized packets, policy bypass or revoked-user acceptance beyond approved bounds; reproducible incidents recorded.
-- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M9-05 automatically.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M9-05 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### M9-05 — Benchmark scale and seek G4 approval
 
