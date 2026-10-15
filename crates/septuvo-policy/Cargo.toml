@@ -3,7 +3,7 @@ name = "septuvo-policy"
 description = "Septuvo route and LAN-exception policy model (pure logic, no networking, no cryptography)"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+license = "Apache-2.0"
 repository.workspace = true
 publish.workspace = true
 

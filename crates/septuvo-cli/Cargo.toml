@@ -3,7 +3,7 @@ name = "septuvo-cli"
 description = "Septuvo VPN command-line tool (development preview, no VPN functionality)"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+license = "Apache-2.0"
 repository.workspace = true
 publish.workspace = true
 

@@ -61,7 +61,7 @@ The project intends to develop an original VPN wire protocol and a Rust-native c
 
 ## Current availability
 
-This repository contains planning documents, repository security checks, an approved visual **brand kit**, and the Apache-2.0 license, **not an installable VPN**. Brand/domain/trademark clearance has not been completed. There is no committed public release date.
+This repository contains planning documents, repository security checks, an approved visual **brand kit**, and early non-cryptographic Rust code, **not an installable VPN**. Brand/domain/trademark clearance has not been completed. There is no committed public release date.
 
 ## References
 
@@ -71,4 +71,10 @@ This repository contains planning documents, repository security checks, an appr
 - [IETF RFC 5869 (HKDF)](https://www.rfc-editor.org/rfc/rfc5869)
 - [NIST SP 800-38D (GCM)](https://csrc.nist.gov/pubs/sp/800/38/d/final)
 
-Licensed under [Apache-2.0](LICENSE).
+## License
+
+- **Septuvo Protocol (SVP)**, its open reference implementation, the documentation and tooling: [Apache-2.0](LICENSE). Free for anyone to use, implement and commercialize.
+- **Septuvo VPN and Septuvo Server application code**: source-available under [PolyForm Noncommercial 1.0.0](LICENSES/PolyForm-Noncommercial-1.0.0.md). Free for noncommercial use; commercial use needs a separate written agreement.
+- **Septuvo name, logos and artwork**: see [brand/NOTICE.md](brand/NOTICE.md).
+
+Material already published under Apache-2.0 stays available under Apache-2.0. Details, boundaries and open questions: [LICENSING.md](LICENSING.md).

@@ -1,0 +1,19 @@
+Septuvo
+Copyright 2026 the Septuvo rights holder (GitHub: neosmith20)
+
+The Septuvo Protocol (SVP) specification, its reference implementation,
+the documentation and the repository tooling in this repository are licensed
+under the Apache License, Version 2.0 (see LICENSE).
+
+Septuvo VPN and Septuvo Server application code that is marked as licensed
+under the PolyForm Noncommercial License 1.0.0 (see licensing.toml and
+LICENSES/PolyForm-Noncommercial-1.0.0.md) may be used commercially only under
+a separate written license agreement with the Septuvo rights holder.
+
+The Septuvo name, the names Septuvo VPN, Septuvo Protocol (SVP) and Septuvo
+Server, and the Septuvo logos and brand artwork identify the Septuvo project.
+No license in this repository grants permission to use them to identify other
+products or services. See brand/NOTICE.md.
+
+Rights already granted under the Apache License, Version 2.0 for previously
+published material are not affected. See LICENSING.md.
