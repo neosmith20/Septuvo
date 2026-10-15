@@ -30,4 +30,4 @@
 - Have the qualified reviewer sign off on the precise revision/commit and on whether prototype implementation can proceed; owner approves G1 separately.
 - If the protocol changes materially after review, **reopen G1** for that part of the specification.
 
-Status: **all P-01 through P-14 are open; G1 has NOT passed**.
+Status: **G1 has NOT passed, and no item is reviewed or approved.** Draft answers to P-01 to P-13 are mapped in [conformance-plan.md](protocol/conformance-plan.md) §1; P-14 is an OPEN finding. Computed vectors are NOT RUN (D-021).
