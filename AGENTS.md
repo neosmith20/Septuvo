@@ -16,7 +16,7 @@ Only the exact task and files named in an authorized work order (or, for routine
 2. Inspect branch, HEAD, repository status, existing commits and current file contents. Never trust an earlier handoff without verification.
 3. Report exact task ID, allowed files, known dependencies, acceptance criteria, risks, rollback and expected stopping point.
 4. Check the required gate and, for milestone work, the owner's authorization of that milestone (D-031). **No authorization = no implementation** of milestone work. Routine work (H-xxx: docs, bot findings, CI upkeep, bounded fixes) needs no authorization comment; the owner's merge accepts it. Document the blocker instead of guessing.
-5. Work on a narrow task branch and **open the PR yourself** (GitHub API, CLI or connected GitHub tools) for **every change**, code or documentation, with the complete description and evidence, then give the owner the PR URL. PR text never contains AI session links or IDs. Agents never merge a pull request and never push to, merge into, or force-push `main` (the `main` ruleset also blocks direct pushes) (D-034).
+5. Work on a narrow task branch and **open the PR yourself** (GitHub API, CLI or connected GitHub tools) for **every change**, code or documentation, with the complete description and evidence, then give the owner the PR URL. Agents never write AI session links or IDs into PR text; if the tooling appends such a footer that the agent cannot remove, the agent says so and the owner deletes it before merging. Agents never merge a pull request and never push to, merge into, or force-push `main` (the `main` ruleset also blocks direct pushes) (D-034).
 
 ## Absolute red lines
 
