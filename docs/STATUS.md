@@ -38,10 +38,10 @@ Dates are `YYYY-MM-DD` UTC: the authorization date for READY rows, the merge dat
 | M0-01 | ACCEPTED | — | 2026-10-14 | [Approval on issue #9](https://github.com/neosmith20/Septuvo/issues/9#issuecomment-6161523935) | [PR #12](https://github.com/neosmith20/Septuvo/pull/12) — `docs/reviews/M0-01-audit.md` |
 | M0-02 | ACCEPTED | M0-01 | 2026-10-14 | [Approval on issue #18](https://github.com/neosmith20/Septuvo/issues/18#issuecomment-6162237599) | [PR #21](https://github.com/neosmith20/Septuvo/pull/21) — `docs/reviews/M0-02-owner-decisions.md`; [acceptance on PR #21](https://github.com/neosmith20/Septuvo/pull/21#issuecomment-6162871333) |
 | M0-03 | ACCEPTED | M0-02 | 2026-10-14 | [Approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162805811) | [PR #25](https://github.com/neosmith20/Septuvo/pull/25) — `docs/reviews/G0.md`; [acceptance on PR #25](https://github.com/neosmith20/Septuvo/pull/25#issuecomment-6162913527) |
-| M1-01 | READY | M0-03 | 2026-10-14 | [Milestone M1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162806536) | — |
-| M1-02 | READY | M1-01 | 2026-10-14 | [Milestone M1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162806536) | — |
-| M1-03 | READY | M1-02 | 2026-10-14 | [Milestone M1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162806536) | — |
-| M1-04 | READY | M1-03 | 2026-10-14 | [Milestone M1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162806536) | — |
+| M1-01 | ACCEPTED | M0-03 | 2026-10-14 | [Milestone M1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162806536) | [PR #30](https://github.com/neosmith20/Septuvo/pull/30) |
+| M1-02 | ACCEPTED | M1-01 | 2026-10-14 | [Milestone M1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162806536) | [PR #30](https://github.com/neosmith20/Septuvo/pull/30) |
+| M1-03 | ACCEPTED | M1-02 | 2026-10-14 | [Milestone M1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162806536) | [PR #30](https://github.com/neosmith20/Septuvo/pull/30) |
+| M1-04 | ACCEPTED | M1-03 | 2026-10-14 | [Milestone M1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162806536) | [PR #30](https://github.com/neosmith20/Septuvo/pull/30) |
 | M2-01 | NOT STARTED | M1-04 | — | — | — |
 | M2-02 | NOT STARTED | M2-01 | — | — | — |
 | M2-03 | NOT STARTED | M2-02 | — | — | — |
@@ -83,8 +83,8 @@ Dates are `YYYY-MM-DD` UTC: the authorization date for READY rows, the merge dat
 
 | Task ID | State | Predecessor | Owner decision date (UTC) | Work-order approval | Completion evidence |
 | --- | --- | --- | --- | --- | --- |
-| N1-01 | READY | — | 2026-10-14 | [Milestone N1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162807229) | — |
-| N1-02 | READY | N1-01 | 2026-10-14 | [Milestone N1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162807229) | — |
+| N1-01 | ACCEPTED | — | 2026-10-14 | [Milestone N1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162807229) | [PR #29](https://github.com/neosmith20/Septuvo/pull/29) |
+| N1-02 | ACCEPTED | N1-01 | 2026-10-14 | [Milestone N1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162807229) | [PR #29](https://github.com/neosmith20/Septuvo/pull/29) |
 | N1-03 | READY | N1-02 | 2026-10-14 | [Milestone N1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162807229) | — |
 | N1-04 | READY | N1-03 | 2026-10-14 | [Milestone N1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162807229) | — |
 
@@ -108,6 +108,9 @@ Use separate `H-001`, `H-002` etc. IDs for routine work outside the 43 base task
 | H-004 | ACCEPTED | 2026-10-14 | Owner instruction 2026-10-14: document public repository, active ruleset and security features; record D-022/D-023 | [PR #7](https://github.com/neosmith20/Septuvo/pull/7) |
 | H-005 | ACCEPTED | 2026-10-14 | [Approval on issue #17](https://github.com/neosmith20/Septuvo/issues/17#issuecomment-6162227517) | [PR #20](https://github.com/neosmith20/Septuvo/pull/20) and scope update [PR #22](https://github.com/neosmith20/Septuvo/pull/22); [acceptance on PR #20](https://github.com/neosmith20/Septuvo/pull/20#issuecomment-6162868345) |
 | H-006 | ACCEPTED | 2026-10-14 | [Approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162805074) | Lean execution process (D-030): [PR #24](https://github.com/neosmith20/Septuvo/pull/24); [acceptance on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162833818) |
+| H-007 | ACCEPTED | 2026-10-14 | Routine (D-031) | [PR #28](https://github.com/neosmith20/Septuvo/pull/28) |
+| H-008 | ACCEPTED | 2026-10-14 | Routine (D-031) | [PR #36](https://github.com/neosmith20/Septuvo/pull/36) |
+| H-009 | ACCEPTED | 2026-10-15 | Routine (D-031) | [PR #41](https://github.com/neosmith20/Septuvo/pull/41) |
 
 ## Allowed task states
 
