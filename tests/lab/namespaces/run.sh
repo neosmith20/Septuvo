@@ -52,11 +52,21 @@ cleanup() {
   rm -rf "$WORK"
 }
 trap cleanup EXIT
+# Any failing setup command is reported with its line, also as a CI annotation.
+trap 'echo "::error title=lab setup::run.sh line $LINENO failed: $BASH_COMMAND"' ERR
+annotate() { if [ -n "${GITHUB_ACTIONS:-}" ]; then echo "::error title=lab::$1"; fi; }
 
 inC() { ip netns exec "$C" "$@"; }
 
 build() {
-  for ns in "$C" "$U" "$T"; do ip netns add "$ns"; ip -n "$ns" link set lo up; done
+  for ns in "$C" "$U" "$T"; do
+    ip netns add "$ns"
+    ip -n "$ns" link set lo up
+    # No duplicate-address detection: fresh links are usable at once (lab only).
+    if [ $HAVE_V6 = 1 ]; then
+      ip netns exec "$ns" sysctl -q -w net.ipv6.conf.all.accept_dad=0 net.ipv6.conf.default.accept_dad=0
+    fi
+  done
   # Underlay: the device's Wi-Fi (C eth0) <-> cafe network (U c0), 192.168.1.0/24.
   ip link add eth0 netns "$C" type veth peer name c0 netns "$U"
   ip -n "$C" addr add 192.168.1.10/24 dev eth0
@@ -121,7 +131,7 @@ apply_policy() {   # $1: policy file name
 }
 
 result() {   # $1: ok (0/1), $2: description
-  if [ "$1" = 1 ]; then PASS=$((PASS + 1)); echo "PASS  $2"; else FAIL=$((FAIL + 1)); echo "FAIL  $2"; fi
+  if [ "$1" = 1 ]; then PASS=$((PASS + 1)); echo "PASS  $2"; else FAIL=$((FAIL + 1)); echo "FAIL  $2"; annotate "FAIL $2"; fi
 }
 
 # check NAME PROTO DST PORT EXPECT [SPORT]; EXPECT = tunnel | underlay | blocked
@@ -133,7 +143,14 @@ check() {
   fi
   local token="sv-token-$ID-$N" sent in_t=0 in_u=0 ok=0
   sent=$(inC python3 "$PROBE" send "$proto" "$dst" "$port" "$token" $sport)
-  sleep 0.3
+  # Wait until the token shows up (neighbour discovery can delay the first
+  # packet), at most 2 s; "blocked" cases always wait the full time.
+  for _ in $(seq 20); do
+    sleep 0.1
+    grep -qx "$token" "$WORK/$T.log" 2>/dev/null && in_t=1
+    grep -qx "$token" "$WORK/$U.log" 2>/dev/null && in_u=1
+    if [ "$expect" != blocked ] && [ $((in_t + in_u)) -gt 0 ]; then sleep 0.2; break; fi
+  done
   grep -qx "$token" "$WORK/$T.log" 2>/dev/null && in_t=1
   grep -qx "$token" "$WORK/$U.log" 2>/dev/null && in_u=1
   case "$expect" in
@@ -241,8 +258,10 @@ check "R05 normal networking restored after removal" udp 198.51.100.20 5000 unde
 
 echo
 echo "Summary: $PASS passed, $FAIL failed, $SKIP skipped (IPv6 available: $HAVE_V6)"
+if [ -n "${GITHUB_ACTIONS:-}" ]; then echo "::notice title=lab summary::$PASS passed, $FAIL failed, $SKIP skipped (IPv6 available: $HAVE_V6)"; fi
 if [ "$REQUIRE_V6" = 1 ] && [ "$SKIP" != 0 ]; then
   echo "FAIL  IPv6 cases were skipped but --require-ipv6 was given"
+  annotate "IPv6 cases were skipped but --require-ipv6 was given"
   exit 1
 fi
 [ "$FAIL" = 0 ]
