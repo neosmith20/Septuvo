@@ -10,10 +10,10 @@
 2. Inspect the actual current repository, branch and HEAD. Compare the last handoff with the files and commits. A previous agent's report is *not* proof a task was finished.
 3. Identify **exactly one task ID** from the task catalog and confirm that all prerequisites and approvals exist, with links to recorded evidence.
 4. Prepare a work order containing all required fields. If the owner has not explicitly approved that work order, limit activity to read-only inspection and drafting the proposed work order.
-5. Every change, code or documentation, goes through a task branch and pull request; agents never push to, merge into, or force-push `main`. Do not publish or promote to a release without separate owner authority.
+5. Every change, code or documentation, goes through a task branch and a pull request **that the agent opens itself** (GitHub API, CLI or connected GitHub tools), with no AI session links or IDs in its text. Agents never merge, and never push to, merge into, or force-push `main` (D-034). Do not publish or promote to a release without separate owner authority.
 6. Change only named paths for the named task. If an unexpected requirement is discovered, record it as a blocker or proposed decision. Do not quietly expand scope.
 7. Run the applicable tests. Attach actual commands, environment, outputs and artifacts. Failed or unavailable tests are **FAIL** or **NOT RUN**, never PASS.
-8. Report the result in the handoff format and **stop** for the owner's review. Never start work the owner has not authorized; the next task of an already-authorized milestone, or routine work, does not need a new authorization.
+8. Report the result in the handoff format, give the owner the PR URL and **stop** for the owner's review. Never start work the owner has not authorized. **After the owner merges**, continue with the next task of the same authorized milestone without asking for another go-ahead (D-034); routine work also needs no authorization.
 
 ## What constitutes approval
 
@@ -65,7 +65,9 @@ if M0-02 and M0-01 identified defects, require accepted M0-01.1
 if required gate is not PASSED: STOP
 if no owner authorization exists for the task's milestone (category B): draft the work order only; STOP
 implement the authorized task(s) on a task branch; commit subjects `type(<ID>): ...`
-run tests, submit PR with PASS/FAIL/NOT RUN evidence; STOP
+run tests, open the PR (agent-opened) with PASS/FAIL/NOT RUN evidence; report the PR URL; STOP for review
+after the owner merges: sync_status.py; loop to the top for the next task of the same authorized milestone (D-034)
+stop instead if the next step needs an owner security-architecture/crypto decision, a material scope change, a gate or a new milestone
 ~~~
 
 ### ID conventions
@@ -95,7 +97,7 @@ Additional cargo audit, deny, fuzz and platform tests are task-specific and must
 
 **Safety:** the current repo has no VPN implementation. Do not run packet generators, grant VPN capabilities, alter live routes/firewalls/DNS, enroll devices, expose a UDP listener, install drivers or alter a production server without an explicit authorized lab task. Use isolated VMs/network namespaces and synthetic data for experiments.
 
-**Finish:** complete the handoff in [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md), submit the PR and STOP. The owner's merge accepts it. Agents keep STATUS.md current with `scripts/sync_status.py`, never by hand-writing decisions, and never record anything GitHub evidence does not support.
+**Finish:** complete the handoff in [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md), open the PR yourself, give the owner its URL and STOP for review. The owner's merge accepts it; after the merge, continue to the next task of the authorized milestone (D-034). Agents keep STATUS.md current with `scripts/sync_status.py`, never by hand-writing decisions, and never record anything GitHub evidence does not support.
 
 ## Agent conduct and escalation
 
@@ -121,6 +123,6 @@ If substantive cryptographic construction or trust boundaries change after revie
 
 ## Review quality: definition of done
 
-Use the full mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) completion/handoff fields (actual PR URL, tests, risks, rollback tested or NOT RUN). Only the owner accepts work, by merging its pull request. The agent always stops.
+Use the full mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) completion/handoff fields (actual PR URL, tests, risks, rollback tested or NOT RUN). Only the owner accepts work, by merging its pull request. The agent always stops at an open pull request, and never merges it.
 
 See [TASK_CATALOG.md](TASK_CATALOG.md) for step-by-step cards and [TRACEABILITY.md](TRACEABILITY.md) for security requirement mapping.

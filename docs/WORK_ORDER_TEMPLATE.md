@@ -37,6 +37,6 @@ For **Codex, Claude Code, Dex or any other agent**. Use the work order for **mil
 - **Actual required gate and owner-recorded state in STATUS.md**:
 - **Owner acceptance: the owner's merge of this pull request (recorded by `sync_status.py`; never agent-approved)**:
 - **One next proposed task only (not started)**:
-- **STOP — await the owner's review and merge**:
+- **STOP — await the owner's review and merge** (the agent opened the PR itself; after the merge it continues with the next task of the same authorized milestone, D-034):
 
 Do not mark anything PASS when untested. Never infer approval from previous assistant statements or an incomplete handoff.
