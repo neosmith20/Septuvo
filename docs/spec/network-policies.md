@@ -159,6 +159,8 @@ Protocol behaviour (handshake, keepalives, roaming, MTU) belongs to M2. Gateway 
 
 ## 11. Owner questions (this document)
 
+Full explanations, options and trade-offs: [M1-owner-questions.md](../reviews/M1-owner-questions.md). Nothing here is decided until the owner answers.
+
 | Q | Question | Recommendation |
 | --- | --- | --- |
 | Q1 | Captive portals (hotel or café login pages) | A user-started, time-limited (at most 5 minutes) captive-portal mode that lets web traffic out directly with a clear warning, then re-blocks. No permanent bypass. |

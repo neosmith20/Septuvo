@@ -13,6 +13,9 @@ import os
 import re
 import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import ledger_rules  # noqa: E402  (shared STATUS.md rules, D-031)
+
 # The tree to check. CI runs these scripts from the trusted base branch and
 # points SEPTUVO_ROOT at the pull request's files (H-008), so a pull request
 # cannot weaken the checks that judge it.
@@ -39,6 +42,9 @@ REQUIRED = (
     ".github/workflows/repository-integrity.yml",
     ".github/PULL_REQUEST_TEMPLATE.md",
     "scripts/verify_ledger.py",
+    "scripts/ledger_rules.py",
+    "scripts/sync_status.py",
+    "docs/reviews/M1-owner-questions.md",
 )
 LINK = re.compile(r"!?\[[^\]\n]*\]\(([^)\n]+)\)")
 INLINE_CODE = re.compile(r"`[^`\n]*`")
@@ -49,82 +55,21 @@ ROADMAP_ID = re.compile(r"\*\*(M\d+-\d+):\*\*")
 SUBTASK_ID = re.compile(r"^### (M\d+-\d+\.\d+) —", re.MULTILINE)
 VALID_WORK_ID = re.compile(r"^(?:M\d+-\d+(?:\.\d+)?|N\d+-\d+|H-\d{3})$")
 N_CARD_ID = re.compile(r"^### (N\d+-\d+) —", re.MULTILINE)
-PERMALINK = re.compile(r"https://github\.com/neosmith20/Septuvo/(?:issues|pull)/\d+#issuecomment-\d+")
-DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-TASK_STATES = {"NOT STARTED", "READY", "IN PROGRESS", "BLOCKED", "IN REVIEW", "ACCEPTED", "REJECTED / REWORK"}
-GATE_STATES = {"PENDING", "PASSED", "FAILED"}
-NEEDS_APPROVAL = {"READY", "IN PROGRESS", "IN REVIEW", "ACCEPTED", "REJECTED / REWORK"}
-# Immutable baseline for rows recorded by the owner directly before D-025 (2026-10-14).
-# Each entry: (state, date, approval_substring, evidence_substring)
-LEGACY_BASELINE = {
-    "H-001": ("ACCEPTED", "2026-10-14", "Retroactive owner acceptance 2026-10-14", "Documentation workflow fixes: [PR #4]"),
-    "H-002": ("ACCEPTED", "2026-10-14", "Owner instruction 2026-10-14: record D-021 option C", "[PR #5]"),
-    "H-003": ("ACCEPTED", "2026-10-14", "Retroactive owner acceptance 2026-10-14", "Brand kit corrections: guidelines PDF"),
-    "H-004": ("ACCEPTED", "2026-10-14", "Owner instruction 2026-10-14: document public repository", "[PR #7]"),
-    "M0-01": ("ACCEPTED", "2026-10-14", "[Approval on issue #9]", "[PR #12]"),
-    "M0-01.1": ("ACCEPTED", "2026-10-14", "[Approval on issue #13]", "[PR #15]"),
-}
-LEGACY_APPROVAL = {"H-001", "H-002", "H-003", "H-004"}
-LEGACY_DECISION = LEGACY_APPROVAL | {"M0-01", "M0-01.1"}
-
 errors = []
 
 
-def ledger_rows(text):
-    """Yield (kind, id, state, date, approval, evidence) for every ledger table row."""
-    in_fence = False
-    for line in text.splitlines():
-        if FENCE.match(line):
-            in_fence = not in_fence
-            continue
-        if in_fence:
-            continue
-        if not line.startswith("| "):
-            continue
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        ident = cells[0]
-        if re.fullmatch(r"G[0-4]", ident) and len(cells) == 4:
-            yield "gate", ident, cells[1], cells[2], "", cells[3]
-        elif re.fullmatch(r"M\d+-\d+\.\d+", ident) and len(cells) == 6:
-            yield "task", ident, cells[2], cells[3], cells[4], cells[5]
-        elif re.fullmatch(r"(?:M|N)\d+-\d+", ident) and len(cells) == 6:
-            yield "task", ident, cells[1], cells[3], cells[4], cells[5]
-        elif re.fullmatch(r"H-\d{3}", ident) and len(cells) == 5:
-            yield "task", ident, cells[1], cells[2], cells[3], cells[4]
+QUESTION_REF = re.compile(r"(?<![\w-])Q(\d{1,2})(?![\w-])")
+QUESTION_DEF = re.compile(r"^### Q(\d{1,2}) \u2014", re.MULTILINE)
 
 
-def check_ledger(ledger):
-    for kind, ident, state, date, approval, evidence in ledger_rows(ledger):
-        where = f"STATUS.md {ident}"
-        if kind == "gate":
-            if state not in GATE_STATES:
-                errors.append(f"{where}: invalid gate state {state!r}")
-            elif state != "PENDING":
-                if not DATE.match(date):
-                    errors.append(f"{where}: gate decision needs a YYYY-MM-DD date")
-                if not PERMALINK.search(evidence):
-                    errors.append(f"{where}: gate decision needs the owner comment permalink (D-025)")
-            continue
-        if state not in TASK_STATES:
-            errors.append(f"{where}: invalid task state {state!r}")
-            continue
-        # Verify legacy rows match immutable baseline; if altered, require normal validation.
-        if ident in LEGACY_BASELINE:
-            expected_state, expected_date, expected_approval_substr, expected_evidence_substr = LEGACY_BASELINE[ident]
-            if (state != expected_state or date != expected_date or
-                expected_approval_substr not in approval or expected_evidence_substr not in evidence):
-                errors.append(f"{where}: legacy task row has been altered from its immutable baseline; "
-                             f"expected state={expected_state!r}, date={expected_date!r}, "
-                             f"approval containing {expected_approval_substr!r}, evidence containing {expected_evidence_substr!r}")
-            continue
-        if state in NEEDS_APPROVAL:
-            if not DATE.match(date):
-                errors.append(f"{where}: state {state} needs a YYYY-MM-DD date")
-            if not PERMALINK.search(approval):
-                errors.append(f"{where}: state {state} needs the owner approval comment permalink (D-025)")
-        if state in {"ACCEPTED", "REJECTED / REWORK"}:
-            if not PERMALINK.search(evidence):
-                errors.append(f"{where}: state {state} needs the owner decision comment permalink (D-025)")
+def check_owner_questions():
+    """Every owner question referenced in docs/spec exists in the questions file (D-031)."""
+    defined = set(QUESTION_DEF.findall((ROOT / "docs/reviews/M1-owner-questions.md").read_text(encoding="utf-8")))
+    for spec in sorted((ROOT / "docs/spec").glob("*.md")):
+        text = INLINE_CODE.sub("", spec.read_text(encoding="utf-8"))
+        for number in sorted(set(QUESTION_REF.findall(text)), key=int):
+            if number not in defined:
+                errors.append(f"{spec.relative_to(ROOT)}: owner question Q{number} is referenced but not defined in docs/reviews/M1-owner-questions.md")
 
 
 def slug(heading):
@@ -171,7 +116,7 @@ if not errors:
     if catalog_ids != roadmap_ids:
         errors.append("Task catalog IDs do not match roadmap order.")
     ledger = (ROOT / "docs/STATUS.md").read_text(encoding="utf-8")
-    ledger_ids = [row[1] for row in ledger_rows(ledger) if row[0] == "task"]
+    ledger_ids = [row[1] for row in ledger_rules.ledger_rows(ledger) if row[0] == "task"]
     if len(ledger_ids) != len(set(ledger_ids)):
         errors.append("Duplicate task ID in ledger.")
     if not set(catalog_ids).issubset(set(ledger_ids)):
@@ -183,11 +128,13 @@ if not errors:
     for ident in ledger_ids + SUBTASK_ID.findall(catalog):
         if not VALID_WORK_ID.fullmatch(ident):
             errors.append(f"Invalid work ID: {ident}")
-    gates = [row[1] for row in ledger_rows(ledger) if row[0] == "gate"]
+    gates = [row[1] for row in ledger_rules.ledger_rows(ledger) if row[0] == "gate"]
     for gate in ("G0", "G1", "G2", "G3", "G4"):
         if gate not in gates:
             errors.append(f"Ledger gate row missing or malformed: {gate}")
-    check_ledger(ledger)
+    decisions = (ROOT / "docs/DECISIONS.md").read_text(encoding="utf-8")
+    errors.extend(ledger_rules.offline_errors(ledger, decisions))
+    check_owner_questions()
     security_model = (ROOT / "docs/SECURITY_MODEL.md").read_text(encoding="utf-8")
     traceability = (ROOT / "docs/TRACEABILITY.md").read_text(encoding="utf-8")
     for i in range(1, 14):

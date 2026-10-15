@@ -1,13 +1,13 @@
 # Septuvo — universal single-task work order and handoff template
 
-For **Codex, Claude Code, Dex or any other agent**. Copy this template for **every base, dotted subtask, or owner-approved H task**; consult [STATUS.md](STATUS.md), and obey [AGENT_OPERATIONS.md](AGENT_OPERATIONS.md). If owner scope authorization, predecessor acceptance or required gate is missing, **STOP**. A template is not approval.
+For **Codex, Claude Code, Dex or any other agent**. Use the work order for **milestone work** (category B, D-031): a milestone, a base task or a dotted subtask. Routine H work (category A) needs only the **Completion and handoff** part in its pull request. Consult [STATUS.md](STATUS.md) and obey [AGENT_OPERATIONS.md](AGENT_OPERATIONS.md). If the owner's milestone authorization, predecessor completion or required gate is missing, **STOP**. A template is not approval.
 
 ## Work order
 
 - **Task ID / milestone**: M?-?? / M?-??.? / N1-?? / H-??? / a whole milestone such as M1 or N1 (registered in STATUS.md; D-030)
-- **Predecessor task accepted? Evidence link**:
+- **Predecessor complete? Merged pull request link**:
 - **Status** (choose one): `NOT STARTED` | `READY` | `IN PROGRESS` | `BLOCKED` | `IN REVIEW` | `ACCEPTED` | `REJECTED / REWORK`
-- **Owner approval: permalink of the owner's `APPROVED WORK ORDER <ID>` comment, its UTC date, and the STATUS.md ledger entry**:
+- **Owner authorization (category B): link to the owner's comment in ordinary words, or to the owner-merged pull request that added this work order**:
 - **Required gate**: G? (evidence/link; or “not applicable — documentation-only”)
 - **Objective (one sentence)**:
 - **In scope (exact paths and behavior)**:
@@ -35,8 +35,8 @@ For **Codex, Claude Code, Dex or any other agent**. Copy this template for **eve
 - **Unresolved blockers / exact decisions needed**:
 - **Rollback tested? What and where?**:
 - **Actual required gate and owner-recorded state in STATUS.md**:
-- **Owner acceptance: permalink of the owner's `ACCEPTED <ID>` comment (if any; never agent-approved)**:
+- **Owner acceptance: the owner's merge of this pull request (recorded by `sync_status.py`; never agent-approved)**:
 - **One next proposed task only (not started)**:
-- **STOP — await owner review before next milestone**:
+- **STOP — await the owner's review and merge**:
 
 Do not mark anything PASS when untested. Never infer approval from previous assistant statements or an incomplete handoff.

@@ -1,19 +1,25 @@
-# Septuvo — task and gate ledger (mirror of owner decisions)
+# Septuvo — task and gate ledger
 
-**This file mirrors the owner's decision comments.** It was created as a baseline with every task NOT STARTED and every gate PENDING; the tables below show the current state. No approval is implied by creating this file.
+**This file records task and gate status from GitHub evidence (D-031).** Agents keep it up to date; the owner never edits these tables by hand. It was created as a baseline with every task NOT STARTED and every gate PENDING; the tables below show the current state.
 
-**Owner decisions are comments (D-025).** The owner decides only by posting one of these exact comments, alone in the comment, in the conversation of the task's GitHub issue or pull request: `APPROVED WORK ORDER <ID>`, `ACCEPTED <ID>`, `REJECTED <ID>`, `GATE <G0–G4> PASSED` or `GATE <G0–G4> FAILED`. Those comments are the authority; this file mirrors them. Agents may change this file **only** to mirror such comments, in their next pull request, with each comment's permalink and UTC date; any other change by an agent is forbidden, and the owner still reviews and merges every change. CI ([`scripts/verify_ledger.py`](../scripts/verify_ledger.py)) fails a pull request if a mirrored row has no matching owner comment. Rows H-001–H-004, M0-01 and M0-01.1 predate this rule and were edited by the owner directly. Missing or stale evidence means STOP.
+## How work is approved and accepted (D-031)
 
-## Work-order and task approval procedure
+| Category | Covers | Authorization | Acceptance |
+| --- | --- | --- | --- |
+| **A — Routine** (`H-xxx`) | Documentation, bot findings (Aikido, Dependabot), CI maintenance, bounded fixes | None needed: an agent prepares a scoped pull request | **The owner's merge** of the pull request |
+| **B — Milestone work** (`Mx-yy`, `Nx-yy`, dotted subtasks) | Tasks inside an authorized milestone | One owner authorization per milestone or scope change, **in ordinary words**: an owner comment naming the milestone, a short comment on the pull request that carries its work order, or the owner's merge of a pull request that adds the work order under `docs/work-orders/` | **The owner's merge** of the pull request that delivers the task |
+| **C — Gates and security decisions** | G0–G4; cryptographic constructions, trust model, security architecture, releases | Evidence first (G1: qualified independent protocol review; G3: independent implementation assessment) | Gates: the owner's exact comment `GATE <Gn> PASSED` or `GATE <Gn> FAILED`. Security decisions: an explicit owner comment, recorded in [DECISIONS.md](DECISIONS.md) |
 
-1. Agent drafts [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) for one exact task/scope and stops.
-2. Owner comments `APPROVED WORK ORDER <ID>` on the GitHub issue or PR that contains the work order. The approved revision is the issue/PR description as it stood when the approval comment was posted. A PR, merge or CI pass alone is not approval. A work order may cover a whole milestone (`APPROVED WORK ORDER M1`), or be a file under `docs/work-orders/` in a pull request, in which case the approved revision is that file at the pull request's head commit when the comment was posted (D-030).
-3. Agent verifies the owner's comment on GitHub (author is the owner, exact text), the predecessor, task scope and gate before proceeding; its pull request mirrors the approval below (READY, UTC date, permalink). Changes to scope require a fresh explicit owner approval comment.
-4. Agent submits completion evidence/PR and stops. After review the owner comments `ACCEPTED <ID>` (or `REJECTED <ID>`) on the pull request, where `<ID>` may be a milestone such as `M1`; the next agent pull request mirrors it with the evidence. A merge alone is not acceptance.
-5. Owner alone passes or fails a gate, by commenting `GATE <Gn> PASSED` (or `FAILED`) on the gate-evidence pull request after reviewing the exact evidence and any required independent reviewer report. G1 and G3 still require independent review; no agent may self-approve.
-6. The owner may also edit this file directly through a pull request; agents must never record a decision that has no matching owner comment.
+Rules that hold for every category:
 
-Use dates in `YYYY-MM-DD` UTC and permalinks. A blank approval reference means **not authorized**.
+- No agent or bot merges a pull request, passes a gate or makes a category C decision. The owner merges every pull request.
+- A pull request **delivers** a task when the task ID is the scope of one of its commit subjects, for example `feat(N1-03): ...`. Mentions elsewhere, such as "next: N1-03", never count.
+- Milestones cannot advance past an unpassed gate: M1, M2 and N1 need G0; M3–M5 need G1; M6–M8 need G2; M9 needs G3. No cryptographic or protocol implementation before G1.
+- **Ledger upkeep is automatic.** [`scripts/sync_status.py`](../scripts/sync_status.py) reads owner-merged pull requests and updates this file. Agents run it and include the result in a pull request, and CI reports any drift on every pull request. A ledger that lags behind GitHub never blocks already-authorized work: merged pull requests are the authority.
+- **CI verifies every record** ([`scripts/verify_ledger.py`](../scripts/verify_ledger.py)): the owner merged the linked pull request into `main` and it delivers the task; an authorization was written or merged by the owner; a gate has the exact owner comment. Records that cannot be verified fail the check, and so does any network error.
+- Earlier records based on exact comments (`APPROVED WORK ORDER`, `ACCEPTED`, D-025) stay valid. Rows H-001–H-004, M0-01 and M0-01.1 predate D-025 and are kept verbatim.
+
+Dates are `YYYY-MM-DD` UTC: the authorization date for READY rows, the merge date for ACCEPTED rows.
 
 ## Security gates
 
@@ -84,7 +90,7 @@ Use dates in `YYYY-MM-DD` UTC and permalinks. A blank approval reference means *
 
 ## Dotted subtasks (owner authorized separately)
 
-M0-01.1 is a conditional correction task: if M0-01 finds defects, the owner authorizes and accepts M0-01.1 before M0-02. If none, the owner explicitly records the skip in M0-01 acceptance evidence. For M7-01, M8-02, M9-02 and similar cases, every `M7-01.1` style subtask needs its own owner approval comment and must be accepted before its parent can become ACCEPTED. Agents add rows only to mirror owner comments.
+M0-01.1 is a conditional correction task: if M0-01 finds defects, the owner authorizes and accepts M0-01.1 before M0-02. If none, the owner explicitly records the skip in M0-01 acceptance evidence. For M7-01, M8-02, M9-02 and similar cases, every `M7-01.1` style subtask needs its own owner authorization (category B) and must be accepted before its parent can become ACCEPTED.
 
 | Subtask ID | Parent | State | Owner decision date (UTC) | Work-order approval | Completion evidence |
 | --- | --- | --- | --- | --- | --- |
@@ -92,7 +98,7 @@ M0-01.1 is a conditional correction task: if M0-01 finds defects, the owner auth
 
 ## Owner-directed hygiene, branding and administration
 
-Use separate `H-001`, `H-002` etc. IDs for work outside the 43 base tasks; they never change the base task order or approve a gate. Each H task needs its own owner approval comment; agents mirror it here. H-001 and H-003 were accepted retroactively on 2026-10-14 (no written work order existed beforehand).
+Use separate `H-001`, `H-002` etc. IDs for routine work outside the 43 base tasks (category A). They never change the base task order, add milestone scope or approve a gate. The owner's merge accepts them, and `sync_status.py` adds their rows. H-001 and H-003 were accepted retroactively on 2026-10-14 (no written work order existed beforehand).
 
 | ID | State | Owner decision date (UTC) | Work-order approval | Completion evidence |
 | --- | --- | --- | --- | --- |

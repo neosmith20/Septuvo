@@ -32,6 +32,8 @@ jobs:
           path: trusted
           sparse-checkout: scripts
           persist-credentials: false
+      - name: Unit tests for the ledger scripts in this pull request
+        run: python3 -m unittest discover -s review/scripts/tests -p "test_*.py" -v
       - name: Select check scripts
         run: |
           if grep -q SEPTUVO_ROOT trusted/scripts/check_repository.py trusted/scripts/verify_ledger.py; then
@@ -45,8 +47,18 @@ jobs:
         env:
           SEPTUVO_ROOT: ${{ github.workspace }}/review
         run: python3 "$CHECKS/check_repository.py"
-      - name: Verify owner decisions mirrored in docs/STATUS.md (D-025)
+      - name: Verify ledger records against GitHub (D-031)
         env:
           SEPTUVO_ROOT: ${{ github.workspace }}/review
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 "$CHECKS/verify_ledger.py"
+      # Never blocks: reports where STATUS.md lags behind owner-merged pull
+      # requests, so an agent can open a sync pull request (D-031).
+      - name: Ledger drift report (non-blocking)
+        if: always()
+        continue-on-error: true
+        env:
+          SEPTUVO_ROOT: ${{ github.workspace }}/review
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f "$CHECKS/sync_status.py" ]; then python3 "$CHECKS/sync_status.py"; fi

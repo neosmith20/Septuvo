@@ -64,6 +64,8 @@
 
 ## 4. Owner question (this document)
 
+Full explanations, options and trade-offs: [M1-owner-questions.md](../reviews/M1-owner-questions.md). Nothing here is decided until the owner answers.
+
 | Q | Question | Recommendation |
 | --- | --- | --- |
 | Q11 | Should version 1 Septuvo Server also support Linux ARM64 (for example a Raspberry Pi as the home server)? | Yes as a **target**, built and tested in CI on ARM64 once M5 runs, but marked unsupported until its lab tests pass. x86_64 stays first. |

@@ -6,16 +6,16 @@ Applies to **Codex, Claude Code, Dex, and any other coding agent or human contri
 
 The repository owner determines scope, priorities, milestones, security posture and release decisions. You are an implementation assistant, **not a cryptographic standards committee or an independent auditor**.
 
-Authority: **owner decision comments, mirrored in [STATUS.md](docs/STATUS.md) (D-025)** for authorization/gates; **AGENTS.md and [AGENT_OPERATIONS.md](docs/AGENT_OPERATIONS.md)** for mandatory execution rules; **[DECISIONS.md](docs/DECISIONS.md)** for recorded technical choices; **[ROADMAP.md](docs/ROADMAP.md) and [TASK_CATALOG.md](docs/TASK_CATALOG.md)** for task sequence/scope; **[SECURITY_MODEL.md](docs/SECURITY_MODEL.md) and [ARCHITECTURE.md](docs/ARCHITECTURE.md)** for design; **[TRACEABILITY.md](docs/TRACEABILITY.md)** for evidence; **[WORK_ORDER_TEMPLATE.md](docs/WORK_ORDER_TEMPLATE.md)** as the single handoff format; README for overview. If any documents conflict or a request could weaken a gate: **STOP and request owner resolution**.
+Authority: **the owner's merges, authorizations and gate comments on GitHub, recorded in [STATUS.md](docs/STATUS.md) (D-031)** for authorization/gates; **AGENTS.md and [AGENT_OPERATIONS.md](docs/AGENT_OPERATIONS.md)** for mandatory execution rules; **[DECISIONS.md](docs/DECISIONS.md)** for recorded technical choices; **[ROADMAP.md](docs/ROADMAP.md) and [TASK_CATALOG.md](docs/TASK_CATALOG.md)** for task sequence/scope; **[SECURITY_MODEL.md](docs/SECURITY_MODEL.md) and [ARCHITECTURE.md](docs/ARCHITECTURE.md)** for design; **[TRACEABILITY.md](docs/TRACEABILITY.md)** for evidence; **[WORK_ORDER_TEMPLATE.md](docs/WORK_ORDER_TEMPLATE.md)** as the single handoff format; README for overview. If any documents conflict or a request could weaken a gate: **STOP and request owner resolution**.
 
-Only the exact task and files named in an approved work order are in scope. Read [AGENT_OPERATIONS.md](docs/AGENT_OPERATIONS.md), [TASK_CATALOG.md](docs/TASK_CATALOG.md), [TRACEABILITY.md](docs/TRACEABILITY.md), and [WORK_ORDER_TEMPLATE.md](docs/WORK_ORDER_TEMPLATE.md). Roadmap bullets are not blanket work authorization. Task cards propose output paths; they do not authorize edits or gate passage.
+Only the exact task and files named in an authorized work order (or, for routine H work, the pull request's stated scope) are in scope. Read [AGENT_OPERATIONS.md](docs/AGENT_OPERATIONS.md), [TASK_CATALOG.md](docs/TASK_CATALOG.md), [TRACEABILITY.md](docs/TRACEABILITY.md), and [WORK_ORDER_TEMPLATE.md](docs/WORK_ORDER_TEMPLATE.md). Roadmap bullets are not blanket work authorization. Task cards propose output paths; they do not authorize edits or gate passage.
 
 ## Start-of-task checklist
 
 1. Read the above documents relevant to your task and the latest decision register.
 2. Inspect branch, HEAD, repository status, existing commits and current file contents. Never trust an earlier handoff without verification.
 3. Report exact task ID, allowed files, known dependencies, acceptance criteria, risks, rollback and expected stopping point.
-4. Check required gate approvals and the specific owner-approved work order. **No approval = no implementation.** Documentation proposals are allowed only within an approved task. Document the blocker instead of guessing.
+4. Check the required gate and, for milestone work, the owner's authorization of that milestone (D-031). **No authorization = no implementation** of milestone work. Routine work (H-xxx: docs, bot findings, CI upkeep, bounded fixes) needs no authorization comment; the owner's merge accepts it. Document the blocker instead of guessing.
 5. Work on a narrow task branch and propose a PR for **every change**, code or documentation; agents never push to, merge into, or force-push `main` (the `main` ruleset also blocks direct pushes).
 
 ## Absolute red lines
@@ -28,7 +28,7 @@ Only the exact task and files named in an approved work order are in scope. Read
 - Never “fix” a failing test by weakening requirements, deleting tests, marking them skipped, or reporting simulated evidence as real.
 - No unapproved dependency additions, privilege escalation, kernel/driver installations, public port openings, real router/VPS alterations, external traffic generation, data deletion, telemetry, remote SaaS dependencies or device enrollment.
 - No release tags, binary publishing, claiming external audits, changing repo visibility, DNS purchases or trademark claims without explicit owner approval.
-- No unrelated rewrites, opportunistic features or speculative performance shortcuts. **One approved work order (a task or a milestone) per checkpoint, finished one task at a time.**
+- No unrelated rewrites, opportunistic features or speculative performance shortcuts. **One authorized work order (a task or a milestone) or one routine fix per pull request, finished one task at a time.**
 - Do not claim literal 100% Rust across mobile/OS runtime if native OS frameworks, system drivers or glue are needed. Keep all **Septuvo-owned security-critical logic in Rust** and inventory external code/native interfaces.
 - Treat remote packets, configuration, peer identity, management APIs and control-plane data as hostile input.
 
@@ -54,7 +54,7 @@ Only the exact task and files named in an approved work order are in scope. Read
 
 ## Task dispatch and state
 
-Follow the deterministic task-dispatch algorithm in [AGENT_OPERATIONS.md](docs/AGENT_OPERATIONS.md): inspect actual state, select only the first eligible task, verify owner authorization **and** required gate, execute only that task, submit evidence, and **STOP**. Every agent uses the same statuses (NOT STARTED, READY, IN PROGRESS, BLOCKED, IN REVIEW, ACCEPTED, REJECTED / REWORK). Only the owner approves work, accepts tasks or passes gates, by the exact comments defined in [STATUS.md](docs/STATUS.md) (D-025). Agents may change the ledger **only** to mirror those comments. On timeout, inspect actual HEAD/worktree and reconcile before resuming; do not assume a command completed.
+Follow the deterministic task-dispatch algorithm in [AGENT_OPERATIONS.md](docs/AGENT_OPERATIONS.md): inspect actual state, select only the first eligible task, verify owner authorization **and** required gate, execute only that task, submit evidence, and **STOP**. Every agent uses the same statuses (NOT STARTED, READY, IN PROGRESS, BLOCKED, IN REVIEW, ACCEPTED, REJECTED / REWORK). Only the owner authorizes milestones, accepts work (by merging its pull request) or passes gates (exact `GATE <Gn> PASSED/FAILED` comment), as defined in [STATUS.md](docs/STATUS.md) (D-031). No agent or bot merges a pull request. Agents keep the ledger in sync with `scripts/sync_status.py` and never record anything GitHub evidence does not support. On timeout, inspect actual HEAD/worktree and reconcile before resuming; do not assume a command completed.
 
 ## Finish-of-task / timeout report (mandatory)
 

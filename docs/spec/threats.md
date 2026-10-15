@@ -121,7 +121,11 @@ Every requirement in [SECURITY_MODEL.md](../SECURITY_MODEL.md) mapped to the adv
 - Protecting a compromised device, server or server host (ASM-01, ADV-08).
 - Anonymity: the server operator and destinations see the server's address; the underlay sees that a Septuvo connection exists.
 - Hiding traffic timing, sizes or volume (traffic analysis).
-- Hiding the use of a VPN, or getting through censorship (obfuscation). Not decided as a future goal; listed as **OPEN** for the owner.
+- Hiding the use of a VPN, or getting through censorship (obfuscation). Not decided as a future goal; owner question Q14.
 - Availability under volumetric floods beyond the server's network capacity.
 - Securing home services that have weak authentication of their own; a LAN exception does not encrypt anything.
 - Multi-tenant provider isolation and organization control planes (ADV-11, ADV-12): M9 and G4.
+
+## 9. Owner questions (this document)
+
+Q12 (home server port forward, R-01) and Q14 (obfuscation). Full explanations, options and trade-offs: [M1-owner-questions.md](../reviews/M1-owner-questions.md).
