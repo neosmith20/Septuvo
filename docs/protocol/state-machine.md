@@ -61,7 +61,7 @@ Each enrolled device has at most **one** session in each slot:
 | State (of a slot) | Meaning |
 | --- | --- |
 | `NONE` | No keys |
-| `PENDING` | RespHello sent; keys derived, **not yet confirmed** (handshake.md §7, B-08). Nothing is sent or forwarded under these keys, and the device is **not** reported as authenticated |
+| `PENDING` | RespHello sent; keys derived, **not yet confirmed** (handshake.md §7, B-08). **No transport data** is sent or forwarded under these keys, and the device is **not** reported as authenticated. Handshake processing is **not** blocked: a new valid InitHello is answered with a new RespHello and replaces this slot (S1) |
 | `CURRENT` | Confirmed by the first valid transport packet under `tki` |
 | `PREVIOUS` | The former `CURRENT` after a rekey; receive-only until it expires |
 
@@ -80,7 +80,7 @@ Each enrolled device has at most **one** session in each slot:
 | S9 | Authorization data unreadable | — | Refuse all devices (RV-2) | All `NONE` |
 
 **Never** in any server state:
-- send data to a device before S3;
+- send transport data to a device under keys that have not reached S3. Handshake responses (RespHello, and the cookie replies of M2-03) are not transport data and are allowed in every state, subject to S1/S2 and the budgets;
 - treat a `PENDING` session as authenticated;
 - forward packets whose destination the device's scope does not allow (S-09).
 

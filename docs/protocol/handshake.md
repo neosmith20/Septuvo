@@ -50,7 +50,7 @@ Notation follows the paper:
 | `(spqi, Spqi)`, `(spqr, Spqr)` | Parameter `STATIC_KEM` (§4) | Same | [HWG] uses Classic McEliece level 3. The choice is open (M2-Q3), **BLOCKED B-03** |
 
 - **Identity** = the pair (classical public key, post-quantum public key), never one alone.
-- **Fingerprint** shown to people = a hash of both public keys. The hash, input encoding and truncation are **BLOCKED B-02**.
+- **Fingerprint** shown to people = a hash of both public keys. For the *server*, it also covers the enrollment signing key and the protocol identifier (§10.1). The hash, input encoding and truncation are **BLOCKED B-02**.
 
 ### 3.2 Ephemeral keys (fresh for every handshake)
 
@@ -165,7 +165,9 @@ RespHello = inner ‖ m1 ‖ m2
 
 **Consequences (B-08):**
 - Until that first packet, the server keeps the new session in `PENDING` ([state-machine.md](state-machine.md)).
-- In `PENDING` the server does not send data under the new keys, does not forward anything, and does not report the device as authenticated (D-020, S-13).
+- **`PENDING` restricts transport data, not handshake messages.** Under the pending keys the server sends **no transport data**, forwards nothing, and does not report the device as authenticated (D-020, S-13).
+- The server **still answers handshakes**: the RespHello that created the session has already been sent. A later valid InitHello from the same device (a retransmission after a lost RespHello, D4) gets a fresh RespHello and **replaces** the pending session (state-machine S1).
+- Those answers are limited only by the normal InitHello checks and the pre-authentication budgets (B-06), never by the `PENDING` state.
 - The device reports stage 2 ("peer authenticated") only after `empty` verifies.
 
 ## 8. Protocol identity, negotiation and downgrade
@@ -173,11 +175,19 @@ RespHello = inner ‖ m1 ‖ m2
 **Rule:** there is **no in-band negotiation** in SVP version 1.
 - A *protocol identifier* names the version and the full parameter set (§4), and is hashed into `C1`/`H1` through `lbl1` and `lbl2`.
 - This is the Noise approach: the protocol name initialises the symmetric state (Noise §5.2). WireGuard uses the same approach.
-- If the two sides use different identifiers, they derive different keys. `static` then fails to decrypt on the server, the InitHello is dropped, and no shared key results. **Downgrade to another parameter set is therefore not possible without the peer's private keys.**
+- If the two sides use different identifiers, they derive different keys. `static` then fails to decrypt on the server, the InitHello is dropped, and no shared key results.
+
+**What this does and does not protect (qualified claim).**
+- **Within the handshake:** an attacker cannot make an *enrolled* device and its server complete a handshake under a parameter set other than the one both have pinned, unless the attacker holds a party's private keys. This is a property of the draft design and is **BLOCKED B-07 / B-09** until G1. It is not a proven result.
+- **It is only as strong as enrollment.** The identifier and the server's static keys that a device uses are whatever it pinned at enrollment (B-09). An attacker who could alter that data during enrollment could pin a weaker identifier or their own keys, and the handshake would then faithfully "protect" the wrong thing. Downgrade resistance therefore also needs all of the following (§10):
+  - the invitation fingerprint covers the protocol identifier as well as the server's keys, so a changed identifier fails the fingerprint check (EN-6);
+  - the enrollment channel itself accepts only the hybrid key exchange and has no fallback to a classical-only exchange or an older version;
+  - the invitation is carried from the server to the device by a path the attacker cannot alter: shown on the server's own screen or administrator console and scanned by the user.
+- **Not covered:** a compromised server or device, or an attacker who controls the invitation path. These are outside the claim ([threats.md](../spec/threats.md) ADV-05, ADV-07, ADV-08). A leaked invitation (ADV-06) is handled by administrator confirmation (EN-7), not by this mechanism.
 
 | Item | Specification | Status |
 | --- | --- | --- |
-| Identifier contents | Protocol name, version, `DH`, `EPHEMERAL_KEM`, `STATIC_KEM`, `HASH`, `AEAD` | **BLOCKED B-07** (exact strings) |
+| Identifier contents | Protocol name, version, `DH`, `EPHEMERAL_KEM`, `STATIC_KEM`, `HASH`, `AEAD`. Also covered by the invitation fingerprint (§10.1) | **BLOCKED B-07** (exact strings) |
 | Which identifier a peer uses | Fixed for each device at enrollment, as part of the pinned server record. A device never retries with another identifier on failure | **BLOCKED B-09** |
 | Changing identifier (algorithm agility, S-05) | Only by an explicit, authenticated change: re-enrollment, or a later reviewed migration procedure. Never automatic fallback | **OPEN**, after G1 |
 | Version mismatch shown to the user | Locally, as "handshake not answered", never "connected". The wire gives no error (§9) | [state-machine.md](state-machine.md) |
@@ -258,6 +268,31 @@ The Hybrid-WireGuard paper assumes that the static keys and `psk` are already in
 
 **Recommendation for the reviewer to assess:** (a). Its pieces are standards, it gives hybrid post-quantum confidentiality for the `psk`, and authentication at enrollment time only has to resist attackers who exist *now*. The full design is written in M2-03/M2-04 only if the reviewer agrees with the direction.
 
+### 10.1 How the TLS signing identity is bound to the SVP identity and the invitation (option (a), draft)
+
+**Problem.**
+- Under option (a), the key that authenticates the server in TLS is a **signing** key (`Ksig`), which is not used by the SVP handshake.
+- The device must be sure that the `Ksig` it talked to, and the SVP keys (`Scr`, `Spqr`) and protocol identifier it receives, all belong to the **same** server named in the invitation.
+- Otherwise an attacker could pair a genuine channel with substituted SVP keys, or the reverse.
+
+**Binding, step by step (BLOCKED B-02, B-12):**
+
+| Step | What happens | What it binds |
+| --- | --- | --- |
+| 1. One server identity | The server identity is the set {`Ksig`, `Scr`, `Spqr`, protocol identifier}. All are generated together on the server (ID-1), stored together (KS-1), backed up together (Q8) and replaced together (RV-5). `Ksig` is used only for enrollment, never in SVP handshakes | The keys are one identity, not separate ones |
+| 2. Invitation fingerprint | `fingerprint = HASH_fp(encode(Ksig) ‖ encode(Scr) ‖ encode(Spqr) ‖ encode(identifier))`. Hash, unambiguous encoding and truncation are **B-02** | The invitation names every part, including the identifier (§8) |
+| 3. TLS authentication | TLS 1.3 with the server authenticated by `Ksig` as a raw public key (RFC 7250); only the hybrid key exchange is offered and accepted. TLS's own handshake signature proves possession of `Ksig` over the TLS transcript | The channel ends at the holder of `Ksig` |
+| 4. Keys sent inside the channel | The server sends `Scr`, `Spqr` and the identifier inside that TLS connection | They come from the `Ksig` holder, protected by TLS |
+| 5. Device check | The device recomputes the fingerprint from the `Ksig` **actually used in the TLS handshake** plus the received `Scr`, `Spqr` and identifier, and compares it with the invitation. Any mismatch: stop, report possible interception, store nothing (EN-6) | The channel key and the SVP keys match the invitation as one set |
+| 6. Invitation proof bound to the channel | The device proves the one-time secret with a value derived from a **TLS exporter** of this connection (channel binding, RFC 9266 style), not the bare secret | A proof captured on another connection, or by a different server, is useless |
+| 7. Confirmation code | The EN-7 short code is also derived from the TLS exporter, so both sides show the same code only on the same channel | The administrator's approval applies to this channel and this device |
+| 8. After enrollment | The device pins `Scr`, `Spqr`, the identifier and the fingerprint. `Ksig` is kept only to recognise the server at a later re-enrollment | The SVP handshake relies on the pinned set (§2) |
+
+**Open for the reviewer:**
+- the exporter labels and the derivation of the proof and code (B-12);
+- whether `Ksig` should be Ed25519 or ML-DSA-65 + Ed25519 (candidate D-012);
+- whether the server should *also* sign the SVP keys with `Ksig` (redundant with steps 2 and 5, but it would allow verification outside the channel).
+
 ## 11. Identity replacement and revocation
 
 | Case | Rule | Source / status |
@@ -273,7 +308,7 @@ The Hybrid-WireGuard paper assumes that the static keys and `psk` are already in
 | --- | --- | --- |
 | B-00 | Our **transcription** of the analysed design (§5, §6, §9.2 order) | Must be checked against the paper (Tables 6 and 7, Appendix A); the extracted text was hard to read in places |
 | B-01 | Device-only initiation | Septuvo restriction; changes timer and collision behaviour |
-| B-02 | Fingerprint construction (hash, encoding, truncation) | New |
+| B-02 | Fingerprint construction (hash, encoding, truncation), including what it covers (§10.1) | New |
 | B-03 | `EPHEMERAL_KEM`, `STATIC_KEM` parameter sets | Any choice other than ML-KEM-512 + Classic McEliece level 3 departs from the analysed parameters (M2-Q3) |
 | B-04 | Per-device `psk`, or all-zero `psk` | Analysed properties assume a secret `psk`; how Septuvo creates it is new (M2-Q6) |
 | B-05 | `HASH`, `MAC`, `KDF`, `AEAD` and HKDF conventions | Keeping the paper's choices is low risk; any change is a substitution (M2-Q5) |
@@ -283,20 +318,20 @@ The Hybrid-WireGuard paper assumes that the static keys and `psk` are already in
 | B-09 | Identifier fixed at enrollment; no retry with another | Septuvo policy |
 | B-10 | Rejecting all-zero X25519 results | RFC 7748 makes it optional; the decision is ours |
 | B-11 | Timestamp format and replay rule | Not analysed in the paper; interacts with LO-3 |
-| B-12 | Enrollment construction | New composition |
+| B-12 | Enrollment construction, including the binding of the TLS signing key to the SVP identity (§10.1) | New composition |
 | B-13 | Key-replacement overlap | New |
 | B-14 | Timer and message-count values | Taken from WireGuard; not analysed for this protocol or for AES-GCM limits (M2-03) |
 
 ## 13. Owner questions (M2-02)
 
-| Q | Question | Recommendation |
-| --- | --- | --- |
-| **M2-Q5** | Inside the handshake, keep the analysed symmetric primitives (BLAKE2s, HKDF-HMAC-BLAKE2s, ChaCha20-Poly1305), or switch to SHA-256-based HKDF to match D-024's usual form? | **Keep the analysed ones.** Fewer substitutions for the reviewer to re-check. The data-phase cipher is decided separately (D-010) |
-| **M2-Q6** | PSK: a random per-device secret created at enrollment, or a fixed all-zero value? | **Per-device secret.** It keeps the analysed design's assumption, but it requires enrollment to protect it with post-quantum confidentiality (§10) |
-| **M2-Q7** | Enrollment construction: TLS 1.3 with hybrid key exchange, a PAKE, or manual copying? | **TLS 1.3 with hybrid key exchange (RFC 10024)**, to be confirmed by the reviewer. It adds a server signing key, so it touches D-012 |
-| M2-Q3 | Static and ephemeral KEM parameter sets | Still **open**; the reviewer is asked ([candidate-analysis.md](candidate-analysis.md) §5) |
+| Q | Question | Recommendation | Owner response (2026-10-15) |
+| --- | --- | --- | --- |
+| **M2-Q5** | Inside the handshake, keep the analysed symmetric primitives (BLAKE2s, HKDF-HMAC-BLAKE2s, ChaCha20-Poly1305), or switch to SHA-256-based HKDF to match D-024's usual form? | **Keep the analysed ones.** Fewer substitutions for the reviewer to re-check. The data-phase cipher is decided separately (D-010) | Accepted as the **preferred candidate**; provisional baseline, subject to G1 |
+| **M2-Q6** | PSK: a random per-device secret created at enrollment, or a fixed all-zero value? | **Per-device secret.** It keeps the analysed design's assumption, but it requires enrollment to protect it with post-quantum confidentiality (§10) | Acceptable direction for drafting; subject to G1 |
+| **M2-Q7** | Enrollment construction: TLS 1.3 with hybrid key exchange, a PAKE, or manual copying? | **TLS 1.3 with hybrid key exchange (RFC 10024)**, to be confirmed by the reviewer. It adds a server signing key, so it touches D-012 | Acceptable direction for drafting; subject to G1 |
+| M2-Q3 | Static and ephemeral KEM parameter sets | Still **open**; the reviewer is asked ([candidate-analysis.md](candidate-analysis.md) §5) | Open |
 
-These are recommendations for the review, not decisions. Each stays BLOCKED until G1.
+None of these is a final decision. Each stays BLOCKED until G1 and the owner's decision after it.
 
 ## 14. Coverage of the review checklist
 
