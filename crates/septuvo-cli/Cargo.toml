@@ -12,6 +12,7 @@ name = "septuvo"
 path = "src/main.rs"
 
 [dependencies]
+septuvo-policy = { path = "../septuvo-policy" }
 
 [lints]
 workspace = true

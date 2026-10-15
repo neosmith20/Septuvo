@@ -5,6 +5,9 @@ version = 4
 [[package]]
 name = "septuvo-cli"
 version = "0.0.0"
+dependencies = [
+ "septuvo-policy",
+]
 
 [[package]]
 name = "septuvo-policy"

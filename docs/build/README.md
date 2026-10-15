@@ -9,7 +9,7 @@
 | [`Cargo.toml`](../../Cargo.toml) | Workspace: shared version, edition 2024, Apache-2.0 licence, `unsafe` code forbidden, Clippy pedantic lints |
 | [`rust-toolchain.toml`](../../rust-toolchain.toml) | Pinned Rust release (1.99.0, the current stable on 2026-10-14) with `rustfmt` and `clippy` |
 | [`crates/septuvo-policy`](../../crates/septuvo-policy) | Route and LAN-exception policy model and the nftables kill-switch generator: pure logic, no operating-system calls (N1-02, N1-03) |
-| [`crates/septuvo-cli`](../../crates/septuvo-cli) | The `septuvo` command-line tool; for now only `help` and `version` (commands arrive in N1-04) |
+| [`crates/septuvo-cli`](../../crates/septuvo-cli) | The `septuvo` command-line tool and the four-stage connection status model (D-020): `help`, `version`, `status`, `policy check FILE [--dst ADDRESS] [--path up\|down]` (N1-01, N1-04) |
 | [`.github/workflows/rust.yml`](../../.github/workflows/rust.yml) | CI: no-third-party-crate check, format, lint with warnings as errors, tests; plus the namespace kill-switch lab |
 | [`tests/lab/namespaces/`](../../tests/lab/namespaces) | Kill-switch, DNS and IPv6 leak tests in throw-away network namespaces: see [lab.md](lab.md) (N1-03) |
 
@@ -26,10 +26,12 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 ```
 
-3. Try the tool (it only prints help and its version):
+3. Try the tool. It cannot connect anything yet: `status` reports the four checks as unknown, and `policy check` validates a policy file and explains it:
 
 ```sh
 cargo run -p septuvo-cli -- help
+cargo run -p septuvo-cli -- status
+cargo run -p septuvo-cli -- policy check tests/lab/namespaces/policies/journey-a.policy --dst 192.168.50.10
 ```
 
 Build output goes to `target/`; never commit it (`.gitignore` excludes it).
