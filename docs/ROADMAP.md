@@ -12,14 +12,14 @@
 | G3 | Independent security audit, remediation, signed release builds, platform validation | [STATUS.md](STATUS.md) |
 | G4 | Provider isolation, availability, measured capacity and operational controls | [STATUS.md](STATUS.md) |
 
-Only an owner `GATE <Gn> PASSED` comment, mirrored in the ledger (D-025), can pass a gate. All gates are initially PENDING.
+Only the owner's exact `GATE <Gn> PASSED` comment, recorded in the ledger, can pass a gate (D-031, category C). All gates are initially PENDING.
 
-## Lean execution (D-030)
+## Lean execution (D-030, simplified by D-031)
 
-- **One approval per milestone.** `APPROVED WORK ORDER M1` approves every task in the M1 work order and `ACCEPTED M1` accepts them all. Single task IDs still work.
-- **Work orders as files.** A work order may be a file under `docs/work-orders/` in a pull request. The approved revision is that file at the pull request's head commit when the owner's approval comment is posted. One pull request may carry several proposed work orders.
-- **Batched pull requests.** Inside an approved milestone, an agent may deliver several tasks in one pull request (one commit per task), still finishing them one at a time and in order.
-- **Two tracks after G0.** Track S: M1 requirements, then the M2 SVP specification. Track N1: the non-crypto Rust foundation below. Each track needs its own milestone approval.
+- **One authorization per milestone, in ordinary words** (D-031). An owner comment such as "go ahead with M2", or the owner's merge of the pull request that adds the milestone's work order, authorizes every task in it. **The owner's merge of each delivering pull request accepts that work**; no acceptance comments. Routine H work needs no authorization at all.
+- **Work orders as files.** A work order is a file under `docs/work-orders/` in a pull request. The authorized revision is that file as merged, or as it stood when the owner's authorizing comment was posted.
+- **Batched pull requests.** Inside an authorized milestone, an agent may deliver several tasks in one pull request (one commit per task, subject `type(<ID>): ...`), still finishing them one at a time and in order.
+- **Two tracks after G0.** Track S: M1 requirements, then the M2 SVP specification. Track N1: the non-crypto Rust foundation below. Each track needs its own milestone authorization.
 - **Unchanged:** no cryptographic or protocol implementation before G1 and a qualified outside review; every gate needs an owner `GATE` comment; every change goes through a pull request that the owner merges.
 
 ## N1 — non-crypto Rust foundation (parallel track, after G0, before G1; lab only)
@@ -130,4 +130,4 @@ Only an owner `GATE <Gn> PASSED` comment, mirrored in the ledger (D-025), can pa
 
 **One owner-approved agent work order at a time per track, regardless of agent or tool.** Use the 43-card [TASK_CATALOG.md](TASK_CATALOG.md); each task must name files, expected behavior, non-goals, test commands, known risks, rollback and its exact stop point. Branch + PR for every change, code or documentation; owner reviews before merge and explicitly selects the next item. Re-check prior task state at each handoff. Agents must never infer completion from a timeout, create their own security decisions, publish an experimental VPN publicly, or skip to a “fun” feature.
 
-**Current next action:** inspect [STATUS.md](STATUS.md) (mirror of owner decisions). M0-01, M0-01.1 and M0-02 are complete; next is M0-03 (G0 evidence) → owner `GATE G0 PASSED` → track S (M1, then the M2 SVP specification) and track N1 in parallel → reviewer search and M2-05 → G1. **No cryptographic/protocol implementation before G1.**
+**Current next action:** inspect [STATUS.md](STATUS.md), kept in sync with merged pull requests by `scripts/sync_status.py`. G0 has passed; M1 and N1-01/N1-02 are merged. Next: the owner's answers to the M1 product questions ([M1-owner-questions.md](reviews/M1-owner-questions.md)), N1-03 and N1-04, and a work order for M2 (the SVP specification) for the owner to authorize → reviewer search and M2-05 → G1. **No cryptographic/protocol implementation before G1.**

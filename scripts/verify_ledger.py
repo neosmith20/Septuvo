@@ -1,17 +1,28 @@
 #!/usr/bin/env python3
-"""Verify that every decision mirrored in docs/STATUS.md matches an owner comment (D-025).
+"""Verify every decision recorded in docs/STATUS.md against GitHub (D-031).
 
-For each ledger row that records an owner decision, fetch the linked GitHub
-comment and require that it was written by the repository owner, sits on the
-linked issue or pull request, and reads exactly the expected decision text
-(for example `APPROVED WORK ORDER M0-02`, or the milestone form
-`APPROVED WORK ORDER M0` allowed by D-030), on the UTC date recorded in the row.
+What each kind of row needs (rules in ledger_rules.py):
 
-Standard library only. Needs network access to api.github.com and uses
-GITHUB_TOKEN when set. Exit codes: 0 verified, 1 mismatch found,
-2 verification impossible (network/API error) - the check fails closed.
-This catches mistakes and unsupported ledger rows; it cannot prove who typed a
-comment, because agents work through the owner's account (D-023).
+- Routine task (H-xxx) marked ACCEPTED: a linked pull request that the owner
+  merged into main and that delivers the task (task ID in a commit-subject or
+  title scope), merged on the row's date. No approval comment.
+- Milestone task (Mx-yy, Nx-yy): an owner authorization - an owner comment in
+  ordinary language that names the task or its milestone (or sits on the pull
+  request that adds its work order), or a merged pull request that adds
+  docs/work-orders/<task or milestone>.md. ACCEPTED rows also need a delivering
+  pull request merged by the owner, as above.
+- Gate (G0-G4) PASSED/FAILED: an owner comment reading exactly
+  `GATE <Gn> PASSED` or `GATE <Gn> FAILED`, on the row's date.
+- Decisions recorded before D-031 with exact comments (`APPROVED WORK ORDER X`,
+  `ACCEPTED X`) remain valid evidence.
+
+A ledger that lags behind GitHub is not an error: only what the ledger claims
+is verified. sync_status.py reports and fixes lag.
+
+Standard library only. Uses GITHUB_TOKEN when set. Exit codes: 0 verified,
+1 mismatch, 2 verification impossible (network/API error) - fails closed.
+Agents work through the owner's account (D-023), so this catches mistakes and
+unsupported rows; it cannot prove who clicked or typed.
 """
 
 import json
@@ -21,63 +32,28 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import urlencode
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import ledger_rules as L  # noqa: E402
 
 # The tree to check. CI runs these scripts from the trusted base branch and
 # points SEPTUVO_ROOT at the pull request's files (H-008), so a pull request
 # cannot weaken the checks that judge it.
 ROOT = Path(os.environ.get("SEPTUVO_ROOT") or Path(__file__).resolve().parents[1]).resolve()
-REPO = os.environ.get("GITHUB_REPOSITORY", "neosmith20/Septuvo")
+REPO = os.environ.get("GITHUB_REPOSITORY", L.REPO)
 API = "https://api.github.com"
-FENCE = re.compile(r"^\s*(```|~~~)")
-PERMALINK = re.compile(
-    r"https://github\.com/(?P<repo>[^/\s()]+/[^/\s()]+)/(?:issues|pull)/(?P<num>\d+)#issuecomment-(?P<cid>\d+)"
-)
-NEEDS_APPROVAL = {"READY", "IN PROGRESS", "IN REVIEW", "ACCEPTED", "REJECTED / REWORK"}
-# Immutable baseline for rows recorded by the owner directly before D-025 (2026-10-14).
-# Each entry: (state, date, approval_substring, evidence_substring)
-LEGACY_BASELINE = {
-    "H-001": ("ACCEPTED", "2026-10-14", "Retroactive owner acceptance 2026-10-14", "Documentation workflow fixes: [PR #4]"),
-    "H-002": ("ACCEPTED", "2026-10-14", "Owner instruction 2026-10-14: record D-021 option C", "[PR #5]"),
-    "H-003": ("ACCEPTED", "2026-10-14", "Retroactive owner acceptance 2026-10-14", "Brand kit corrections: guidelines PDF"),
-    "H-004": ("ACCEPTED", "2026-10-14", "Owner instruction 2026-10-14: document public repository", "[PR #7]"),
-    "M0-01": ("ACCEPTED", "2026-10-14", "[Approval on issue #9]", "[PR #12]"),
-    "M0-01.1": ("ACCEPTED", "2026-10-14", "[Approval on issue #13]", "[PR #15]"),
-}
-LEGACY_APPROVAL = {"H-001", "H-002", "H-003", "H-004"}
-LEGACY_DECISION = LEGACY_APPROVAL | {"M0-01", "M0-01.1"}
-
-
-def milestone_of(ident):
-    """M1-02 -> M1, M0-01.1 -> M0, N1-03 -> N1; H tasks have no milestone (D-030)."""
-    m = re.match(r"^((?:M|N)\d+)-\d+", ident)
-    return m.group(1) if m else None
-
-
-def decision_texts(word, ident):
-    texts = [f"{word} {ident}"]
-    if milestone_of(ident):
-        texts.append(f"{word} {milestone_of(ident)}")
-    return texts
 
 
 class Unverifiable(Exception):
     pass
 
 
-def build_validated_url(base_url: str, path: str) -> str:
-    try:
-        if "/../" in path or re.search(r"/%2e%2e/", path, re.IGNORECASE):
-            raise ValueError("Invalid path")
-        parsed = urlparse(base_url)
-        parsed = parsed._replace(path=path)
-        return urlunparse(parsed)
-    except Exception:
-        raise ValueError("Invalid URL")
-
-
-def api_get(path):
-    url = build_validated_url(API, path)
+def api_get(path, query=None):
+    """GET an api.github.com path; None on 404; Unverifiable on any other failure."""
+    if not path.startswith("/") or ".." in path or "%2e" in path.lower() or "?" in path:
+        raise Unverifiable(f"refusing unexpected API path {path!r}")
+    url = API + path + ("?" + urlencode(query) if query else "")
     request = urllib.request.Request(url, headers={
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
@@ -93,95 +69,173 @@ def api_get(path):
         if exc.code == 404:
             return None
         raise Unverifiable(f"GitHub API {path}: HTTP {exc.code}") from exc
-    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
         raise Unverifiable(f"GitHub API {path}: {exc}") from exc
 
 
-def ledger_rows(text):
-    in_fence = False
-    for line in text.splitlines():
-        if FENCE.match(line):
-            in_fence = not in_fence
+class GitHub:
+    """Cached read-only access to the few objects the ledger links to."""
+
+    def __init__(self, get=api_get, repo=REPO):
+        self.get, self.repo, self._cache = get, repo, {}
+
+    def _cached(self, key, path, query=None):
+        if key not in self._cache:
+            self._cache[key] = self.get(path, query)
+        return self._cache[key]
+
+    def owner(self):
+        info = self._cached("repo", f"/repos/{self.repo}")
+        if not info:
+            raise Unverifiable(f"repository {self.repo} not found")
+        return info["owner"]["login"]
+
+    def comment(self, cid):
+        return self._cached(("comment", cid), f"/repos/{self.repo}/issues/comments/{cid}")
+
+    def pull(self, num):
+        return self._cached(("pull", num), f"/repos/{self.repo}/pulls/{num}")
+
+    def pull_files(self, num):
+        return self._cached(("files", num), f"/repos/{self.repo}/pulls/{num}/files", {"per_page": 100}) or []
+
+    def pull_commits(self, num):
+        return self._cached(("commits", num), f"/repos/{self.repo}/pulls/{num}/commits", {"per_page": 100}) or []
+
+    def delivered(self, num):
+        """Task IDs a pull request delivers: scopes of its title and commit subjects."""
+        pr = self.pull(num) or {}
+        ids = L.delivered_ids(pr.get("title", ""))
+        for c in self.pull_commits(num):
+            ids |= L.delivered_ids(c.get("commit", {}).get("message", "").split("\n", 1)[0])
+        return ids
+
+    def adds_work_order(self, num, names):
+        wanted = {f"docs/work-orders/{n}.md" for n in names}
+        return any(f.get("filename") in wanted for f in self.pull_files(num))
+
+
+def merged_by_owner(gh, pr, owner):
+    return bool(pr and pr.get("merged_at") and (pr.get("merged_by") or {}).get("login") == owner
+                and (pr.get("base") or {}).get("ref") == "main")
+
+
+def owner_comment(gh, link, owner):
+    """The linked comment if the owner wrote it on the linked issue/PR, else None."""
+    c = gh.comment(link.group("cid"))
+    if not c:
+        return None
+    ok = (c.get("user", {}).get("login") == owner and c.get("author_association") == "OWNER"
+          and c.get("issue_url", "").rstrip("/").endswith(f"/issues/{link.group('num')}"))
+    return c if ok else None
+
+
+def check_authorization(gh, owner, ident, cell, date):
+    """Category B: ordinary-language owner comment or merged work-order pull request."""
+    names = [ident] + ([L.milestone_of(ident)] if L.milestone_of(ident) else [])
+    for link in L.links(cell, L.COMMENT_LINK):
+        c = owner_comment(gh, link, owner)
+        if not c:
+            return f"{ident}: authorization comment {link.group('cid')} is missing or not the owner's"
+        text = c.get("body", "").strip()
+        named = any(L.mentions(text, n) for n in names)
+        on_work_order = bool(gh.pull(link.group("num"))) and gh.adds_work_order(link.group("num"), names)
+        if not text or not (named or on_work_order):
+            return f"{ident}: authorization comment {link.group('cid')} names neither {' nor '.join(names)} nor sits on its work-order pull request"
+        if date and c["created_at"][:10] != date:
+            return f"{ident}: authorization comment date {c['created_at'][:10]} differs from {date}"
+        return None
+    for link in L.links(cell, L.PR_LINK):
+        pr = gh.pull(link.group("num"))
+        if not merged_by_owner(gh, pr, owner):
+            return f"{ident}: authorization pull request #{link.group('num')} was not merged into main by the owner"
+        if not gh.adds_work_order(link.group("num"), names):
+            return f"{ident}: pull request #{link.group('num')} adds no work order for {' or '.join(names)}"
+        return None
+    return f"{ident}: no owner authorization link"
+
+
+def check_completion(gh, owner, ident, cell, date, accepted):
+    """ACCEPTED: owner-merged delivering pull request(s) or a legacy owner comment."""
+    names = [ident] + ([L.milestone_of(ident)] if L.milestone_of(ident) else [])
+    word = "accept" if accepted else "reject"
+    for link in L.links(cell, L.COMMENT_LINK):
+        c = owner_comment(gh, link, owner)
+        if not c:
+            return f"{ident}: decision comment {link.group('cid')} is missing or not the owner's"
+        text = c.get("body", "")
+        if word not in text.lower() or not any(L.mentions(text, n) for n in names):
+            return f"{ident}: decision comment {link.group('cid')} does not {word} {' or '.join(names)}"
+        if c["created_at"][:10] != date:
+            return f"{ident}: decision comment date {c['created_at'][:10]} differs from {date}"
+        return None
+    pr_links = L.links(cell, L.PR_LINK)
+    if not pr_links:
+        return f"{ident}: no merged pull request or owner comment as evidence"
+    if not accepted:
+        return f"{ident}: a rejection needs an owner comment, not a pull request link"
+    dates = []
+    for link in pr_links:
+        num = link.group("num")
+        pr = gh.pull(num)
+        if not merged_by_owner(gh, pr, owner):
+            return f"{ident}: pull request #{num} was not merged into main by the owner"
+        if ident not in gh.delivered(num):
+            return f"{ident}: pull request #{num} does not deliver {ident} (no `type({ident}): ...` commit or title)"
+        dates.append(pr["merged_at"][:10])
+    if max(dates) != date:
+        return f"{ident}: row date {date} differs from the last merge date {max(dates)}"
+    return None
+
+
+def verify(ledger_text, gh):
+    """Return (errors, verified_count) for a STATUS.md text."""
+    owner = gh.owner()
+    errors, verified = [], 0
+    for kind, ident, state, date, approval, evidence in L.ledger_rows(ledger_text):
+        problem = None
+        if kind == "gate":
+            if state not in {"PASSED", "FAILED"}:
+                continue
+            links = L.links(evidence, L.COMMENT_LINK)
+            c = owner_comment(gh, links[0], owner) if links else None
+            if not c or c.get("body", "").strip() != f"GATE {ident} {state}" or c["created_at"][:10] != date:
+                problem = f"{ident}: gate {state} needs the owner's exact `GATE {ident} {state}` comment dated {date}"
+            if problem:
+                errors.append(problem)
+            else:
+                verified += 1
             continue
-        if in_fence:
+        if ident in L.LEGACY_BASELINE or state not in L.NEEDS_AUTHORIZATION:
             continue
-        if not line.startswith("| "):
-            continue
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        ident = cells[0]
-        if re.fullmatch(r"G[0-4]", ident) and len(cells) == 4:
-            yield "gate", ident, cells[1], cells[2], "", cells[3]
-        elif re.fullmatch(r"M\d+-\d+\.\d+", ident) and len(cells) == 6:
-            yield "task", ident, cells[2], cells[3], cells[4], cells[5]
-        elif re.fullmatch(r"(?:M|N)\d+-\d+", ident) and len(cells) == 6:
-            yield "task", ident, cells[1], cells[3], cells[4], cells[5]
-        elif re.fullmatch(r"H-\d{3}", ident) and len(cells) == 5:
-            yield "task", ident, cells[1], cells[2], cells[3], cells[4]
+        decided = state in L.DECIDED
+        if L.category(ident) == "B":
+            problem = check_authorization(gh, owner, ident, approval, None if decided else date)
+            if problem:
+                errors.append(problem)
+            else:
+                verified += 1
+        if decided:
+            problem = check_completion(gh, owner, ident, evidence, date, state == "ACCEPTED")
+            if problem:
+                errors.append(problem)
+            else:
+                verified += 1
+    return errors, verified
 
 
 def main():
     ledger = (ROOT / "docs/STATUS.md").read_text(encoding="utf-8")
-    repo_info = api_get(f"/repos/{REPO}")
-    if not repo_info:
-        raise Unverifiable(f"repository {REPO} not found")
-    owner = repo_info["owner"]["login"]
-    errors, verified = [], 0
-
-    def verify(ident, cell, expected_texts, date, purpose):
-        nonlocal verified
-        links = PERMALINK.findall(cell)
-        if not links:
-            errors.append(f"{ident}: no comment permalink for {purpose}")
-            return
-        expected_repo = REPO.lower()
-        for repo, num, cid in links:
-            if repo.lower() != expected_repo:
-                continue
-            comment = api_get(f"/repos/{REPO}/issues/comments/{cid}")
-            if comment is None:
-                continue
-            ok_author = comment["user"]["login"] == owner and comment.get("author_association") == "OWNER"
-            ok_place = comment["issue_url"].rstrip("/").endswith(f"/issues/{num}")
-            ok_text = comment["body"].strip() in expected_texts
-            ok_date = date is None or comment["created_at"][:10] == date
-            if ok_author and ok_place and ok_text and ok_date:
-                verified += 1
-                return
-            problems = [name for name, ok in (("not written by the owner", ok_author),
-                                              (f"not on #{num}", ok_place),
-                                              (f"text is not one of {expected_texts!r}", ok_text),
-                                              (f"date differs from {date}", ok_date)) if not ok]
-            errors.append(f"{ident}: {purpose} comment {cid}: " + "; ".join(problems))
-            return
-        errors.append(f"{ident}: {purpose}: linked comment not found in {REPO}")
-
-    for kind, ident, state, date, approval, evidence in ledger_rows(ledger):
-        if kind == "gate":
-            if state in {"PASSED", "FAILED"}:
-                verify(ident, evidence, [f"GATE {ident} {state}"], date, "gate decision")
-            continue
-        if state not in NEEDS_APPROVAL:
-            continue
-        # Verify legacy rows match immutable baseline; if altered, require normal validation.
-        if ident in LEGACY_BASELINE:
-            expected_state, expected_date, expected_approval_substr, expected_evidence_substr = LEGACY_BASELINE[ident]
-            if (state != expected_state or date != expected_date or
-                expected_approval_substr not in approval or expected_evidence_substr not in evidence):
-                errors.append(f"{ident}: legacy task row has been altered from its immutable baseline; "
-                             f"expected state={expected_state!r}, date={expected_date!r}, "
-                             f"approval containing {expected_approval_substr!r}, evidence containing {expected_evidence_substr!r}")
-            continue
-        decided = state in {"ACCEPTED", "REJECTED / REWORK"}
-        verify(ident, approval, decision_texts("APPROVED WORK ORDER", ident), None if decided else date, "approval")
-        if decided:
-            word = "ACCEPTED" if state == "ACCEPTED" else "REJECTED"
-            verify(ident, evidence, decision_texts(word, ident), date, "acceptance" if word == "ACCEPTED" else "rejection")
-
+    decisions = (ROOT / "docs/DECISIONS.md").read_text(encoding="utf-8")
+    errors = L.offline_errors(ledger, decisions)
+    gh = GitHub()
+    online, verified = verify(ledger, gh)
+    errors += online
     if errors:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)
         return 1
-    print(f"PASS: {verified} owner decision comment(s) verified for the STATUS.md mirror ({REPO}, owner {owner}).")
+    print(f"PASS: {verified} ledger record(s) verified against GitHub ({REPO}, owner {gh.owner()}).")
     return 0
 
 

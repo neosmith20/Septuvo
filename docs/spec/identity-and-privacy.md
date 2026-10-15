@@ -116,6 +116,8 @@ An invitation is created by the administrator on the server (section 6) and hand
 
 ## 9. Owner questions (this document)
 
+Full explanations, options and trade-offs: [M1-owner-questions.md](../reviews/M1-owner-questions.md). Nothing here is decided until the owner answers.
+
 | Q | Question | Recommendation |
 | --- | --- | --- |
 | Q7 | Invitation lifetime, and administrator confirmation (EN-7) | Default lifetime 24 hours, maximum 7 days, at most 5 failed attempts. Confirmation **on** by default. |

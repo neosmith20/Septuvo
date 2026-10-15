@@ -2,7 +2,7 @@
 
 **Planning blueprint, not an authorization to code.** Read [AGENT_OPERATIONS.md](AGENT_OPERATIONS.md), [AGENTS.md](../AGENTS.md), [ROADMAP.md](ROADMAP.md), [SECURITY_MODEL.md](SECURITY_MODEL.md) and the [work-order template](WORK_ORDER_TEMPLATE.md) before using any task card.
 
-**Rules applying to every card:** Consult [STATUS.md](STATUS.md), the mirror of owner decision comments (D-025). The owner authorizes each work order, which may cover one card or a whole milestone (D-030). The immediately preceding task must be owner-accepted, except inside an approved milestone work order, where tasks run in order and the owner accepts the milestone at its end. Named output paths are intended deliverables, **not an unrestricted permission to create files**. If they need changing, get a written scope update. The current gate must have recorded evidence. Commit only scoped files on a task branch, attach test logs, request review and **STOP**. Never infer that describing a later milestone authorizes starting it.
+**Rules applying to every card:** Consult [STATUS.md](STATUS.md), kept in sync with GitHub (D-031). The owner authorizes each milestone's work order in ordinary words; one authorization may cover one card or a whole milestone (D-030). The immediately preceding task must be complete, meaning delivered by a pull request the owner merged; inside an authorized milestone, tasks run in order. Named output paths are intended deliverables, **not an unrestricted permission to create files**. If they need changing, get a written scope update. The current gate must have recorded evidence. Commit only scoped files on a task branch, attach test logs, request review and **STOP**. Never infer that describing a later milestone authorizes starting it.
 
 ## Fixed task order
 
@@ -30,7 +30,7 @@
 
 ## Standard per-task completion evidence
 
-Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff form. Every task remains IN REVIEW until the owner comments `ACCEPTED <ID>` (mirrored in STATUS.md). Base cards (singly or per milestone), N1 cards, dotted subtasks and H maintenance IDs require approved work orders (D-030).
+Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff form. Every task remains IN REVIEW until the owner merges the pull request that delivers it (D-031). Base cards (singly or per milestone), N1 cards and dotted subtasks need an owner-authorized work order. Routine H maintenance needs none.
 
 ## M0 — Repository baseline and owner approval
 
@@ -417,7 +417,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 
 ## Track N1 — Non-crypto Rust foundation (parallel, after G0, before G1)
 
-Lab-only work allowed by D-029 and D-030. **Never** an SVP handshake, packet format, key handling, encryption or a data tunnel, and no cryptography crates. The owner may approve the whole track with `APPROVED WORK ORDER N1`.
+Lab-only work allowed by D-029 and D-030. **Never** an SVP handshake, packet format, key handling, encryption or a data tunnel, and no cryptography crates. One owner authorization covers the whole track (D-031).
 
 ### N1-01 — Rust workspace skeleton and CI
 

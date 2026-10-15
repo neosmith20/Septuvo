@@ -38,8 +38,8 @@ Alert lists (Security tab) are not readable through the agent connection; the ow
 
 ## Who can change what
 
-- **Agents** (Claude, ChatGPT/Codex or others) work through the owner's GitHub account under [D-023](../DECISIONS.md). They may push task branches and open pull requests. They do **not** merge, push to `main`, or change repository settings, rulesets or visibility, and they change [STATUS.md](../STATUS.md) only to mirror owner decision comments (D-025). The ruleset makes direct pushes to `main` impossible for everyone; the remaining limits are procedural because GitHub cannot tell agent actions from owner actions on one account.
-- **Owner** reviews each PR's files and check result, then merges. Owner alone decides, by the exact comments listed in STATUS.md (`APPROVED WORK ORDER <ID>`, `ACCEPTED <ID>`, `REJECTED <ID>`, `GATE <Gn> PASSED/FAILED`).
+- **Agents** (Claude, ChatGPT/Codex or others) work through the owner's GitHub account under [D-023](../DECISIONS.md). They may push task branches and open pull requests. They do **not** merge, push to `main`, or change repository settings, rulesets or visibility, and they update [STATUS.md](../STATUS.md) only from GitHub evidence, using `scripts/sync_status.py` (D-031). The ruleset makes direct pushes to `main` impossible for everyone; the remaining limits are procedural because GitHub cannot tell agent actions from owner actions on one account.
+- **Owner** reviews each PR's files and check results, then merges; **the merge accepts the work** (D-031). The owner authorizes milestones in ordinary words and decides gates with the exact comment `GATE <Gn> PASSED/FAILED`. No agent or bot merges a pull request.
 - Commits made by Claude carry `Claude` as the git author, so they can be told apart in history.
 
 ## Public repository rules
