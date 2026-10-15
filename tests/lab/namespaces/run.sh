@@ -91,10 +91,23 @@ build() {
   # tunnelled packets from leaked ones, plus the home network.
   for a in 198.51.100.20/32 192.168.50.10/32 192.168.1.20/32; do ip -n "$T" addr add "$a" dev lo; done
   for a in 2001:db8:99::1/128 2001:db8:50::10/128; do v6 ip -n "$T" addr add "$a" dev lo nodad; done
-  # Listeners.
+  # Listeners bind only to the lab addresses they serve (never all interfaces).
+  # T's tunnel-end addresses appear only while the stand-in tunnel is up, so
+  # T (and U, for symmetry) may bind addresses before they exist.
+  local u_addrs="192.168.1.1 192.168.1.20 192.168.1.30 192.168.1.53 198.51.100.20 203.0.113.7 192.168.50.10"
+  local t_addrs="10.99.0.1 198.51.100.20 192.168.50.10 192.168.1.20"
+  if [ $HAVE_V6 = 1 ]; then
+    u_addrs="$u_addrs 2001:db8:1::1 2001:db8:1::20 2001:db8:1::30 2001:db8:1::53 2001:db8:99::1 2001:db8:7::7 2001:db8:50::10"
+    t_addrs="$t_addrs fd99::1 2001:db8:99::1 2001:db8:50::10"
+  fi
   for ns in "$U" "$T"; do
-    ip netns exec "$ns" python3 "$PROBE" listen "$WORK/$ns.log" "$WORK/$ns.ready" &
+    ip netns exec "$ns" sysctl -q -w net.ipv4.ip_nonlocal_bind=1
+    if [ $HAVE_V6 = 1 ]; then ip netns exec "$ns" sysctl -q -w net.ipv6.ip_nonlocal_bind=1; fi
   done
+  # shellcheck disable=SC2086
+  ip netns exec "$U" python3 "$PROBE" listen "$WORK/$U.log" "$WORK/$U.ready" $u_addrs &
+  # shellcheck disable=SC2086
+  ip netns exec "$T" python3 "$PROBE" listen "$WORK/$T.log" "$WORK/$T.ready" $t_addrs &
   for _ in $(seq 50); do
     [ -f "$WORK/$U.ready" ] && [ -f "$WORK/$T.ready" ] && return 0
     sleep 0.1
@@ -142,7 +155,11 @@ check() {
     SKIP=$((SKIP + 1)); echo "SKIP  $name: kernel has no IPv6 (not run, not passed)"; return 0
   fi
   local token="sv-token-$ID-$N" sent in_t=0 in_u=0 ok=0
-  sent=$(inC python3 "$PROBE" send "$proto" "$dst" "$port" "$token" $sport)
+  local src=""
+  if [ -n "$sport" ]; then
+    if [[ "$dst" == *:* ]]; then src=2001:db8:1::10; else src=192.168.1.10; fi
+  fi
+  sent=$(inC python3 "$PROBE" send "$proto" "$dst" "$port" "$token" $sport $src)
   # Wait until the token shows up (neighbour discovery can delay the first
   # packet), at most 2 s; "blocked" cases always wait the full time.
   for _ in $(seq 20); do
