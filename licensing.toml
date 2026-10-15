@@ -1,0 +1,32 @@
+# Septuvo licensing map (D-033). Read by scripts/check_licensing.py.
+#
+# Every Rust crate must be listed here, and its Cargo.toml `license` field
+# must match. A new crate that is not listed fails CI, so licensing is always
+# a deliberate choice, never inherited by accident.
+#
+# Licenses:
+#   Apache-2.0                     SVP specification and open reference implementation
+#   PolyForm-Noncommercial-1.0.0   Septuvo VPN and Septuvo Server application code
+#                                  (commercial use only under a separate written agreement)
+#
+# See LICENSING.md for the boundaries and for code published before D-033.
+
+[repository]
+# Everything not listed below, as published so far (root LICENSE).
+default = "Apache-2.0"
+
+[[crate]]
+path = "crates/septuvo-policy"
+license = "Apache-2.0"
+component = "open-reference"
+note = "Route/LAN policy model and kill-switch rule generator; published under Apache-2.0 since N1-02"
+
+[[crate]]
+path = "crates/septuvo-cli"
+license = "Apache-2.0"
+component = "open-reference"
+note = "Reference command-line tool and status model; published under Apache-2.0 since N1-01"
+
+[brand]
+path = "brand"
+notice = "brand/NOTICE.md"
