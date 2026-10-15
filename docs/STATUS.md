@@ -85,8 +85,8 @@ Dates are `YYYY-MM-DD` UTC: the authorization date for READY rows, the merge dat
 | --- | --- | --- | --- | --- | --- |
 | N1-01 | ACCEPTED | — | 2026-10-14 | [Milestone N1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162807229) | [PR #29](https://github.com/neosmith20/Septuvo/pull/29) |
 | N1-02 | ACCEPTED | N1-01 | 2026-10-14 | [Milestone N1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162807229) | [PR #29](https://github.com/neosmith20/Septuvo/pull/29) |
-| N1-03 | READY | N1-02 | 2026-10-14 | [Milestone N1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162807229) | — |
-| N1-04 | READY | N1-03 | 2026-10-14 | [Milestone N1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162807229) | — |
+| N1-03 | ACCEPTED | N1-02 | 2026-10-15 | [Milestone N1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162807229) | [PR #45](https://github.com/neosmith20/Septuvo/pull/45) |
+| N1-04 | ACCEPTED | N1-03 | 2026-10-15 | [Milestone N1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162807229) | [PR #45](https://github.com/neosmith20/Septuvo/pull/45) |
 
 ## Dotted subtasks (owner authorized separately)
 
@@ -111,6 +111,9 @@ Use separate `H-001`, `H-002` etc. IDs for routine work outside the 43 base task
 | H-007 | ACCEPTED | 2026-10-14 | Routine (D-031) | [PR #28](https://github.com/neosmith20/Septuvo/pull/28) |
 | H-008 | ACCEPTED | 2026-10-14 | Routine (D-031) | [PR #36](https://github.com/neosmith20/Septuvo/pull/36) |
 | H-009 | ACCEPTED | 2026-10-15 | Routine (D-031) | [PR #41](https://github.com/neosmith20/Septuvo/pull/41) |
+| H-010 | ACCEPTED | 2026-10-15 | Routine (D-031) | [PR #42](https://github.com/neosmith20/Septuvo/pull/42) |
+| H-011 | ACCEPTED | 2026-10-15 | Routine (D-031) | [PR #43](https://github.com/neosmith20/Septuvo/pull/43) |
+| H-012 | ACCEPTED | 2026-10-15 | Routine (D-031) | [PR #44](https://github.com/neosmith20/Septuvo/pull/44) |
 
 ## Allowed task states
 
