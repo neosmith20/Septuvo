@@ -1,5 +1,7 @@
 # Septuvo Rust workspace (track N1: non-crypto foundation, D-029/D-030).
 # No third-party crates: every dependency must be approved in a work order first.
+# Licensing (D-033): no workspace-wide license. Each crate declares its own,
+# and licensing.toml must classify it (checked by scripts/check_licensing.py).
 
 [workspace]
 resolver = "3"
@@ -8,7 +10,6 @@ members = ["crates/septuvo-policy", "crates/septuvo-cli"]
 [workspace.package]
 version = "0.0.0"
 edition = "2024"
-license = "Apache-2.0"
 repository = "https://github.com/neosmith20/Septuvo"
 publish = false
 

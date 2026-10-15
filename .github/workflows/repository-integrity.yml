@@ -52,6 +52,17 @@ jobs:
           SEPTUVO_ROOT: ${{ github.workspace }}/review
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 "$CHECKS/verify_ledger.py"
+      - name: Licensing boundaries (D-033)
+        env:
+          SEPTUVO_ROOT: ${{ github.workspace }}/review
+        run: |
+          if [ -f "$CHECKS/check_licensing.py" ]; then
+            python3 "$CHECKS/check_licensing.py"
+          else
+            # Only until D-033 itself is on the base branch.
+            echo "::warning::Base branch has no licensing check yet; using this pull request's copy for this run only."
+            python3 review/scripts/check_licensing.py
+          fi
       # Never blocks: reports where STATUS.md lags behind owner-merged pull
       # requests, so an agent can open a sync pull request (D-031).
       - name: Ledger drift report (non-blocking)
