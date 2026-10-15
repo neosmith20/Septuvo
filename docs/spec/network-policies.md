@@ -159,9 +159,9 @@ Protocol behaviour (handshake, keepalives, roaming, MTU) belongs to M2. Gateway 
 
 ## 11. Owner questions (this document)
 
-Full explanations, options and trade-offs: [M1-owner-questions.md](../reviews/M1-owner-questions.md). Nothing here is decided until the owner answers.
+Full explanations, options and trade-offs: [M1-owner-questions.md](../reviews/M1-owner-questions.md). **Decided 2026-10-15: every recommendation below was adopted (D-032).**
 
-| Q | Question | Recommendation |
+| Q | Question | Decision (as recommended) |
 | --- | --- | --- |
 | Q1 | Captive portals (hotel or café login pages) | A user-started, time-limited (at most 5 minutes) captive-portal mode that lets web traffic out directly with a clear warning, then re-blocks. No permanent bypass. |
 | Q2 | When the user explicitly disconnects, should blocking stay? | No: explicit disconnect restores normal networking. Any failure keeps blocking. |

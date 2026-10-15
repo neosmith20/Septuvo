@@ -116,9 +116,9 @@ An invitation is created by the administrator on the server (section 6) and hand
 
 ## 9. Owner questions (this document)
 
-Full explanations, options and trade-offs: [M1-owner-questions.md](../reviews/M1-owner-questions.md). Nothing here is decided until the owner answers.
+Full explanations, options and trade-offs: [M1-owner-questions.md](../reviews/M1-owner-questions.md). **Decided 2026-10-15: every recommendation below was adopted (D-032).**
 
-| Q | Question | Recommendation |
+| Q | Question | Decision (as recommended) |
 | --- | --- | --- |
 | Q7 | Invitation lifetime, and administrator confirmation (EN-7) | Default lifetime 24 hours, maximum 7 days, at most 5 failed attempts. Confirmation **on** by default. |
 | Q8 | Server identity backup | Offer an encrypted, offline export that the administrator starts manually; off unless used. Without it, a lost server means re-enrolling devices. |
