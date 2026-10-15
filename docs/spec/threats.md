@@ -105,7 +105,7 @@ Every requirement in [SECURITY_MODEL.md](../SECURITY_MODEL.md) mapped to the adv
 
 | ID | Risk | Effect | Proposed handling |
 | --- | --- | --- | --- |
-| R-01 | A home-hosted server needs an open UDP port on the home router (port forward) | The home IP and that port face ADV-03 | Accept for version 1, with strict pre-authentication limits (S-07). Relays stay opt-in only (D-007). **Owner decision Q12** |
+| R-01 | A home-hosted server needs an open UDP port on the home router (port forward) | The home IP and that port face ADV-03 | Accepted for version 1, with strict pre-authentication limits (S-07). Relays stay opt-in only (D-007). Decided: Q12, D-032 |
 | R-02 | A server on a rented VPS lets the provider see exit traffic (ADV-08) | Journey B privacy depends on the VPS provider | State it plainly in setup; offer the home server as the private option |
 | R-03 | Split mode (journey A) leaves everything except the home network unprotected | Users may believe they are protected on café Wi-Fi | The UI must say "only home traffic is protected" in split mode ([network-policies.md](network-policies.md)) |
 | R-04 | The café subnet often equals the home subnet (both `192.168.1.0/24`) | Home traffic could be sent to the café network | Tunnel wins while connected; never fall back to the local network (Q5) |
@@ -121,11 +121,11 @@ Every requirement in [SECURITY_MODEL.md](../SECURITY_MODEL.md) mapped to the adv
 - Protecting a compromised device, server or server host (ASM-01, ADV-08).
 - Anonymity: the server operator and destinations see the server's address; the underlay sees that a Septuvo connection exists.
 - Hiding traffic timing, sizes or volume (traffic analysis).
-- Hiding the use of a VPN, or getting through censorship (obfuscation). Not decided as a future goal; owner question Q14.
+- Hiding the use of a VPN, or getting through censorship (obfuscation). Not a version 1 goal; revisit after version 1 (Q14, D-032).
 - Availability under volumetric floods beyond the server's network capacity.
 - Securing home services that have weak authentication of their own; a LAN exception does not encrypt anything.
 - Multi-tenant provider isolation and organization control planes (ADV-11, ADV-12): M9 and G4.
 
 ## 9. Owner questions (this document)
 
-Q12 (home server port forward, R-01) and Q14 (obfuscation). Full explanations, options and trade-offs: [M1-owner-questions.md](../reviews/M1-owner-questions.md).
+Q12 (home server port forward, R-01) and Q14 (obfuscation). **Decided 2026-10-15 as recommended (D-032):** a forwarded UDP port is accepted for version 1 with strict pre-authentication limits, and obfuscation is not a version 1 goal. Full explanations, options and trade-offs: [M1-owner-questions.md](../reviews/M1-owner-questions.md).

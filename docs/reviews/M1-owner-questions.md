@@ -1,8 +1,8 @@
-# M1 — product decisions for the owner
+# M1 — product decisions (decided 2026-10-15)
 
-**Status:** OPEN. None of these is decided yet. The M1 requirements ([threats](../spec/threats.md), [network policies](../spec/network-policies.md), [identity and privacy](../spec/identity-and-privacy.md), [platform feasibility](../spec/platform-feasibility.md)) treat each one as an open choice until the owner decides.
+**Status:** **Decided 2026-10-15: all 14 as recommended** (owner instruction to the agent, recorded as [D-032](../DECISIONS.md)). Under each question, the **Recommendation** is now the decision. The requirements in the [threats](../spec/threats.md), [network policies](../spec/network-policies.md), [identity and privacy](../spec/identity-and-privacy.md) and [platform feasibility](../spec/platform-feasibility.md) documents apply them.
 
-**How to answer:** comment in ordinary words on any Septuvo issue or pull request, for example "Q4: on by default. Everything else as recommended." You can answer some now and leave others open. An agent then records each answer in [DECISIONS.md](../DECISIONS.md) with a link to your comment (D-031), and updates the requirement text in a pull request for you to merge.
+**Changing a decision later:** say so in ordinary words (for example "change Q4 to on by default"). An agent records it as a new decision and updates the requirements in a pull request for you to merge.
 
 **None of these is a cryptographic decision.** Cryptography stays with M2 and the G1 outside review.
 
