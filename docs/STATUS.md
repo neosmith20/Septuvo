@@ -42,7 +42,7 @@ Dates are `YYYY-MM-DD` UTC: the authorization date for READY rows, the merge dat
 | M1-02 | ACCEPTED | M1-01 | 2026-10-14 | [Milestone M1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162806536) | [PR #30](https://github.com/neosmith20/Septuvo/pull/30) |
 | M1-03 | ACCEPTED | M1-02 | 2026-10-14 | [Milestone M1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162806536) | [PR #30](https://github.com/neosmith20/Septuvo/pull/30) |
 | M1-04 | ACCEPTED | M1-03 | 2026-10-14 | [Milestone M1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162806536) | [PR #30](https://github.com/neosmith20/Septuvo/pull/30) |
-| M2-01 | READY | M1-04 | 2026-10-15 | [Work order M2, merged in PR #46](https://github.com/neosmith20/Septuvo/pull/46) | — |
+| M2-01 | ACCEPTED | M1-04 | 2026-10-15 | [Work order M2, merged in PR #46](https://github.com/neosmith20/Septuvo/pull/46) | [PR #47](https://github.com/neosmith20/Septuvo/pull/47) |
 | M2-02 | READY | M2-01 | 2026-10-15 | [Work order M2, merged in PR #46](https://github.com/neosmith20/Septuvo/pull/46) | — |
 | M2-03 | READY | M2-02 | 2026-10-15 | [Work order M2, merged in PR #46](https://github.com/neosmith20/Septuvo/pull/46) | — |
 | M2-04 | READY | M2-03 | 2026-10-15 | [Work order M2, merged in PR #46](https://github.com/neosmith20/Septuvo/pull/46) | — |
