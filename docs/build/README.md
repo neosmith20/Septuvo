@@ -8,9 +8,10 @@
 | --- | --- |
 | [`Cargo.toml`](../../Cargo.toml) | Workspace: shared version, edition 2024, Apache-2.0 licence, `unsafe` code forbidden, Clippy pedantic lints |
 | [`rust-toolchain.toml`](../../rust-toolchain.toml) | Pinned Rust release (1.99.0, the current stable on 2026-10-14) with `rustfmt` and `clippy` |
-| [`crates/septuvo-policy`](../../crates/septuvo-policy) | Route and LAN-exception policy model: pure logic, no operating-system calls (N1-02) |
+| [`crates/septuvo-policy`](../../crates/septuvo-policy) | Route and LAN-exception policy model and the nftables kill-switch generator: pure logic, no operating-system calls (N1-02, N1-03) |
 | [`crates/septuvo-cli`](../../crates/septuvo-cli) | The `septuvo` command-line tool; for now only `help` and `version` (commands arrive in N1-04) |
-| [`.github/workflows/rust.yml`](../../.github/workflows/rust.yml) | CI: no-third-party-crate check, format, lint with warnings as errors, tests |
+| [`.github/workflows/rust.yml`](../../.github/workflows/rust.yml) | CI: no-third-party-crate check, format, lint with warnings as errors, tests; plus the namespace kill-switch lab |
+| [`tests/lab/namespaces/`](../../tests/lab/namespaces) | Kill-switch, DNS and IPv6 leak tests in throw-away network namespaces: see [lab.md](lab.md) (N1-03) |
 
 **No third-party crates.** Everything uses the Rust standard library only. CI fails if `Cargo.lock` lists a crate from a registry. Adding any dependency needs an owner-approved work order and a dependency review (D-015).
 

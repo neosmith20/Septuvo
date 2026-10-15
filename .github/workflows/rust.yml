@@ -55,3 +55,36 @@ jobs:
           status=${PIPESTATUS[0]}
           sed -n 's/^\([^: ]*\):\([0-9]*\):\([0-9]*\): \(error\|warning\)[^:]*: \(.*\)$/::error file=\1,line=\2,col=\3::\5/p' test.txt
           exit "$status"
+
+  # N1-03: kill-switch, DNS and IPv6 leak tests in throw-away network
+  # namespaces on the disposable runner. No tunnel, no traffic leaves the
+  # runner, nothing outside the namespaces is changed.
+  lab:
+    name: lab (kill switch in network namespaces)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, verified 2026-10-13
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned toolchain from rust-toolchain.toml
+        run: |
+          channel="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          test -n "$channel"
+          rustup toolchain install "$channel" --profile minimal
+          rustc --version
+
+      - name: Install lab tools (Ubuntu packages, runner only)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends nftables iproute2
+          nft --version
+          ip -V
+
+      - name: Build the ruleset generator
+        run: cargo build -p septuvo-policy --example render_nft --locked
+
+      - name: Run the namespace lab (IPv6 required)
+        run: sudo tests/lab/namespaces/run.sh --require-ipv6 target/debug/examples/render_nft
