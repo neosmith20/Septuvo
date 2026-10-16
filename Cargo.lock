@@ -10,5 +10,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "septuvo-config"
+version = "0.0.0"
+dependencies = [
+ "septuvo-policy",
+]
+
+[[package]]
 name = "septuvo-policy"
 version = "0.0.0"

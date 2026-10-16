@@ -27,6 +27,12 @@ license = "Apache-2.0"
 component = "open-reference"
 note = "Reference command-line tool and status model; published under Apache-2.0 since N1-01"
 
+[[crate]]
+path = "crates/septuvo-config"
+license = "PolyForm-Noncommercial-1.0.0"
+component = "vpn"
+note = "Septuvo VPN and Server configuration format and validation (N2-01)"
+
 [brand]
 path = "brand"
 notice = "brand/NOTICE.md"
