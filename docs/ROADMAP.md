@@ -31,6 +31,16 @@ Only the owner's exact `GATE <Gn> PASSED` comment, recorded in the ledger, can p
 
 **Acceptance:** builds and tests pass in CI and in the lab; nothing in N1 implements SVP, encryption, key handling or a data tunnel. N1 output feeds M5-01 and M5-02 later.
 
+## N2 — non-crypto application foundation (parallel track, after G0, before G1)
+
+Work order: [work-orders/N2.md](work-orders/N2.md).
+- **N2-01:** configuration format, parser and validation (device and server).
+- **N2-02:** privileged service `septuvod` and unprivileged control interface.
+- **N2-03:** DNS policy enforcement and namespace leak tests.
+- **N2-04:** server administration foundations (device records), with no enrollment, keys or invitations.
+
+**Acceptance:** tested Rust code in CI and the namespace lab; placeholders only where the protocol will connect; nothing implements SVP, encryption, key handling, invitations or a data tunnel.
+
 ## M0 — repository baseline and owner sign-off (FIRST)
 
 **Goal:** a coherent blueprint before any cryptographic/network implementation.
