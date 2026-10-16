@@ -44,7 +44,7 @@ Dates are `YYYY-MM-DD` UTC: the authorization date for READY rows, the merge dat
 | M1-04 | ACCEPTED | M1-03 | 2026-10-14 | [Milestone M1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162806536) | [PR #30](https://github.com/neosmith20/Septuvo/pull/30) |
 | M2-01 | ACCEPTED | M1-04 | 2026-10-15 | [Work order M2, merged in PR #46](https://github.com/neosmith20/Septuvo/pull/46) | [PR #47](https://github.com/neosmith20/Septuvo/pull/47) |
 | M2-02 | ACCEPTED | M2-01 | 2026-10-15 | [Work order M2, merged in PR #46](https://github.com/neosmith20/Septuvo/pull/46) | [PR #48](https://github.com/neosmith20/Septuvo/pull/48) |
-| M2-03 | READY | M2-02 | 2026-10-15 | [Work order M2, merged in PR #46](https://github.com/neosmith20/Septuvo/pull/46) | — |
+| M2-03 | ACCEPTED | M2-02 | 2026-10-15 | [Work order M2, merged in PR #46](https://github.com/neosmith20/Septuvo/pull/46) | [PR #51](https://github.com/neosmith20/Septuvo/pull/51) |
 | M2-04 | READY | M2-03 | 2026-10-15 | [Work order M2, merged in PR #46](https://github.com/neosmith20/Septuvo/pull/46) | — |
 | M2-05 | READY | M2-04 | 2026-10-15 | [Work order M2, merged in PR #46](https://github.com/neosmith20/Septuvo/pull/46) | — |
 | M3-01 | NOT STARTED | M2-05 | — | — | — |
@@ -115,6 +115,7 @@ Use separate `H-001`, `H-002` etc. IDs for routine work outside the 43 base task
 | H-011 | ACCEPTED | 2026-10-15 | Routine (D-031) | [PR #43](https://github.com/neosmith20/Septuvo/pull/43) |
 | H-012 | ACCEPTED | 2026-10-15 | Routine (D-031) | [PR #44](https://github.com/neosmith20/Septuvo/pull/44) |
 | H-013 | ACCEPTED | 2026-10-15 | Routine (D-031) | [PR #46](https://github.com/neosmith20/Septuvo/pull/46) |
+| H-014 | ACCEPTED | 2026-10-15 | Routine (D-031) | [PR #50](https://github.com/neosmith20/Septuvo/pull/50) |
 
 ## Allowed task states
 
