@@ -823,13 +823,14 @@ mod tests {
 
     #[test]
     fn empty_and_comment_only_documents_are_valid() {
-        assert!(parse("").expect("empty").tables.is_empty());
-        assert!(
+        assert_eq!(parse("").expect("empty").tables.len(), 0);
+        assert_eq!(
             parse("# only\n\n   \n")
                 .expect("comments")
                 .root
                 .entries
-                .is_empty()
+                .len(),
+            0
         );
     }
 
