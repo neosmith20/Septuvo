@@ -45,7 +45,7 @@ Dates are `YYYY-MM-DD` UTC: the authorization date for READY rows, the merge dat
 | M2-01 | ACCEPTED | M1-04 | 2026-10-15 | [Work order M2, merged in PR #46](https://github.com/neosmith20/Septuvo/pull/46) | [PR #47](https://github.com/neosmith20/Septuvo/pull/47) |
 | M2-02 | ACCEPTED | M2-01 | 2026-10-15 | [Work order M2, merged in PR #46](https://github.com/neosmith20/Septuvo/pull/46) | [PR #48](https://github.com/neosmith20/Septuvo/pull/48) |
 | M2-03 | ACCEPTED | M2-02 | 2026-10-15 | [Work order M2, merged in PR #46](https://github.com/neosmith20/Septuvo/pull/46) | [PR #51](https://github.com/neosmith20/Septuvo/pull/51) |
-| M2-04 | READY | M2-03 | 2026-10-15 | [Work order M2, merged in PR #46](https://github.com/neosmith20/Septuvo/pull/46) | — |
+| M2-04 | ACCEPTED | M2-03 | 2026-10-16 | [Work order M2, merged in PR #46](https://github.com/neosmith20/Septuvo/pull/46) | [PR #52](https://github.com/neosmith20/Septuvo/pull/52) |
 | M2-05 | READY | M2-04 | 2026-10-15 | [Work order M2, merged in PR #46](https://github.com/neosmith20/Septuvo/pull/46) | — |
 | M3-01 | NOT STARTED | M2-05 | — | — | — |
 | M3-02 | NOT STARTED | M3-01 | — | — | — |
