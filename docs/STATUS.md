@@ -14,7 +14,7 @@ Rules that hold for every category:
 
 - No agent or bot merges a pull request, passes a gate or makes a category C decision. The owner merges every pull request.
 - A pull request **delivers** a task when the task ID is the scope of one of its commit subjects, for example `feat(N1-03): ...`. Mentions elsewhere, such as "next: N1-03", never count.
-- Milestones cannot advance past an unpassed gate: M1, M2 and N1 need G0; M3–M5 need G1; M6–M8 need G2; M9 needs G3. No cryptographic or protocol implementation before G1.
+- Milestones cannot advance past an unpassed gate: M1, M2, N1 and N2 need G0; M3–M5 need G1; M6–M8 need G2; M9 needs G3. No cryptographic or protocol implementation before G1.
 - **Ledger upkeep is automatic.** [`scripts/sync_status.py`](../scripts/sync_status.py) reads owner-merged pull requests and updates this file. Agents run it and include the result in a pull request, and CI reports any drift on every pull request. A ledger that lags behind GitHub never blocks already-authorized work: merged pull requests are the authority.
 - **CI verifies every record** ([`scripts/verify_ledger.py`](../scripts/verify_ledger.py)): the owner merged the linked pull request into `main` and it delivers the task; an authorization was written or merged by the owner; a gate has the exact owner comment. Records that cannot be verified fail the check, and so does any network error.
 - Earlier records based on exact comments (`APPROVED WORK ORDER`, `ACCEPTED`, D-025) stay valid. Rows H-001–H-004, M0-01 and M0-01.1 predate D-025 and are kept verbatim.
@@ -87,6 +87,15 @@ Dates are `YYYY-MM-DD` UTC: the authorization date for READY rows, the merge dat
 | N1-02 | ACCEPTED | N1-01 | 2026-10-14 | [Milestone N1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162807229) | [PR #29](https://github.com/neosmith20/Septuvo/pull/29) |
 | N1-03 | ACCEPTED | N1-02 | 2026-10-15 | [Milestone N1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162807229) | [PR #45](https://github.com/neosmith20/Septuvo/pull/45) |
 | N1-04 | ACCEPTED | N1-03 | 2026-10-15 | [Milestone N1 approval on PR #24](https://github.com/neosmith20/Septuvo/pull/24#issuecomment-6162807229) | [PR #45](https://github.com/neosmith20/Septuvo/pull/45) |
+
+## Track N2 (non-crypto, after G0, before G1)
+
+| Task ID | State | Predecessor | Owner decision date (UTC) | Work-order approval | Completion evidence |
+| --- | --- | --- | --- | --- | --- |
+| N2-01 | NOT STARTED | N1-04 | — | — | — |
+| N2-02 | NOT STARTED | N2-01 | — | — | — |
+| N2-03 | NOT STARTED | N2-02 | — | — | — |
+| N2-04 | NOT STARTED | N2-03 | — | — | — |
 
 ## Dotted subtasks (owner authorized separately)
 

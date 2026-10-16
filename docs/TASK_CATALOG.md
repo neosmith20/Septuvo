@@ -451,9 +451,45 @@ Lab-only work allowed by D-029 and D-030. **Never** an SVP handshake, packet for
 - **Acceptance evidence:** Unit tests show that "adapter up" never implies "connected".
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M3 or any cryptography.
 
+## Track N2 — Non-crypto application foundation (parallel, after G0, before G1)
+
+Work allowed by D-029, defined in [work-orders/N2.md](work-orders/N2.md). **Never** an SVP handshake, packet encryption or wire encoding, key generation or management, usable invitations, functional protocol transport or any cryptography crate. Interfaces for later protocol work have placeholder implementations only, which return errors and never report a peer as authenticated. One owner authorization covers the track (D-031); after each merge the agent continues to the next card (D-034).
+
+### N2-01 — Configuration format, parser and validation
+
+- **Entry / prerequisites:** N1 accepted; approved N2 work order.
+- **Approved output locations:** `crates/septuvo-config/`, `docs/build/config.md`, `licensing.toml`, `Cargo.toml`, `Cargo.lock`, CLI wiring named in the work order.
+- **Exact work:** Strict TOML-subset parser (standard library only) and validated device and server schemas, with hostile-input limits, precise error locations and safe defaults for security settings.
+- **Acceptance evidence:** Table-driven tests for every rule; malformed files rejected without panics; CI green; licensing check passes.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin N2-02 until this pull request is merged; then continue without a new authorization (D-034).
+
+### N2-02 — Privileged service and unprivileged control interface
+
+- **Entry / prerequisites:** N2-01 complete within the approved N2 work order.
+- **Approved output locations:** `crates/septuvo-ipc/`, `crates/septuvo-daemon/`, `crates/septuvo-cli/`, `tests/lab/namespaces/`, `.github/workflows/rust.yml`, `docs/build/daemon.md`, `licensing.toml`, `Cargo.toml`, `Cargo.lock`.
+- **Exact work:** `septuvod` owns all network changes; status and control Unix sockets with permission-based access; bounded, versioned local protocol; lab-mode and namespace guard; placeholder tunnel interface only.
+- **Acceptance evidence:** Parser tests; namespace integration test (unprivileged status, refused control from non-members, kill switch applied and removed, crash keeps blocking); guard test.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin N2-03 until this pull request is merged; then continue without a new authorization (D-034).
+
+### N2-03 — DNS policy enforcement and leak tests
+
+- **Entry / prerequisites:** N2-02 complete within the approved N2 work order.
+- **Approved output locations:** `crates/septuvo-policy/`, `crates/septuvo-daemon/`, `tests/lab/namespaces/`, `docs/build/lab.md`.
+- **Exact work:** DNS only to configured tunnel resolvers over the tunnel interface; UDP/TCP 53 and DoT blocked elsewhere for IPv4 and IPv6; resolver configuration written and restored; explicit LAN DNS exceptions; DoH limitation documented.
+- **Acceptance evidence:** New namespace leak cases pass in CI with IPv6 required; all N1-03 cases still pass.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin N2-04 until this pull request is merged; then continue without a new authorization (D-034).
+
+### N2-04 — Server administration foundations
+
+- **Entry / prerequisites:** N2-03 complete within the approved N2 work order.
+- **Approved output locations:** `crates/septuvo-server/`, `docs/build/server-admin.md`, `licensing.toml`, `Cargo.toml`, `Cargo.lock`.
+- **Exact work:** Local `septuvo-server` tool for device records (add, list, show, revoke, remove), address allocation, atomic fail-closed storage and an action log; placeholder key field; no invitations, enrollment, keys or listener.
+- **Acceptance evidence:** Unit tests for commands, allocation, interrupted writes, corruption, locking and hostile names.
+- **Stop point:** Submit the scoped evidence and PR for owner review. N2 is then complete; nothing beyond it starts without a new work order.
+
 ## Task catalog invariants
 
-1. Each of the **43 base tasks** has a unique ID and a prerequisite, bounded output, actions, acceptance evidence and a stop point. Conditional dotted subtasks and owner-directed H work are separately recorded/approved in [STATUS.md](STATUS.md) and do not change the 43-base-task count; nor do track N1 cards.
+1. Each of the **43 base tasks** has a unique ID and a prerequisite, bounded output, actions, acceptance evidence and a stop point. Conditional dotted subtasks and owner-directed H work are separately recorded/approved in [STATUS.md](STATUS.md) and do not change the 43-base-task count; nor do track N1 and N2 cards.
 2. No agent can approve G0–G4, external review, a domain/trademark claim, production readiness or a public release on the owner's behalf.
 3. M2 spec proposals, the ML-KEM/ML-DSA/HKDF/AES-GCM candidate choices (D-010, D-011, D-012, D-024) and packet wire fields must not become a deployed handshake before G1, even if a code generator could implement them quickly.
 4. A Rust workspace, GUI, installer, mobile extension, control-plane cluster or gateway capability does **not** exist merely because this catalog names a target path.

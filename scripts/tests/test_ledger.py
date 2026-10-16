@@ -98,6 +98,13 @@ class Base(unittest.TestCase):
         return errs + online
 
 
+class Tracks(unittest.TestCase):
+    def test_every_track_needs_g0(self):
+        for track in ("N1", "N2"):
+            self.assertEqual(L.REQUIRED_GATE[track], "G0")
+            self.assertEqual(L.milestone_of(track + "-01"), track)
+
+
 class CategoryA(Base):
     def test_routine_merge_is_acceptance(self):
         self.assertEqual(self.errors(ledger(h_row("H-007"))), [])
