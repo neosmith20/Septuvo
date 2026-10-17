@@ -31,6 +31,10 @@ use std::net::IpAddr;
 
 /// nftables table that holds every Septuvo rule.
 pub const TABLE: &str = "inet septuvo";
+/// The table's address family, for `nft list table FAMILY NAME`.
+pub const TABLE_FAMILY: &str = "inet";
+/// The table's name, for `nft list table FAMILY NAME`.
+pub const TABLE_NAME: &str = "septuvo";
 /// Maximum number of server endpoints in one ruleset.
 pub const MAX_ENDPOINTS: usize = 16;
 /// Maximum number of resolver plus LAN DNS exception addresses in one ruleset.
@@ -449,12 +453,29 @@ mod tests {
     }
 
     #[test]
+    fn table_constants_agree() {
+        assert_eq!(TABLE, format!("{TABLE_FAMILY} {TABLE_NAME}"));
+    }
+
+    /// Every value written into the script is either a validated interface
+    /// name, a typed IP address or prefix, or a number: no free text, so no
+    /// quote, semicolon, brace, comment or line break can reach nft.
+    #[test]
     fn hostile_interface_names_are_rejected() {
         let p = parse_policy("mode full-tunnel\n").unwrap();
         for bad in [
             "",
             "a234567890123456",
             "tun0\"; flush ruleset; \"",
+            "septuvo0\" accept; #",
+            "tun0}",
+            "tun0{",
+            "tun0#",
+            "tun0;",
+            "tun0'",
+            "tun0\\",
+            "tun0\r",
+            "tun0\u{0}",
             "tun 0",
             "tun0\n",
             "-tun",

@@ -73,9 +73,9 @@ impl Firewall for Nftables {
         let Some(nft) = nft_binary() else {
             return false;
         };
-        let (family, name) = nft::TABLE.split_once(' ').unwrap_or(("inet", "septuvo"));
+        // Fixed arguments only, passed directly (no shell).
         Process::new(nft)
-            .args(["list", "table", family, name])
+            .args(["list", "table", nft::TABLE_FAMILY, nft::TABLE_NAME])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status()
@@ -402,6 +402,23 @@ mod tests {
         assert_eq!(r.field("adapter"), Some("pass"));
         assert_eq!(r.field("peer"), Some("fail"), "no peer before G1");
         assert_eq!(r.field("note"), Some(PEER_NOTE));
+    }
+
+    /// Defence in depth: even if a hostile interface name got past the
+    /// configuration check, the renderer refuses it and nothing reaches nft.
+    #[test]
+    fn hostile_interface_name_never_reaches_the_firewall() {
+        let mut cfg = config();
+        cfg.tunnel.interface = "septuvo0\" accept; #".to_string();
+        let mut e = Engine::new(
+            cfg,
+            FakeFirewall::default(),
+            FakeInterfaces(false),
+            FakeResolver::default(),
+        );
+        let r = e.handle(Command::Connect, true);
+        assert!(matches!(r.outcome, Outcome::Err { ref code, .. } if code == "invalid_policy"));
+        assert_eq!(e.firewall.applied, 0, "nothing was sent to nft");
     }
 
     #[test]

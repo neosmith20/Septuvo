@@ -640,6 +640,8 @@ resolvers = ["1.1.1.1"]
             ("interface = \"this-name-is-too-long\"\n", false),
             ("interface = \"bad name\"\n", false),
             ("interface = \"..\"\n", false),
+            ("interface = \"septuvo0\\\" accept; #\"\n", false),
+            ("interface = \"tun0;\"\n", false),
         ] {
             let p = problem(&format!("{base}{extra}")).1;
             if expect_range {
