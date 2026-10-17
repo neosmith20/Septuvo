@@ -1,0 +1,50 @@
+# Septuvo VPN (development preview): the privileged service septuvod.
+#
+# Lab only. It joins the "septuvo-lab" network namespace and refuses to start
+# anywhere else (its own guard, on top of this unit). It has no tunnel and
+# no encryption: "connect" turns the kill switch on inside the lab namespace,
+# and status never reports "connected" before the G1 security review.
+# Stopping the service keeps any kill switch in place; only
+# "septuvo disconnect" lifts it (owner decision Q2).
+# Licensed under PolyForm Noncommercial 1.0.0 (see NOTICE).
+[Unit]
+Description=Septuvo VPN service (development preview, lab only)
+Documentation=https://github.com/neosmith20/Septuvo/blob/main/docs/build/install.md
+Requires=septuvo-lab-netns.service
+After=septuvo-lab-netns.service
+
+[Service]
+Type=simple
+ExecStart=@LIBEXECDIR@/septuvod --settings /etc/septuvo/septuvod.toml
+Restart=on-failure
+RestartSec=2s
+NetworkNamespacePath=/run/netns/septuvo-lab
+RuntimeDirectory=septuvo
+RuntimeDirectoryMode=0755
+
+# Hardening: root, but only the capabilities nft and socket setup need.
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_CHOWN CAP_FOWNER
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/etc/netns
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+UMask=0022
+
+[Install]
+WantedBy=multi-user.target

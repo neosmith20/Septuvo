@@ -14,6 +14,7 @@
 | [`crates/septuvo-ipc`](../../crates/septuvo-ipc) | The local control protocol between `septuvo` and `septuvod`. Apache-2.0 (N2-02) |
 | [`crates/septuvo-daemon`](../../crates/septuvo-daemon) | `septuvod`, the privileged service (lab only): see [daemon.md](daemon.md). PolyForm Noncommercial (N2-02) |
 | [`crates/septuvo-server`](../../crates/septuvo-server) | `septuvo-server`, local server administration of device records (no enrollment, keys or listener before G1): see [server-admin.md](server-admin.md). PolyForm Noncommercial (N2-04) |
+| [`packaging/linux/`](../../packaging/linux) | Linux installer, uninstaller and hardened systemd units (lab namespace only): see [install.md](install.md). PolyForm Noncommercial (N3-01) |
 | [`.github/workflows/rust.yml`](../../.github/workflows/rust.yml) | CI: no-third-party-crate check, format, lint with warnings as errors, tests; plus the namespace kill-switch lab |
 | [`tests/lab/namespaces/`](../../tests/lab/namespaces) | Kill-switch, DNS and IPv6 leak tests in throw-away network namespaces: see [lab.md](lab.md) (N1-03) |
 
