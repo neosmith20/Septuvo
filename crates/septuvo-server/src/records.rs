@@ -278,6 +278,7 @@ impl Records {
     /// # Errors
     /// Unknown or already revoked device.
     pub fn revoke(&mut self, name: &str, now: u64) -> Result<(), String> {
+        check_name(name)?;
         let d = self
             .devices
             .iter_mut()
@@ -296,6 +297,7 @@ impl Records {
     /// # Errors
     /// Unknown device, or a device that has not been revoked.
     pub fn remove(&mut self, name: &str) -> Result<(), String> {
+        check_name(name)?;
         let i = self
             .devices
             .iter()
@@ -306,6 +308,21 @@ impl Records {
         }
         self.devices.remove(i);
         Ok(())
+    }
+}
+
+/// Refuses a name that cannot exist, **without repeating it**: error text is
+/// printed to terminals and could otherwise carry control characters
+/// (found by the N3-03 fuzzing; the CLI already filtered them, this makes
+/// the library safe for every caller).
+fn check_name(name: &str) -> Result<(), String> {
+    if valid_name(name) {
+        Ok(())
+    } else {
+        Err(
+            "no device has that name (names are 1-32 characters from a-z, 0-9, '-', '_' and '.')"
+                .into(),
+        )
     }
 }
 
@@ -537,5 +554,28 @@ mod tests {
     #[test]
     fn placeholder_key_says_it_is_not_a_key() {
         assert!(PlaceholderKey.to_string().starts_with("not a key"));
+    }
+
+    /// Regression (N3-03 fuzzing, case seed 0x496239978f4b4369): errors for
+    /// impossible names used to repeat them, control characters included.
+    #[test]
+    fn errors_never_repeat_an_invalid_name() {
+        let (v4, v6) = (
+            "10.77.0.0/24".parse().unwrap(),
+            "fd77:77:77::/64".parse().unwrap(),
+        );
+        let mut r = Records::default();
+        r.add("laptop", Scope::Both, 1, v4, v6).unwrap();
+        let before = r.clone();
+        for hostile in ["\u{1b}[2Jx", "a\nb", "\u{7}", "Laptop", ""] {
+            for e in [
+                r.revoke(hostile, 2).unwrap_err(),
+                r.remove(hostile).unwrap_err(),
+            ] {
+                assert!(e.bytes().all(|b| (0x20..=0x7e).contains(&b)), "{e:?}");
+                assert!(!e.contains(hostile) || hostile.is_empty(), "{e:?}");
+            }
+        }
+        assert_eq!(r, before);
     }
 }

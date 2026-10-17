@@ -167,6 +167,12 @@ pub struct Engine<F: Firewall, I: Interfaces, R: Resolver> {
     captive_helper: Option<u32>,
     /// Windows opened since the last connect.
     captive_windows: u8,
+    /// Where service events go: standard error (the journal) by default.
+    log: fn(&str),
+}
+
+fn log_to_stderr(line: &str) {
+    eprintln!("septuvod: {line}");
 }
 
 impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
@@ -184,7 +190,15 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
             captive_network_dns: None,
             captive_helper: None,
             captive_windows: 0,
+            log: log_to_stderr,
         }
+    }
+
+    /// Sends service events to `log` instead of standard error (tests).
+    #[must_use]
+    pub fn with_log(mut self, log: fn(&str)) -> Self {
+        self.log = log;
+        self
     }
 
     /// Enables captive-portal mode for the dedicated helper account `uid`
@@ -331,12 +345,12 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
         self.captive_network_dns = Some(!resolvers.is_empty());
         // Every window is logged (journal), never silent. Only counts and
         // yes/no flags: no account, address or other detail is written.
-        eprintln!(
-            "septuvod: captive-portal window {} of {MAX_CAPTIVE_WINDOWS} opened for {minutes} min \
+        (self.log)(&format!(
+            "captive-portal window {} of {MAX_CAPTIVE_WINDOWS} opened for {minutes} min \
              for the helper account (network DNS: {})",
             self.captive_windows,
             if resolvers.is_empty() { "no" } else { "yes" }
-        );
+        ));
         let mut r = self.status().with("message", CAPTIVE_WARNING);
         if network_dns && resolvers.is_empty() {
             r = r.with(

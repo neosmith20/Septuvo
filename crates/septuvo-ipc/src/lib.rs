@@ -275,14 +275,37 @@ impl Response {
         }
     }
 
-    /// Adds a field. Invalid keys and fields beyond [`MAX_FIELDS`] are
-    /// dropped; values are cleaned. Encoding therefore never fails.
+    /// Adds a field. Invalid keys, fields beyond [`MAX_FIELDS`] and fields
+    /// that would make the encoded response larger than
+    /// [`MAX_RESPONSE_BYTES`] are dropped; values are cleaned. The result
+    /// therefore always encodes to a response the client accepts. A dropped
+    /// field reads as missing, which the client shows as unknown, never as
+    /// passed (found by the N3-03 fuzzing).
     #[must_use]
     pub fn with(mut self, key: &str, value: &str) -> Self {
         if is_token(key) && self.fields.len() < MAX_FIELDS {
-            self.fields.push((key.to_string(), clean(value)));
+            let value = clean(value);
+            let added = key.len() + 1 + value.len() + 1;
+            if self.encoded_len() + added <= MAX_RESPONSE_BYTES {
+                self.fields.push((key.to_string(), value));
+            }
         }
         self
+    }
+
+    /// Length of [`Response::encode`], without building it.
+    fn encoded_len(&self) -> usize {
+        let first = match &self.outcome {
+            Outcome::Ok => VERSION.len() + 4,
+            Outcome::Err { code, message } if message.is_empty() => {
+                VERSION.len() + 5 + code.len() + 1
+            }
+            Outcome::Err { code, message } => {
+                VERSION.len() + 5 + code.len() + 1 + message.len() + 1
+            }
+        };
+        let fields: usize = self.fields.iter().map(|(k, v)| k.len() + v.len() + 2).sum();
+        first + fields + "END\n".len()
     }
 
     /// [`Response::with`], only if `condition` holds.
@@ -309,6 +332,11 @@ impl Response {
     pub fn encode(&self) -> String {
         let mut s = match &self.outcome {
             Outcome::Ok => format!("{VERSION} OK\n"),
+            // An empty message adds no trailing space, so encoding what was
+            // parsed never makes it longer (found by the N3-03 fuzzing).
+            Outcome::Err { code, message } if message.is_empty() => {
+                format!("{VERSION} ERR {code}\n")
+            }
             Outcome::Err { code, message } => format!("{VERSION} ERR {code} {message}\n"),
         };
         for (k, v) in &self.fields {
@@ -444,6 +472,7 @@ pub fn request(path: &Path, command: Command) -> Result<Response, ClientError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fmt::Write as _;
 
     #[test]
     fn requests_round_trip() {
@@ -570,6 +599,46 @@ mod tests {
         }
         assert_eq!(many.fields.len(), MAX_FIELDS);
         assert!(parse_response(many.encode().as_bytes()).is_ok());
+    }
+
+    /// Regression (N3-03 fuzzing, case seed 0x35f6d570c8fcedeb): many long
+    /// fields used to encode to more than the client accepts.
+    #[test]
+    fn built_responses_never_exceed_the_size_limit() {
+        let mut r = Response::ok();
+        for i in 0..MAX_FIELDS {
+            r = r.with(&format!("field_{i}"), &"v".repeat(MAX_VALUE_BYTES));
+        }
+        let encoded = r.encode();
+        assert!(
+            encoded.len() <= MAX_RESPONSE_BYTES,
+            "{} bytes",
+            encoded.len()
+        );
+        assert_eq!(r.encoded_len(), encoded.len());
+        assert!(
+            r.fields.len() < MAX_FIELDS,
+            "the fields that do not fit are dropped"
+        );
+        assert_eq!(parse_response(encoded.as_bytes()), Ok(r.clone()));
+        let first = r.fields.first().map(|(k, _)| k.as_str());
+        assert_eq!(first, Some("field_0"), "earlier fields are kept");
+    }
+
+    /// Regression (N3-03 fuzzing): an error without a message re-encodes
+    /// without a trailing space, so a response at the limit stays valid.
+    #[test]
+    fn error_without_message_round_trips_at_the_size_limit() {
+        let e = Response::error("limit", "");
+        assert_eq!(e.encode(), "SEPTUVO/1 ERR limit\nEND\n");
+        let mut body = String::from("SEPTUVO/1 ERR limit\n");
+        while body.len() + 4 + 205 <= MAX_RESPONSE_BYTES && body.matches('=').count() < MAX_FIELDS {
+            let _ = writeln!(body, "k{}={}", body.len() % 10, "v".repeat(200));
+        }
+        let pad = MAX_RESPONSE_BYTES - body.len() - 4 - 3;
+        let _ = writeln!(body, "p={}\nEND", "v".repeat(pad.min(MAX_VALUE_BYTES)));
+        let parsed = parse_response(body.as_bytes()).expect("valid response");
+        assert_eq!(parse_response(parsed.encode().as_bytes()), Ok(parsed));
     }
 
     #[test]
