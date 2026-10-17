@@ -1,0 +1,145 @@
+# Coverage-guided fuzzing of Septuvo's parsers with cargo-fuzz / libFuzzer
+# (H-018, decision D-035). Development only: never built into Septuvo and never
+# shipped. A separate workspace, so the main workspace keeps no third-party
+# crates (its Cargo.lock is checked in CI). Run from this directory:
+#   cargo +nightly fuzz run toml_subset
+# See docs/build/fuzzing.md.
+
+[package]
+name = "septuvo-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "PolyForm-Noncommercial-1.0.0"
+publish = false
+description = "Coverage-guided fuzz targets for Septuvo's parsers (development only)"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+# Reviewed in docs/reviews/dependency-review-cargo-fuzz.md. Exact pin.
+libfuzzer-sys = "=0.4.13"
+septuvo-policy = { path = "../crates/septuvo-policy" }
+septuvo-config = { path = "../crates/septuvo-config" }
+septuvo-ipc = { path = "../crates/septuvo-ipc" }
+septuvo-server = { path = "../crates/septuvo-server" }
+septuvo-daemon = { path = "../crates/septuvo-daemon" }
+
+# Its own workspace: not a member of the main one.
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "policy_file"
+path = "fuzz_targets/policy_file.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "prefix"
+path = "fuzz_targets/prefix.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "nft_render"
+path = "fuzz_targets/nft_render.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "toml_subset"
+path = "fuzz_targets/toml_subset.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "device_schema"
+path = "fuzz_targets/device_schema.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "server_schema"
+path = "fuzz_targets/server_schema.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ipc_request"
+path = "fuzz_targets/ipc_request.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ipc_response"
+path = "fuzz_targets/ipc_response.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ipc_builder"
+path = "fuzz_targets/ipc_builder.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "device_records"
+path = "fuzz_targets/device_records.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "record_operations"
+path = "fuzz_targets/record_operations.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "daemon_settings"
+path = "fuzz_targets/daemon_settings.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "resolver_file"
+path = "fuzz_targets/resolver_file.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "account_files"
+path = "fuzz_targets/account_files.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "control_requests"
+path = "fuzz_targets/control_requests.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "status_socket_changes_nothing"
+path = "fuzz_targets/status_socket_changes_nothing.rs"
+test = false
+doc = false
+bench = false

@@ -3,6 +3,10 @@
 //! control socket.
 //! Longer runs: `SEPTUVO_FUZZ_SECONDS=60 cargo test -p septuvo-daemon --test fuzz -- --nocapture`.
 
+// The check functions are public so the cargo-fuzz targets (fuzz/) can call
+// them; they panic on purpose when a property fails.
+#![allow(clippy::must_use_candidate, clippy::missing_panics_doc)]
+
 #[path = "../../septuvo-policy/tests/support/fuzzer.rs"]
 mod fuzzer;
 
@@ -105,37 +109,7 @@ fn fuzz_daemon_settings() {
         "fuzz_daemon_settings",
         &corpus,
         structured_settings,
-        |data| {
-            let Ok(text) = std::str::from_utf8(data) else {
-                return false;
-            };
-            let Ok(s) = settings::parse(text) else {
-                return false;
-            };
-            assert_ne!(s.lab_namespace.len(), 0);
-            assert!(!s.lab_namespace.contains('/'));
-            assert!(s.runtime_dir.is_absolute() && s.device_config.is_absolute());
-            assert_ne!(
-                s.captive_helper_user.as_deref(),
-                Some("root"),
-                "root is never the helper"
-            );
-            // Round trip: written back (with TOML escapes), the same settings.
-            let q = |v: &str| v.replace('\\', "\\\\").replace('"', "\\\"");
-            let mut again = format!(
-                "version = 1\n[daemon]\nmode = \"lab\"\nlab_namespace = \"{}\"\nruntime_dir = \"{}\"\n\
-             control_group = \"{}\"\ndevice_config = \"{}\"\n",
-                q(&s.lab_namespace),
-                q(&s.runtime_dir.to_string_lossy()),
-                q(&s.control_group),
-                q(&s.device_config.to_string_lossy())
-            );
-            if let Some(u) = &s.captive_helper_user {
-                let _ = writeln!(again, "captive_helper_user = \"{}\"", q(u));
-            }
-            assert_eq!(settings::parse(&again).as_ref(), Ok(&s), "round trip");
-            true
-        },
+        check_daemon_settings,
     );
 }
 
@@ -162,27 +136,12 @@ fn fuzz_resolver_file() {
         }
         s.into_bytes()
     };
-    run("fuzz_resolver_file", &corpus, structured, |data| {
-        let text = String::from_utf8_lossy(data);
-        let found = nameservers(&text);
-        assert!(found.len() <= septuvo_policy::nft::MAX_CAPTIVE_RESOLVERS);
-        for a in &found {
-            assert!(
-                !a.is_loopback() && !a.is_unspecified() && !a.is_multicast(),
-                "{a}"
-            );
-            let from_file = text.lines().any(|l| {
-                let mut w = l.split_whitespace();
-                w.next() == Some("nameserver")
-                    && w.next().and_then(|x| x.parse::<IpAddr>().ok()) == Some(*a)
-            });
-            assert!(from_file, "{a} comes from a nameserver line");
-        }
-        // Whatever the file holds, the captive-portal renderer accepts the
-        // result (the service never builds an invalid window from it).
-        assert!(septuvo_policy::nft::captive_script(60, &found).is_ok());
-        !found.is_empty()
-    });
+    run(
+        "fuzz_resolver_file",
+        &corpus,
+        structured,
+        check_resolver_file,
+    );
 }
 
 #[test]
@@ -217,26 +176,12 @@ fn fuzz_account_files() {
         }
         s.into_bytes()
     };
-    run("fuzz_account_files", &corpus, structured, |data| {
-        let text = String::from_utf8_lossy(data);
-        let user = guard::user_id(&text, "septuvo-portal");
-        let group = guard::group_id(&text, "septuvo");
-        let euid = guard::effective_uid(&text);
-        // An ID is only ever read from a line that names exactly that account.
-        if let Some(uid) = user {
-            assert!(
-                text.lines()
-                    .any(|l| l.starts_with("septuvo-portal:") && l.contains(&uid.to_string()))
-            );
-        }
-        if let Some(gid) = group {
-            assert!(
-                text.lines()
-                    .any(|l| l.starts_with("septuvo:") && l.contains(&gid.to_string()))
-            );
-        }
-        user.is_some() || group.is_some() || euid.is_some()
-    });
+    run(
+        "fuzz_account_files",
+        &corpus,
+        structured,
+        check_account_files,
+    );
 }
 
 /// Counts every change the service asks of the firewall.
@@ -290,109 +235,74 @@ impl Resolver for MemoryResolver {
     }
 }
 
-/// Hostile bytes on the service's sockets: only a well-formed request ever
-/// reaches the engine, a request on the status socket never changes
-/// anything, and nothing a client sends stops the service.
-#[test]
-fn fuzz_control_requests() {
+/// A fresh service engine with test doubles (nothing touches the system).
+fn test_engine() -> Engine<CountingFirewall, NoInterfaces, MemoryResolver> {
     let config = septuvo_config::parse_device(
         "version = 1\n[server]\nendpoints = [\"203.0.113.7:51820\"]\n[routing]\nmode = \"full-tunnel\"\n\
          [dns]\nresolvers = [\"10.77.0.1\"]\n",
     )
     .unwrap();
-    let mut engine = Engine::new(
+    Engine::new(
         config,
         CountingFirewall::default(),
         NoInterfaces,
         MemoryResolver::default(),
     )
     .with_captive_helper(Some(995))
-    .with_log(|_| {});
+    .with_log(|_| {})
+}
+
+/// Hostile bytes on the service's sockets: only a well-formed request ever
+/// reaches the engine, and a well-formed one always does.
+#[test]
+fn fuzz_control_requests() {
     let corpus = Corpus {
         seeds: &[
             "SEPTUVO/1 STATUS\n",
             "SEPTUVO/1 CONNECT\n",
             "SEPTUVO/1 DISCONNECT\n",
             "SEPTUVO/1 CAPTIVE 5\n",
-            "SEPTUVO/1 CAPTIVE 2 NETWORK-DNS\n",
+            "\u{3}SEPTUVO/1 CAPTIVE 2 NETWORK-DNS\n",
+            "\u{2}SEPTUVO/1 DISCONNECT\n",
+            "\u{1}SEPTUVO/1 CONNECT\n",
         ],
         dict: DICT,
     };
     let structured = |rng: &mut Rng| {
-        let mut v = format!(
-            "SEPTUVO/1 {}\n",
-            rng.pick(&[
-                "STATUS",
-                "CONNECT",
-                "DISCONNECT",
-                "CAPTIVE 3",
-                "CAPTIVE 9",
-                "REBOOT"
-            ])
-        )
-        .into_bytes();
+        let mut v = Vec::new();
+        if rng.chance(50) {
+            v.push(u8::try_from(rng.below(4)).unwrap_or(0));
+        }
+        v.extend(
+            format!(
+                "SEPTUVO/1 {}\n",
+                rng.pick(&[
+                    "STATUS",
+                    "CONNECT",
+                    "DISCONNECT",
+                    "CAPTIVE 3",
+                    "CAPTIVE 9",
+                    "REBOOT"
+                ])
+            )
+            .into_bytes(),
+        );
         if rng.chance(20) {
             v.extend(std::iter::repeat_n(b'A', rng.below(600)));
         }
         v
     };
-    let mut case = 0u64;
-    run("fuzz_control_requests", &corpus, structured, |data| {
-        case += 1;
-        let control = case.is_multiple_of(2);
-        let data = &data[..data.len().min(1024)];
-        let (mut client, mut server) = UnixStream::pair().expect("socket pair");
-        client.write_all(data).expect("write request");
-        let _ = client.shutdown(Shutdown::Write);
-        let mut called = None;
-        let mut handle = |c: Command| {
-            called = Some(c);
-            engine.handle(c, control)
-        };
-        sockets::serve_one(&mut server, &mut handle);
-        drop(server);
-        let mut reply = Vec::new();
-        let _ = client.read_to_end(&mut reply);
-        if let Ok(exact) = parse_request(data) {
-            assert_eq!(
-                called,
-                Some(exact),
-                "a well-formed request reaches the engine"
-            );
-        }
-        match called {
-            Some(c) => {
-                assert!(
-                    data.starts_with(c.encode().as_bytes()),
-                    "only what was sent"
-                );
-                true
-            }
-            None => false,
-        }
-    });
-    // The status socket never changed anything; whatever happened, the
-    // engine still answers.
-    let r = engine.handle(Command::Status, false);
-    assert_eq!(r.field("peer"), Some("fail"), "never connected");
+    run(
+        "fuzz_control_requests",
+        &corpus,
+        structured,
+        check_control_requests,
+    );
 }
 
-/// Requests on the status socket alone never change the firewall.
+/// Change commands on the status socket are always refused.
 #[test]
 fn fuzz_status_socket_changes_nothing() {
-    let config = septuvo_config::parse_device(
-        "version = 1\n[server]\nendpoints = [\"203.0.113.7:51820\"]\n[routing]\nmode = \"full-tunnel\"\n\
-         [dns]\nresolvers = [\"10.77.0.1\"]\n",
-    )
-    .unwrap();
-    let mut engine = Engine::new(
-        config,
-        CountingFirewall::default(),
-        NoInterfaces,
-        MemoryResolver::default(),
-    )
-    .with_captive_helper(Some(995))
-    .with_log(|_| {});
     let corpus = Corpus {
         seeds: &[
             "SEPTUVO/1 CONNECT\n",
@@ -417,21 +327,153 @@ fn fuzz_status_socket_changes_nothing() {
         "fuzz_status_socket_changes_nothing",
         &corpus,
         structured,
-        |data| {
-            let accepted = match parse_request(data) {
-                Ok(c) => {
-                    let r = engine.handle(c, false);
-                    if c.needs_control() {
-                        assert!(matches!(r.outcome, septuvo_ipc::Outcome::Err { .. }));
-                    }
-                    true
-                }
-                Err(_) => false,
-            };
-            let r = engine.handle(Command::Status, false);
-            assert_eq!(r.field("kill_switch"), Some("off"), "nothing was installed");
-            assert_eq!(r.field("state"), Some("disconnected"));
-            accepted
-        },
+        check_status_socket_changes_nothing,
     );
+}
+
+/// Property check for `fuzz_daemon_settings` (also called by the cargo-fuzz target).
+pub fn check_daemon_settings(data: &[u8]) -> bool {
+    let Ok(text) = std::str::from_utf8(data) else {
+        return false;
+    };
+    let Ok(s) = settings::parse(text) else {
+        return false;
+    };
+    assert_ne!(s.lab_namespace.len(), 0);
+    assert!(!s.lab_namespace.contains('/'));
+    assert!(s.runtime_dir.is_absolute() && s.device_config.is_absolute());
+    assert_ne!(
+        s.captive_helper_user.as_deref(),
+        Some("root"),
+        "root is never the helper"
+    );
+    // Round trip: written back (with TOML escapes), the same settings.
+    let q = |v: &str| v.replace('\\', "\\\\").replace('"', "\\\"");
+    let mut again = format!(
+        "version = 1\n[daemon]\nmode = \"lab\"\nlab_namespace = \"{}\"\nruntime_dir = \"{}\"\n\
+             control_group = \"{}\"\ndevice_config = \"{}\"\n",
+        q(&s.lab_namespace),
+        q(&s.runtime_dir.to_string_lossy()),
+        q(&s.control_group),
+        q(&s.device_config.to_string_lossy())
+    );
+    if let Some(u) = &s.captive_helper_user {
+        let _ = writeln!(again, "captive_helper_user = \"{}\"", q(u));
+    }
+    assert_eq!(settings::parse(&again).as_ref(), Ok(&s), "round trip");
+    true
+}
+
+/// Property check for `fuzz_resolver_file` (also called by the cargo-fuzz target).
+pub fn check_resolver_file(data: &[u8]) -> bool {
+    let text = String::from_utf8_lossy(data);
+    let found = nameservers(&text);
+    assert!(found.len() <= septuvo_policy::nft::MAX_CAPTIVE_RESOLVERS);
+    for a in &found {
+        assert!(
+            !a.is_loopback() && !a.is_unspecified() && !a.is_multicast(),
+            "{a}"
+        );
+        let from_file = text.lines().any(|l| {
+            let mut w = l.split_whitespace();
+            w.next() == Some("nameserver")
+                && w.next().and_then(|x| x.parse::<IpAddr>().ok()) == Some(*a)
+        });
+        assert!(from_file, "{a} comes from a nameserver line");
+    }
+    // Whatever the file holds, the captive-portal renderer accepts the
+    // result (the service never builds an invalid window from it).
+    assert!(septuvo_policy::nft::captive_script(60, &found).is_ok());
+    !found.is_empty()
+}
+
+/// Property check for `fuzz_account_files` (also called by the cargo-fuzz target).
+pub fn check_account_files(data: &[u8]) -> bool {
+    let text = String::from_utf8_lossy(data);
+    let user = guard::user_id(&text, "septuvo-portal");
+    let group = guard::group_id(&text, "septuvo");
+    let euid = guard::effective_uid(&text);
+    // An ID is only ever read from a line that names exactly that account.
+    if let Some(uid) = user {
+        assert!(
+            text.lines()
+                .any(|l| l.starts_with("septuvo-portal:") && l.contains(&uid.to_string()))
+        );
+    }
+    if let Some(gid) = group {
+        assert!(
+            text.lines()
+                .any(|l| l.starts_with("septuvo:") && l.contains(&gid.to_string()))
+        );
+    }
+    user.is_some() || group.is_some() || euid.is_some()
+}
+
+/// Property check for `fuzz_control_requests` (also called by the cargo-fuzz
+/// target). An optional first byte 0 to 3 picks the case: bit 0 = the control
+/// socket (otherwise the status socket), bit 1 = the service is connected
+/// first. Any other first byte: the whole input arrives on the control socket.
+pub fn check_control_requests(data: &[u8]) -> bool {
+    let (mode, data) = match data.first() {
+        Some(&m) if m < 4 => (m, &data[1..]),
+        _ => (1, data),
+    };
+    let control = mode & 1 == 1;
+    let mut engine = test_engine();
+    if mode & 2 == 2 {
+        let _ = engine.handle(Command::Connect, true);
+    }
+    let data = &data[..data.len().min(1024)];
+    let (mut client, mut server) = UnixStream::pair().expect("socket pair");
+    client.write_all(data).expect("write request");
+    let _ = client.shutdown(Shutdown::Write);
+    let mut called = None;
+    let mut handle = |c: Command| {
+        called = Some(c);
+        engine.handle(c, control)
+    };
+    sockets::serve_one(&mut server, &mut handle);
+    drop(server);
+    let mut reply = Vec::new();
+    let _ = client.read_to_end(&mut reply);
+    if let Ok(exact) = parse_request(data) {
+        assert_eq!(
+            called,
+            Some(exact),
+            "a well-formed request reaches the engine"
+        );
+    }
+    // Whatever happened, the service still answers and never claims a peer.
+    let r = engine.handle(Command::Status, false);
+    assert_eq!(r.field("peer"), Some("fail"), "never connected");
+    match called {
+        Some(c) => {
+            assert!(
+                data.starts_with(c.encode().as_bytes()),
+                "only what was sent"
+            );
+            true
+        }
+        None => false,
+    }
+}
+
+/// Property check for `fuzz_status_socket_changes_nothing` (also called by
+/// the cargo-fuzz target).
+pub fn check_status_socket_changes_nothing(data: &[u8]) -> bool {
+    let mut engine = test_engine();
+    let accepted = match parse_request(data) {
+        Ok(c) => {
+            let r = engine.handle(c, false);
+            if c.needs_control() {
+                assert!(matches!(r.outcome, septuvo_ipc::Outcome::Err { .. }));
+            }
+            true
+        }
+        Err(_) => false,
+    };
+    let r = engine.handle(Command::Status, false);
+    assert_eq!(r.field("kill_switch"), Some("off"), "nothing was installed");
+    assert_eq!(r.field("state"), Some("disconnected"));
+    accepted
 }

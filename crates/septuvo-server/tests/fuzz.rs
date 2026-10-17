@@ -2,6 +2,10 @@
 //! the record operations (add, revoke, remove).
 //! Longer runs: `SEPTUVO_FUZZ_SECONDS=60 cargo test -p septuvo-server --test fuzz -- --nocapture`.
 
+// The check functions are public so the cargo-fuzz targets (fuzz/) can call
+// them; they panic on purpose when a property fails.
+#![allow(clippy::must_use_candidate, clippy::missing_panics_doc)]
+
 #[path = "../../septuvo-policy/tests/support/fuzzer.rs"]
 mod fuzzer;
 
@@ -82,34 +86,12 @@ fn fuzz_device_records() {
         seeds: &[SEED, "septuvo-devices 1\n"],
         dict: DICT,
     };
-    let (v4, v6) = ranges();
-    run("fuzz_device_records", &corpus, structured_records, |data| {
-        let Ok(text) = std::str::from_utf8(data) else {
-            return false;
-        };
-        match Records::decode(text, v4, v6) {
-            Ok(r) => {
-                assert!(r.devices().len() <= MAX_DEVICES);
-                for d in r.devices() {
-                    assert!(valid_name(&d.name), "accepted name {:?}", d.name);
-                    assert!(v4.contains(d.ipv4.into()) && v6.contains(d.ipv6.into()));
-                }
-                // Round trip: encoded and decoded again, the same records; and
-                // encoding is stable.
-                let encoded = r.encode();
-                let again = Records::decode(&encoded, v4, v6).expect("encoded records decode");
-                assert_eq!(again, r, "round trip");
-                assert_eq!(again.encode(), encoded, "stable encoding");
-                true
-            }
-            Err(e) => {
-                let msg = e.to_string();
-                assert!(printable(&msg), "error text is printable: {msg:?}");
-                assert!(msg.len() <= 300, "bounded error message: {msg}");
-                false
-            }
-        }
-    });
+    run(
+        "fuzz_device_records",
+        &corpus,
+        structured_records,
+        check_device_records,
+    );
 }
 
 /// A random sequence of administrator operations. A refused operation never
@@ -120,51 +102,89 @@ fn fuzz_record_operations() {
         seeds: &[],
         dict: &[],
     };
-    let (v4, v6) = ranges();
     let structured = |rng: &mut Rng| rng.next_u64().to_le_bytes().to_vec();
-    run("fuzz_record_operations", &corpus, structured, |data| {
-        let mut seed = [0u8; 8];
-        for (i, b) in data.iter().take(8).enumerate() {
-            seed[i] = *b;
-        }
-        let mut rng = Rng::new(u64::from_le_bytes(seed));
-        let mut records = Records::default();
-        let mut refused = 0;
-        for _ in 0..rng.below(40) {
-            let name = if rng.chance(70) {
-                format!("d{}", rng.below(8))
-            } else {
-                let any: String = (0..rng.below(40))
-                    .map(|_| {
-                        char::from_u32(u32::try_from(rng.next_u64() % 0x250).unwrap_or(0))
-                            .unwrap_or('?')
-                    })
-                    .collect();
-                any
-            };
-            let before = records.clone();
-            let now = rng.interesting_number();
-            let result = match rng.below(3) {
-                0 => records
-                    .add(
-                        &name,
-                        *rng.pick(&[Scope::Home, Scope::Exit, Scope::Both]),
-                        now,
-                        v4,
-                        v6,
-                    )
-                    .map(|_| ()),
-                1 => records.revoke(&name, now),
-                _ => records.remove(&name),
-            };
-            if let Err(e) = result {
-                refused += 1;
-                assert_eq!(records, before, "a refused operation changes nothing");
-                assert!(printable(&e), "error text is printable: {e:?}");
+    run(
+        "fuzz_record_operations",
+        &corpus,
+        structured,
+        check_record_operations,
+    );
+}
+
+/// Property check for `fuzz_device_records` (also called by the cargo-fuzz target).
+pub fn check_device_records(data: &[u8]) -> bool {
+    let (v4, v6) = ranges();
+    let Ok(text) = std::str::from_utf8(data) else {
+        return false;
+    };
+    match Records::decode(text, v4, v6) {
+        Ok(r) => {
+            assert!(r.devices().len() <= MAX_DEVICES);
+            for d in r.devices() {
+                assert!(valid_name(&d.name), "accepted name {:?}", d.name);
+                assert!(v4.contains(d.ipv4.into()) && v6.contains(d.ipv6.into()));
             }
-            let again = Records::decode(&records.encode(), v4, v6).expect("always decodable");
-            assert_eq!(again, records, "round trip after every operation");
+            // Round trip: encoded and decoded again, the same records; and
+            // encoding is stable.
+            let encoded = r.encode();
+            let again = Records::decode(&encoded, v4, v6).expect("encoded records decode");
+            assert_eq!(again, r, "round trip");
+            assert_eq!(again.encode(), encoded, "stable encoding");
+            true
         }
-        refused == 0
-    });
+        Err(e) => {
+            let msg = e.to_string();
+            assert!(printable(&msg), "error text is printable: {msg:?}");
+            assert!(msg.len() <= 300, "bounded error message: {msg}");
+            false
+        }
+    }
+}
+
+/// Property check for `fuzz_record_operations` (also called by the cargo-fuzz target).
+pub fn check_record_operations(data: &[u8]) -> bool {
+    let (v4, v6) = ranges();
+    let mut seed = [0u8; 8];
+    for (i, b) in data.iter().take(8).enumerate() {
+        seed[i] = *b;
+    }
+    let mut rng = Rng::new(u64::from_le_bytes(seed));
+    let mut records = Records::default();
+    let mut refused = 0;
+    for _ in 0..rng.below(40) {
+        let name = if rng.chance(70) {
+            format!("d{}", rng.below(8))
+        } else {
+            let any: String = (0..rng.below(40))
+                .map(|_| {
+                    char::from_u32(u32::try_from(rng.next_u64() % 0x250).unwrap_or(0))
+                        .unwrap_or('?')
+                })
+                .collect();
+            any
+        };
+        let before = records.clone();
+        let now = rng.interesting_number();
+        let result = match rng.below(3) {
+            0 => records
+                .add(
+                    &name,
+                    *rng.pick(&[Scope::Home, Scope::Exit, Scope::Both]),
+                    now,
+                    v4,
+                    v6,
+                )
+                .map(|_| ()),
+            1 => records.revoke(&name, now),
+            _ => records.remove(&name),
+        };
+        if let Err(e) = result {
+            refused += 1;
+            assert_eq!(records, before, "a refused operation changes nothing");
+            assert!(printable(&e), "error text is printable: {e:?}");
+        }
+        let again = Records::decode(&records.encode(), v4, v6).expect("always decodable");
+        assert_eq!(again, records, "round trip after every operation");
+    }
+    refused == 0
 }

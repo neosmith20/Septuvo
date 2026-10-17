@@ -22,6 +22,7 @@
 | `crates/septuvo-daemon` | PolyForm Noncommercial 1.0.0 | Septuvo VPN | Privileged service `septuvod` (N2-02) |
 | `crates/septuvo-server` | PolyForm Noncommercial 1.0.0 | Septuvo Server | Server administration: device records (N2-04) |
 | `packaging/linux/` (not a crate) | PolyForm Noncommercial 1.0.0 | Septuvo VPN | Linux installer, systemd units and templates (N3-01); carries its own `LICENSE.md` and `NOTICE` |
+| `fuzz/` (separate workspace, not in `licensing.toml`) | PolyForm Noncommercial 1.0.0 | Development only, never shipped | cargo-fuzz targets (H-018, D-035); carries its own `LICENSE.md` and `NOTICE`, which also list the third-party test tooling it uses (`libfuzzer-sys`, MIT OR Apache-2.0, with LLVM libFuzzer, NCSA) |
 
 New Septuvo VPN or Septuvo Server application code goes into **new crates** classified as PolyForm Noncommercial in [`licensing.toml`](licensing.toml). Whether the two existing crates should instead move to PolyForm for future changes is owner question **L6** (section 8).
 
