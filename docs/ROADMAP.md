@@ -41,6 +41,16 @@ Work order: [work-orders/N2.md](work-orders/N2.md).
 
 **Acceptance:** tested Rust code in CI and the namespace lab; placeholders only where the protocol will connect; nothing implements SVP, encryption, key handling, invitations or a data tunnel.
 
+## N3 — installable lab service, captive portals, fuzzing, live status (parallel track, after G0, before G1)
+
+Work order: [work-orders/N3.md](work-orders/N3.md).
+- **N3-01:** installer and hardened systemd service setup (still lab-only), with a complete uninstall.
+- **N3-02:** captive-portal mode (Q1): user-started, at most 5 minutes, kernel-enforced expiry.
+- **N3-03:** fuzz testing of every parser (standard library only).
+- **N3-04:** live status view, `septuvo watch`.
+
+**Acceptance:** as N2, plus a verified install/uninstall cycle on a disposable runner and recorded fuzz runs.
+
 ## M0 — repository baseline and owner sign-off (FIRST)
 
 **Goal:** a coherent blueprint before any cryptographic/network implementation.
