@@ -61,7 +61,7 @@ jobs:
           {
             echo "### Fuzz short run (seed ${SEPTUVO_FUZZ_SEED})"
             echo '```'
-            grep -E '^\.?fuzz ' fuzz.log | sed 's/^\.//'
+            grep -oE 'fuzz fuzz_[a-z_]+: [0-9]+ cases .*' fuzz.log || echo "(no fuzz results found)"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
@@ -131,11 +131,11 @@ jobs:
           status=0
           cargo test --release --locked -p ${{ matrix.crate }} --test fuzz -- "$TARGET" --exact --nocapture 2>&1 | tee fuzz.log || status=$?
           report_failure "$status"
-          grep -q "^\.\?fuzz ${TARGET}: " fuzz.log || { echo "::error title=fuzz::${TARGET} did not run"; status=1; }
+          grep -qE "fuzz ${TARGET}: [0-9]+ cases .*all properties held" fuzz.log || { echo "::error title=fuzz::${TARGET} did not complete"; status=1; }
           {
             echo "### ${TARGET}: ${MINUTES} minutes, seed ${SEPTUVO_FUZZ_SEED}"
             echo '```'
-            grep -E '^\.?fuzz |FUZZ FAILURE|replay:' fuzz.log | sed 's/^\.//'
+            grep -oE 'fuzz fuzz_[a-z_]+: [0-9]+ cases .*|FUZZ FAILURE.*|replay:.*' fuzz.log || echo "(no fuzz results found)"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
