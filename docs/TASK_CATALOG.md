@@ -487,9 +487,45 @@ Work allowed by D-029, defined in [work-orders/N2.md](work-orders/N2.md). **Neve
 - **Acceptance evidence:** Unit tests for commands, allocation, interrupted writes, corruption, locking and hostile names.
 - **Stop point:** Submit the scoped evidence and PR for owner review. N2 is then complete; nothing beyond it starts without a new work order.
 
+## Track N3 — Installable lab service, captive portals, fuzzing, live status (parallel, after G0, before G1)
+
+Work allowed by D-029, defined in [work-orders/N3.md](work-orders/N3.md). Same boundary as N2: **never** an SVP handshake, packet encryption or wire encoding, key generation or management, usable invitations, functional protocol transport or any cryptography crate; the service stays lab-only. One owner authorization covers the track (D-031); after each merge the agent continues to the next card (D-034).
+
+### N3-01 — Installer and service setup (Linux, lab mode)
+
+- **Entry / prerequisites:** N2 accepted; approved N3 work order.
+- **Approved output locations:** `packaging/linux/`, `tests/lab/install/`, `.github/workflows/rust.yml`, `docs/build/install.md`, `LICENSING.md`.
+- **Exact work:** Hardened systemd units (lab namespace unit, service joining it), sysusers and tmpfiles files, configuration templates, idempotent `install.sh` with `DESTDIR`, complete `uninstall.sh` (disconnect, remove rules, units, files, group; keep configuration unless `--purge`).
+- **Acceptance evidence:** `systemd-analyze verify` passes; `DESTDIR` file list, modes and owners exact; real install on a disposable CI runner works end to end; uninstall leaves nothing; re-install changes nothing.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin N3-02 until this pull request is merged; then continue without a new authorization (D-034).
+
+### N3-02 — Captive-portal mode (Q1)
+
+- **Entry / prerequisites:** N3-01 complete within the approved N3 work order.
+- **Approved output locations:** `crates/septuvo-policy/`, `crates/septuvo-daemon/`, `crates/septuvo-ipc/`, `crates/septuvo-cli/`, `tests/lab/namespaces/`, `docs/build/daemon.md`.
+- **Exact work:** User-started, at most 5 minutes, TCP 80/443 and DNS to the network resolver only, warning shown, kernel-enforced expiry through an nftables timeout set, no adding up, ends on disconnect, never automatic.
+- **Acceptance evidence:** Renderer tests; namespace lab before/during/after cases, re-blocking after a killed service, non-member refused; status countdown.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin N3-03 until this pull request is merged; then continue without a new authorization (D-034).
+
+### N3-03 — Fuzz testing (standard library only)
+
+- **Entry / prerequisites:** N3-02 complete within the approved N3 work order.
+- **Approved output locations:** fuzz tests in the crates named in the work order, `.github/workflows/fuzz.yml`, `docs/build/fuzzing.md`.
+- **Exact work:** Seeded random, mutation and structure-aware fuzz targets for every parser; no-panic, bounded-output, round-trip and no-state-change properties; short runs per pull request, long scheduled runs, replayable seeds.
+- **Acceptance evidence:** Every parser covered; short run green; a recorded long run of at least 30 minutes per target; any bug fixed with a regression test.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin N3-04 until this pull request is merged; then continue without a new authorization (D-034).
+
+### N3-04 — Live status view
+
+- **Entry / prerequisites:** N3-03 complete within the approved N3 work order.
+- **Approved output locations:** `crates/septuvo-cli/`, `tests/lab/namespaces/`, `docs/build/daemon.md`.
+- **Exact work:** `septuvo watch`: refreshed four-stage status, service state, kill switch, DNS, resolver file and captive-portal countdown; read-only; plain fallback; lost service shown at once; never "connected" unless all four checks pass.
+- **Acceptance evidence:** Rendering tests for every state including service lost; namespace lab case following live changes.
+- **Stop point:** Submit the scoped evidence and PR for owner review. N3 is then complete; nothing beyond it starts without a new work order.
+
 ## Task catalog invariants
 
-1. Each of the **43 base tasks** has a unique ID and a prerequisite, bounded output, actions, acceptance evidence and a stop point. Conditional dotted subtasks and owner-directed H work are separately recorded/approved in [STATUS.md](STATUS.md) and do not change the 43-base-task count; nor do track N1 and N2 cards.
+1. Each of the **43 base tasks** has a unique ID and a prerequisite, bounded output, actions, acceptance evidence and a stop point. Conditional dotted subtasks and owner-directed H work are separately recorded/approved in [STATUS.md](STATUS.md) and do not change the 43-base-task count; nor do track N1, N2 and N3 cards.
 2. No agent can approve G0–G4, external review, a domain/trademark claim, production readiness or a public release on the owner's behalf.
 3. M2 spec proposals, the ML-KEM/ML-DSA/HKDF/AES-GCM candidate choices (D-010, D-011, D-012, D-024) and packet wire fields must not become a deployed handshake before G1, even if a code generator could implement them quickly.
 4. A Rust workspace, GUI, installer, mobile extension, control-plane cluster or gateway capability does **not** exist merely because this catalog names a target path.

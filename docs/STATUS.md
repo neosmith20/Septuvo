@@ -14,7 +14,7 @@ Rules that hold for every category:
 
 - No agent or bot merges a pull request, passes a gate or makes a category C decision. The owner merges every pull request.
 - A pull request **delivers** a task when the task ID is the scope of one of its commit subjects, for example `feat(N1-03): ...`. Mentions elsewhere, such as "next: N1-03", never count.
-- Milestones cannot advance past an unpassed gate: M1, M2, N1 and N2 need G0; M3–M5 need G1; M6–M8 need G2; M9 needs G3. No cryptographic or protocol implementation before G1.
+- Milestones cannot advance past an unpassed gate: M1, M2, N1, N2 and N3 need G0; M3–M5 need G1; M6–M8 need G2; M9 needs G3. No cryptographic or protocol implementation before G1.
 - **Ledger upkeep is automatic.** [`scripts/sync_status.py`](../scripts/sync_status.py) reads owner-merged pull requests and updates this file. Agents run it and include the result in a pull request, and CI reports any drift on every pull request. A ledger that lags behind GitHub never blocks already-authorized work: merged pull requests are the authority.
 - **CI verifies every record** ([`scripts/verify_ledger.py`](../scripts/verify_ledger.py)): the owner merged the linked pull request into `main` and it delivers the task; an authorization was written or merged by the owner; a gate has the exact owner comment. Records that cannot be verified fail the check, and so does any network error.
 - Earlier records based on exact comments (`APPROVED WORK ORDER`, `ACCEPTED`, D-025) stay valid. Rows H-001–H-004, M0-01 and M0-01.1 predate D-025 and are kept verbatim.
@@ -97,6 +97,15 @@ Dates are `YYYY-MM-DD` UTC: the authorization date for READY rows, the merge dat
 | N2-03 | ACCEPTED | N2-02 | 2026-10-17 | [Work order N2, merged in PR #55](https://github.com/neosmith20/Septuvo/pull/55) | [PR #58](https://github.com/neosmith20/Septuvo/pull/58) |
 | N2-04 | ACCEPTED | N2-03 | 2026-10-17 | [Work order N2, merged in PR #55](https://github.com/neosmith20/Septuvo/pull/55) | [PR #59](https://github.com/neosmith20/Septuvo/pull/59) |
 
+## Track N3 (non-crypto, after G0, before G1)
+
+| Task ID | State | Predecessor | Owner decision date (UTC) | Work-order approval | Completion evidence |
+| --- | --- | --- | --- | --- | --- |
+| N3-01 | NOT STARTED | N2-04 | — | — | — |
+| N3-02 | NOT STARTED | N3-01 | — | — | — |
+| N3-03 | NOT STARTED | N3-02 | — | — | — |
+| N3-04 | NOT STARTED | N3-03 | — | — | — |
+
 ## Dotted subtasks (owner authorized separately)
 
 M0-01.1 is a conditional correction task: if M0-01 finds defects, the owner authorizes and accepts M0-01.1 before M0-02. If none, the owner explicitly records the skip in M0-01 acceptance evidence. For M7-01, M8-02, M9-02 and similar cases, every `M7-01.1` style subtask needs its own owner authorization (category B) and must be accepted before its parent can become ACCEPTED.
@@ -126,6 +135,7 @@ Use separate `H-001`, `H-002` etc. IDs for routine work outside the 43 base task
 | H-013 | ACCEPTED | 2026-10-15 | Routine (D-031) | [PR #46](https://github.com/neosmith20/Septuvo/pull/46) |
 | H-014 | ACCEPTED | 2026-10-15 | Routine (D-031) | [PR #50](https://github.com/neosmith20/Septuvo/pull/50) |
 | H-015 | ACCEPTED | 2026-10-16 | Routine (D-031) | [PR #55](https://github.com/neosmith20/Septuvo/pull/55) |
+| H-016 | ACCEPTED | 2026-10-17 | Routine (D-031) | [PR #60](https://github.com/neosmith20/Septuvo/pull/60) |
 
 ## Allowed task states
 

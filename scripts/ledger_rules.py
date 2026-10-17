@@ -40,7 +40,7 @@ DECIDED = {"ACCEPTED", "REJECTED / REWORK"}
 # Gate that must be PASSED before a milestone's tasks may be authorized or worked on
 # (ROADMAP.md: STOP until G0 / G1 / G2 / G3).
 REQUIRED_GATE = {
-    "M1": "G0", "M2": "G0", "N1": "G0", "N2": "G0",
+    "M1": "G0", "M2": "G0", "N1": "G0", "N2": "G0", "N3": "G0",
     "M3": "G1", "M4": "G1", "M5": "G1",
     "M6": "G2", "M7": "G2", "M8": "G2",
     "M9": "G3",
