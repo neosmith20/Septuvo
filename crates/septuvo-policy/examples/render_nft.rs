@@ -6,7 +6,7 @@
 //!
 //! It only prints text; applying it is the lab harness's job.
 
-use septuvo_policy::nft::{KillSwitch, removal_script, render};
+use septuvo_policy::nft::{DnsRules, KillSwitch, removal_script, render};
 use septuvo_policy::parse::MAX_INPUT_BYTES;
 use septuvo_policy::parse_policy;
 use std::io::Read;
@@ -38,6 +38,7 @@ fn run(args: &[String]) -> Result<String, String> {
     let ks = KillSwitch {
         tunnel_interface: interface.clone(),
         endpoints,
+        dns: DnsRules::TunnelOnly,
     };
     render(&policy, &ks).map_err(|e| e.to_string())
 }

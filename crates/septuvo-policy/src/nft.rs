@@ -11,8 +11,13 @@
 //! - only the underlay exceptions NP-U1 to NP-U4 come before the policy rules:
 //!   loopback, DHCP, IPv6 neighbour discovery (hop limit 255 only, so it cannot
 //!   be routed) and UDP to the configured server endpoints;
-//! - full-tunnel mode drops DNS (UDP/TCP 53, TCP 853) that does not use the
-//!   tunnel (NP-D1);
+//! - DNS (NP-D1): with [`DnsRules::TunnelOnly`] (the N1 behaviour) full-tunnel
+//!   mode drops DNS that does not use the tunnel; with
+//!   [`DnsRules::Resolvers`] (N2-03) DNS is allowed **only** to the configured
+//!   resolvers through the tunnel, plus explicitly listed LAN resolvers, and
+//!   all other DNS (UDP/TCP 53, DNS over TLS on TCP 853, DNS over QUIC on
+//!   UDP 853) is dropped in either mode. DNS over HTTPS uses port 443 like
+//!   any web traffic and cannot be told apart by port: see `docs/build/lab.md`;
 //! - policy rules follow in most-specific-first order, and every rule is
 //!   terminal, so a less specific rule can never re-allow a tunnel prefix.
 //!
@@ -28,6 +33,27 @@ use std::net::IpAddr;
 pub const TABLE: &str = "inet septuvo";
 /// Maximum number of server endpoints in one ruleset.
 pub const MAX_ENDPOINTS: usize = 16;
+/// Maximum number of resolver plus LAN DNS exception addresses in one ruleset.
+pub const MAX_DNS_ADDRESSES: usize = 16;
+
+/// How the kill switch treats DNS.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum DnsRules {
+    /// N1 behaviour: in full-tunnel mode, DNS that does not leave through the
+    /// tunnel interface is dropped; split mode adds no DNS rules.
+    #[default]
+    TunnelOnly,
+    /// DNS only to `resolvers`, only through the tunnel; DNS directly to the
+    /// `lan_exceptions`; every other DNS packet dropped, in both modes (N2-03).
+    Resolvers {
+        /// Resolvers reached through the tunnel.
+        resolvers: Vec<IpAddr>,
+        /// Local resolvers allowed to receive DNS directly.
+        lan_exceptions: Vec<IpAddr>,
+    },
+    /// The operating system's DNS, unrestricted. Split mode only.
+    System,
+}
 
 /// Settings the kill switch needs besides the policy.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,6 +63,8 @@ pub struct KillSwitch {
     /// Septuvo Server endpoints (address and UDP port) the device may reach
     /// outside the tunnel (NP-U3).
     pub endpoints: Vec<(IpAddr, u16)>,
+    /// DNS handling.
+    pub dns: DnsRules,
 }
 
 /// Why a ruleset could not be rendered.
@@ -49,6 +77,11 @@ pub enum RenderError {
     BadEndpointPort,
     /// More than [`MAX_ENDPOINTS`] endpoints.
     TooManyEndpoints,
+    /// More than [`MAX_DNS_ADDRESSES`] resolver and LAN DNS addresses, or no
+    /// resolver at all.
+    BadDnsAddresses,
+    /// [`DnsRules::System`] with a full-tunnel policy would leak DNS.
+    SystemDnsInFullTunnel,
 }
 
 impl fmt::Display for RenderError {
@@ -60,6 +93,13 @@ impl fmt::Display for RenderError {
             RenderError::BadEndpointPort => f.write_str("endpoint port must be 1-65535"),
             RenderError::TooManyEndpoints => {
                 write!(f, "at most {MAX_ENDPOINTS} server endpoints")
+            }
+            RenderError::BadDnsAddresses => write!(
+                f,
+                "between 1 and {MAX_DNS_ADDRESSES} DNS resolver and exception addresses are required"
+            ),
+            RenderError::SystemDnsInFullTunnel => {
+                f.write_str("system DNS would send queries outside the tunnel in full-tunnel mode")
             }
         }
     }
@@ -101,6 +141,18 @@ pub fn render(policy: &Policy, ks: &KillSwitch) -> Result<String, RenderError> {
     if ks.endpoints.iter().any(|&(_, port)| port == 0) {
         return Err(RenderError::BadEndpointPort);
     }
+    match &ks.dns {
+        DnsRules::Resolvers {
+            resolvers,
+            lan_exceptions,
+        } if resolvers.is_empty() || resolvers.len() + lan_exceptions.len() > MAX_DNS_ADDRESSES => {
+            return Err(RenderError::BadDnsAddresses);
+        }
+        DnsRules::System if policy.mode() == Mode::FullTunnel => {
+            return Err(RenderError::SystemDnsInFullTunnel);
+        }
+        _ => {}
+    }
     let tun = &ks.tunnel_interface;
     let mut s = String::new();
     // `add` then `delete` makes replacement work whether or not the table
@@ -132,17 +184,13 @@ pub fn render(policy: &Policy, ks: &KillSwitch) -> Result<String, RenderError> {
     );
     let _ = writeln!(s, "\t\t# NP-U3 Septuvo Server endpoints");
     for &(addr, port) in &ks.endpoints {
-        let family = match addr {
-            IpAddr::V4(_) => Family::V4,
-            IpAddr::V6(_) => Family::V6,
-        };
-        let _ = writeln!(s, "\t\t{} {addr} udp dport {port} accept", daddr(family));
+        let _ = writeln!(
+            s,
+            "\t\t{} {addr} udp dport {port} accept",
+            daddr(family_of(addr))
+        );
     }
-    if policy.mode() == Mode::FullTunnel {
-        let _ = writeln!(s, "\t\t# NP-D1 DNS only through the tunnel");
-        let _ = writeln!(s, "\t\toifname != \"{tun}\" udp dport 53 drop");
-        let _ = writeln!(s, "\t\toifname != \"{tun}\" tcp dport {{ 53, 853 }} drop");
-    }
+    render_dns(&mut s, policy, tun, &ks.dns);
     let _ = writeln!(s, "\t\t# Policy rules, most specific first; each is final");
     for rule in policy.rules() {
         let m = format!("{} {}", daddr(rule.prefix.family()), rule.prefix);
@@ -180,6 +228,64 @@ pub fn render(policy: &Policy, ks: &KillSwitch) -> Result<String, RenderError> {
     Ok(s)
 }
 
+fn family_of(addr: IpAddr) -> Family {
+    match addr {
+        IpAddr::V4(_) => Family::V4,
+        IpAddr::V6(_) => Family::V6,
+    }
+}
+
+/// DNS rules: after the underlay exceptions, before the policy rules, so no
+/// policy rule (not even `direct`) can let DNS out another way.
+fn render_dns(s: &mut String, policy: &Policy, tun: &str, dns: &DnsRules) {
+    match dns {
+        DnsRules::TunnelOnly => {
+            if policy.mode() == Mode::FullTunnel {
+                let _ = writeln!(s, "\t\t# NP-D1 DNS only through the tunnel");
+                let _ = writeln!(s, "\t\toifname != \"{tun}\" udp dport 53 drop");
+                let _ = writeln!(s, "\t\toifname != \"{tun}\" tcp dport {{ 53, 853 }} drop");
+            }
+        }
+        DnsRules::Resolvers {
+            resolvers,
+            lan_exceptions,
+        } => {
+            let _ = writeln!(
+                s,
+                "\t\t# NP-D1 DNS only to the configured resolvers, through the tunnel"
+            );
+            for &r in resolvers {
+                let d = daddr(family_of(r));
+                let _ = writeln!(
+                    s,
+                    "\t\t{d} {r} oifname \"{tun}\" udp dport {{ 53, 853 }} accept"
+                );
+                let _ = writeln!(
+                    s,
+                    "\t\t{d} {r} oifname \"{tun}\" tcp dport {{ 53, 853 }} accept"
+                );
+            }
+            if !lan_exceptions.is_empty() {
+                let _ = writeln!(s, "\t\t# Explicit LAN DNS exceptions (direct)");
+            }
+            for &l in lan_exceptions {
+                let d = daddr(family_of(l));
+                let _ = writeln!(s, "\t\t{d} {l} oifname != \"{tun}\" udp dport 53 accept");
+                let _ = writeln!(s, "\t\t{d} {l} oifname != \"{tun}\" tcp dport 53 accept");
+            }
+            let _ = writeln!(
+                s,
+                "\t\t# All other DNS, DNS over TLS and DNS over QUIC is dropped"
+            );
+            let _ = writeln!(s, "\t\tudp dport {{ 53, 853 }} drop");
+            let _ = writeln!(s, "\t\ttcp dport {{ 53, 853 }} drop");
+        }
+        DnsRules::System => {
+            let _ = writeln!(s, "\t\t# DNS: system resolver (split mode, not protected)");
+        }
+    }
+}
+
 /// Script that removes every Septuvo rule (explicit disconnect, uninstall).
 #[must_use]
 pub fn removal_script() -> String {
@@ -195,7 +301,84 @@ mod tests {
         KillSwitch {
             tunnel_interface: "septuvo0".into(),
             endpoints: vec![("203.0.113.7".parse().unwrap(), 51820)],
+            dns: DnsRules::TunnelOnly,
         }
+    }
+
+    fn with_resolvers(resolvers: &[&str], lan: &[&str]) -> KillSwitch {
+        KillSwitch {
+            dns: DnsRules::Resolvers {
+                resolvers: resolvers.iter().map(|a| a.parse().unwrap()).collect(),
+                lan_exceptions: lan.iter().map(|a| a.parse().unwrap()).collect(),
+            },
+            ..ks()
+        }
+    }
+
+    #[test]
+    fn resolver_dns_allows_only_configured_resolvers_through_the_tunnel() {
+        let p = parse_policy("mode full-tunnel\ndirect 192.168.1.53/32\n").unwrap();
+        let s = render(
+            &p,
+            &with_resolvers(&["10.77.0.1", "fd77::1"], &["192.168.1.53"]),
+        )
+        .unwrap();
+        assert!(s.contains("ip daddr 10.77.0.1 oifname \"septuvo0\" udp dport { 53, 853 } accept"));
+        assert!(s.contains("ip6 daddr fd77::1 oifname \"septuvo0\" tcp dport { 53, 853 } accept"));
+        assert!(s.contains("ip daddr 192.168.1.53 oifname != \"septuvo0\" udp dport 53 accept"));
+        // Every other DNS packet is dropped, and before any policy rule, so
+        // the direct rule for 192.168.1.53 cannot carry DNS except as listed.
+        let drop_udp = position(&s, "udp dport { 53, 853 } drop");
+        let drop_tcp = position(&s, "tcp dport { 53, 853 } drop");
+        let first_policy = position(&s, "ip daddr 192.168.1.53/32 accept");
+        assert!(drop_udp < first_policy && drop_tcp < first_policy);
+        assert!(
+            position(
+                &s,
+                "ip daddr 10.77.0.1 oifname \"septuvo0\" udp dport { 53, 853 } accept"
+            ) < drop_udp
+        );
+        assert!(
+            !s.contains("oifname != \"septuvo0\" udp dport 53 drop"),
+            "N1 rule replaced"
+        );
+    }
+
+    #[test]
+    fn resolver_dns_also_locks_down_split_mode() {
+        let p = parse_policy("mode split\ntunnel 192.168.50.0/24\n").unwrap();
+        let s = render(&p, &with_resolvers(&["192.168.50.1"], &[])).unwrap();
+        assert!(
+            s.contains("ip daddr 192.168.50.1 oifname \"septuvo0\" udp dport { 53, 853 } accept")
+        );
+        assert!(s.contains("\t\tudp dport { 53, 853 } drop"));
+        assert!(!s.contains("LAN DNS exceptions"));
+    }
+
+    #[test]
+    fn dns_rule_limits_and_leaks_are_refused() {
+        let full = parse_policy("mode full-tunnel\n").unwrap();
+        let split = parse_policy("mode split\ntunnel 10.0.0.0/8\n").unwrap();
+        assert_eq!(
+            render(&full, &with_resolvers(&[], &[])),
+            Err(RenderError::BadDnsAddresses)
+        );
+        let many: Vec<String> = (1..=17).map(|i| format!("10.77.0.{i}")).collect();
+        let many: Vec<&str> = many.iter().map(String::as_str).collect();
+        assert_eq!(
+            render(&full, &with_resolvers(&many, &[])),
+            Err(RenderError::BadDnsAddresses)
+        );
+        let system = KillSwitch {
+            dns: DnsRules::System,
+            ..ks()
+        };
+        assert_eq!(
+            render(&full, &system),
+            Err(RenderError::SystemDnsInFullTunnel)
+        );
+        let s = render(&split, &system).unwrap();
+        assert!(!s.contains("dport 53"), "system DNS adds no DNS rules");
     }
 
     fn lines(script: &str) -> Vec<&str> {

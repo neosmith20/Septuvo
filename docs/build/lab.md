@@ -60,6 +60,42 @@ CI runs the same thing on every pull request (job **lab (kill switch in network 
 
 `tests/lab/namespaces/daemon.sh` tests the privileged service `septuvod` and the `septuvo` command in their own namespaces. See [daemon.md](daemon.md#lab-test).
 
+## The DNS lab (N2-03)
+
+`tests/lab/namespaces/dns.sh` runs `septuvod` with tunnel DNS in three throw-away namespaces:
+- the device;
+- its local network, with an approved LAN DNS server, another LAN DNS server and an "internet" DNS server;
+- a stand-in tunnel end, with the tunnel resolver and a second DNS server that is *not* a configured resolver.
+
+It checks cases DN00–DN25 for IPv4 and IPv6:
+
+| What | Result required |
+| --- | --- |
+| DNS to the tunnel resolver over UDP 53, TCP 53 and DNS over TLS (TCP 853) | Goes through the tunnel |
+| DNS to an internet resolver outside the tunnel (UDP, TCP, DNS over TLS) | Blocked |
+| DNS to a server **through** the tunnel that is not a configured resolver | Blocked: resolvers only |
+| DNS to the configured LAN exception | Allowed directly |
+| DNS to any other LAN DNS server | Blocked |
+| Non-DNS traffic to the LAN exception host | Still allowed by its `direct` rule |
+| The resolver file | Points at the tunnel resolvers; the original is backed up; programs in the namespace see it; nothing else leaks into their view of `/etc` |
+| A deliberate disconnect | Restores the original file exactly; DNS works normally again |
+| A crash | The resolver file and the blocking stay (fail closed). After a restart, disconnect still restores the true original |
+
+```sh
+cargo build -p septuvo-daemon -p septuvo-cli --bins
+sudo tests/lab/namespaces/dns.sh [--require-ipv6] target/debug/septuvod target/debug/septuvo
+```
+
+**Recorded 2026-10-17** in this workspace (Linux x86_64, Rust 1.97, no IPv6): **22 passed, 0 failed, 5 IPv6 cases skipped.** CI runs it with `--require-ipv6`.
+
+### DNS over HTTPS cannot be blocked by port (stated, not hidden)
+
+- **What is blocked:** UDP and TCP port 53, DNS over TLS (TCP 853) and DNS over QUIC (UDP 853) to anything but the configured resolvers.
+- **What is not:** DNS over HTTPS (DoH, RFC 8484) is ordinary HTTPS on port 443. A firewall cannot tell it apart from web traffic.
+- **Full-tunnel mode is still protected:** the kill switch sends all port-443 traffic through the tunnel, so a browser's DoH queries never leave the device unprotected. They go to whichever DoH provider the browser chose, through the tunnel.
+- **Split mode is not:** traffic outside the listed networks is not protected by Septuvo at all, DoH included. The configuration page says so.
+- **What users can do:** to use only the tunnel resolver, switch off the browser's own "secure DNS" setting. Septuvo does not claim to stop DoH.
+
 ## Known limits
 
 - **Locally generated traffic only** (output hook). Forwarding or router setups are not covered.
