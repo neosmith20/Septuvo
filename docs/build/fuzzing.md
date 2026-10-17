@@ -134,4 +134,8 @@ The standard-library runner stays as the per-pull-request check.
 | `fuzz_status_socket_changes_nothing` | 40,470,762 | 8,503,985 |
 | `fuzz_toml_subset` | 8,275,762 | 1,252,269 |
 
-**CI long run (30 minutes per target):** recorded in the N3-03 pull request once it finishes.
+**CI long run, 2026-10-17** (workflow run 39020159652, commit `cbf97eb`, pinned Rust toolchain, base seed = the run ID): **all 16 targets ran for 30.0 minutes each, and every property held.**
+- Each job fails unless its target reports "all properties held".
+- The per-target case counts are in that run's job summaries.
+
+**The earlier CI runs in the same pull request found the device-schema bug above.**
