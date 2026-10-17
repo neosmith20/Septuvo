@@ -1,0 +1,149 @@
+//! Talking to the local Septuvo service `septuvod` (N2-02).
+//!
+//! The CLI never changes the network itself: it asks the privileged
+//! service, which decides. Status is read from the service's answer and
+//! shown with the four-stage model (D-020); anything the service does not
+//! report as passed is shown as not passed.
+
+use crate::status::{Check, ConnectionStatus};
+use septuvo_ipc::{self as ipc, ClientError, Command, Outcome, Response};
+use std::fmt::Write as _;
+use std::path::Path;
+
+fn check(value: Option<&str>) -> Check {
+    match value {
+        Some("pass") => Check::Pass,
+        Some("fail") => Check::Fail,
+        _ => Check::Unknown,
+    }
+}
+
+/// The four stages as reported by the service.
+#[must_use]
+pub fn status_from(response: &Response) -> ConnectionStatus {
+    ConnectionStatus {
+        adapter: check(response.field("adapter")),
+        peer: check(response.field("peer")),
+        reachability: check(response.field("reachability")),
+        dns: check(response.field("dns")),
+    }
+}
+
+/// Extra lines shown under the four stages: service state, kill switch and
+/// the service's own notes.
+#[must_use]
+pub fn details(response: &Response) -> String {
+    let mut s = String::new();
+    for (key, label) in [
+        ("message", "Service"),
+        ("state", "Service state"),
+        ("kill_switch", "Kill switch"),
+        ("interface", "Tunnel interface"),
+        ("note", "Note"),
+    ] {
+        if let Some(value) = response.field(key) {
+            let _ = writeln!(s, "{label}: {value}");
+        }
+    }
+    s
+}
+
+/// The result of asking the service, ready to print.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Reply {
+    /// True if the service did what was asked.
+    pub ok: bool,
+    /// The four stages (unknown if the service could not be asked).
+    pub status: ConnectionStatus,
+    /// Text to print after the stage report.
+    pub text: String,
+}
+
+/// Sends `command` to the service under `runtime_dir`: status over the
+/// status socket, changes over the control socket.
+#[must_use]
+pub fn ask(runtime_dir: &Path, command: Command) -> Reply {
+    let socket = if command.needs_control() {
+        ipc::control_socket(runtime_dir)
+    } else {
+        ipc::status_socket(runtime_dir)
+    };
+    match ipc::request(&socket, command) {
+        Ok(response) => {
+            let status = status_from(&response);
+            let mut text = details(&response);
+            let ok = match &response.outcome {
+                Outcome::Ok => true,
+                Outcome::Err { code, message } => {
+                    let _ = writeln!(text, "Error ({code}): {message}");
+                    false
+                }
+            };
+            Reply { ok, status, text }
+        }
+        Err(e) => {
+            let text = match e {
+                ClientError::NotRunning => format!(
+                    "No Septuvo service is running (looked in {}): nothing could be checked.\n",
+                    runtime_dir.display()
+                ),
+                other => format!("{other}\n"),
+            };
+            Reply {
+                ok: false,
+                status: ConnectionStatus::UNKNOWN,
+                text,
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn maps_service_fields_to_stages() {
+        let r = Response::ok()
+            .with("adapter", "pass")
+            .with("peer", "fail")
+            .with("reachability", "unknown")
+            .with("dns", "PASS");
+        let s = status_from(&r);
+        assert_eq!(
+            (s.adapter, s.peer, s.reachability, s.dns),
+            (Check::Pass, Check::Fail, Check::Unknown, Check::Unknown),
+            "only the exact word 'pass' counts as passed"
+        );
+        assert!(!s.is_connected());
+    }
+
+    #[test]
+    fn missing_fields_are_unknown_never_pass() {
+        let s = status_from(&Response::ok());
+        assert_eq!(s, ConnectionStatus::UNKNOWN);
+    }
+
+    #[test]
+    fn details_show_state_and_notes() {
+        let r = Response::ok()
+            .with("state", "blocking")
+            .with("kill_switch", "on")
+            .with(
+                "note",
+                "peer authentication is not available before the G1 security review",
+            );
+        let d = details(&r);
+        assert!(d.contains("Service state: blocking"));
+        assert!(d.contains("Kill switch: on"));
+        assert!(d.contains("G1"));
+    }
+
+    #[test]
+    fn missing_service_reports_not_running() {
+        let reply = ask(Path::new("/nonexistent-septuvo-runtime"), Command::Status);
+        assert!(!reply.ok);
+        assert_eq!(reply.status, ConnectionStatus::UNKNOWN);
+        assert!(reply.text.contains("No Septuvo service is running"));
+    }
+}

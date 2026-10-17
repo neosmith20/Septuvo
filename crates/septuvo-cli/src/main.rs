@@ -1,12 +1,15 @@
-//! `septuvo` command-line tool (N1-01, N1-04).
+//! `septuvo` command-line tool (N1-01, N1-04, N2-02).
 //!
-//! Development preview only: it has no VPN, network or cryptographic
-//! functionality. `status` shows the four-stage status model (D-020) and
-//! `policy check` validates and explains a policy file.
+//! Development preview only: it has no VPN, tunnel or cryptographic
+//! functionality. `status` asks the local service `septuvod` and shows the
+//! four-stage status model (D-020); `connect` and `disconnect` ask the
+//! service to turn the kill switch on or off; `policy check` validates and
+//! explains a policy file. The tool itself never changes the system.
 
-use septuvo_cli::policy_cmd;
-use septuvo_cli::status::ConnectionStatus;
+use septuvo_cli::{policy_cmd, service};
+use septuvo_ipc::Command;
 use std::io::{self, Write};
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 const USAGE: &str = "\
@@ -18,13 +21,20 @@ or protect anything yet.
 Usage:
   septuvo help                         Show this help
   septuvo version                      Show the version
-  septuvo status                       Show the four connection checks
+  septuvo status [--runtime-dir DIR]   Ask the Septuvo service for the four
+                                       connection checks
+  septuvo connect [--runtime-dir DIR]  Ask the service to turn the kill
+                                       switch on (lab preview, no tunnel)
+  septuvo disconnect [--runtime-dir DIR]
+                                       Ask the service to turn it off
   septuvo policy check FILE [--dst ADDRESS] [--path up|down]
                                        Validate a policy file and explain
                                        what happens to traffic
 
-Exit codes: 0 success, 1 invalid policy or unreadable file, 2 usage
-error, 3 status shows the VPN is not working.
+connect and disconnect need membership of the service's control group.
+
+Exit codes: 0 success, 1 invalid policy, unreadable file or service
+error, 2 usage error, 3 status shows the VPN is not working.
 ";
 
 /// Exit code for a successful command.
@@ -35,10 +45,6 @@ const EXIT_INVALID: u8 = 1;
 const EXIT_USAGE: u8 = 2;
 /// Exit code when `status` shows the VPN is not fully working.
 const EXIT_NOT_CONNECTED: u8 = 3;
-
-/// Shown by `status` until a Septuvo service exists to ask.
-const NO_SERVICE: &str =
-    "No Septuvo service is running (development preview): nothing could be checked.";
 
 /// Runs the command line `args` (without the program name), writing normal
 /// output to `out` and errors to `err`. Returns the process exit code.
@@ -56,14 +62,33 @@ fn run(args: &[String], out: &mut impl Write, err: &mut impl Write) -> io::Resul
             writeln!(out, "septuvo {}", env!("CARGO_PKG_VERSION"))?;
             Ok(EXIT_OK)
         }
-        [cmd] if cmd == "status" => {
-            // There is no Septuvo service yet, so every stage is unknown.
-            let status = ConnectionStatus::UNKNOWN;
-            out.write_all(status.report(Some(NO_SERVICE)).as_bytes())?;
-            Ok(if status.is_connected() {
+        [cmd, rest @ ..] if cmd == "status" || cmd == "connect" || cmd == "disconnect" => {
+            let Some(runtime_dir) = runtime_dir(rest) else {
+                writeln!(
+                    err,
+                    "septuvo: expected nothing or '--runtime-dir DIR' after '{cmd}'"
+                )?;
+                writeln!(err, "Run 'septuvo help' for usage.")?;
+                return Ok(EXIT_USAGE);
+            };
+            let command = match cmd.as_str() {
+                "status" => Command::Status,
+                "connect" => Command::Connect,
+                _ => Command::Disconnect,
+            };
+            let reply = service::ask(&runtime_dir, command);
+            out.write_all(reply.status.report(None).as_bytes())?;
+            out.write_all(reply.text.as_bytes())?;
+            Ok(if command == Command::Status {
+                if reply.status.is_connected() {
+                    EXIT_OK
+                } else {
+                    EXIT_NOT_CONNECTED
+                }
+            } else if reply.ok {
                 EXIT_OK
             } else {
-                EXIT_NOT_CONNECTED
+                EXIT_INVALID
             })
         }
         [cmd, sub, file, rest @ ..] if cmd == "policy" && sub == "check" => {
@@ -94,6 +119,17 @@ fn run(args: &[String], out: &mut impl Write, err: &mut impl Write) -> io::Resul
             writeln!(err, "Run 'septuvo help' for usage.")?;
             Ok(EXIT_USAGE)
         }
+    }
+}
+
+/// `[]` or `["--runtime-dir", DIR]`; anything else is a usage error.
+fn runtime_dir(rest: &[String]) -> Option<PathBuf> {
+    match rest {
+        [] => Some(PathBuf::from(septuvo_ipc::DEFAULT_RUNTIME_DIR)),
+        [flag, dir] if flag == "--runtime-dir" && Path::new(dir).is_absolute() => {
+            Some(PathBuf::from(dir))
+        }
+        _ => None,
     }
 }
 
@@ -160,7 +196,7 @@ mod tests {
 
     #[test]
     fn unknown_command_is_a_usage_error() {
-        let (code, out, err) = call(&["connect"]);
+        let (code, out, err) = call(&["reboot"]);
         assert_eq!(code, EXIT_USAGE);
         assert_eq!(out, "");
         assert!(err.contains("unknown command"));
@@ -170,6 +206,51 @@ mod tests {
     fn extra_arguments_are_rejected() {
         let (code, _, _) = call(&["version", "extra"]);
         assert_eq!(code, EXIT_USAGE);
+        for args in [
+            &["status", "extra"][..],
+            &["connect", "--runtime-dir"],
+            &["disconnect", "--runtime-dir", "relative/dir"],
+        ] {
+            assert_eq!(call(args).0, EXIT_USAGE, "{args:?}");
+        }
+    }
+
+    #[test]
+    fn connect_without_a_service_fails_cleanly() {
+        let (code, out, _) = call(&["connect", "--runtime-dir", "/nonexistent-septuvo-cli"]);
+        assert_eq!(code, EXIT_INVALID);
+        assert!(out.contains("No Septuvo service is running"));
+        assert!(out.contains("Status: Not connected"));
+    }
+
+    /// A stand-in service on a temporary socket: the CLI must show exactly
+    /// what it reports, and never "connected" while peer authentication fails.
+    #[test]
+    fn status_shows_what_the_service_reports() {
+        use std::os::unix::net::UnixListener;
+        let dir = std::env::temp_dir().join(format!("septuvo-cli-svc-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let listener = UnixListener::bind(septuvo_ipc::status_socket(&dir)).unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let req = septuvo_ipc::read_message(&mut stream, 64, b"\n").unwrap();
+            assert_eq!(req, b"SEPTUVO/1 STATUS\n");
+            let reply = septuvo_ipc::Response::ok()
+                .with("adapter", "pass")
+                .with("peer", "fail")
+                .with("state", "blocking")
+                .with("kill_switch", "on");
+            stream.write_all(reply.encode().as_bytes()).unwrap();
+        });
+        let (code, out, _) = call(&["status", "--runtime-dir", dir.to_str().unwrap()]);
+        server.join().unwrap();
+        assert_eq!(code, EXIT_NOT_CONNECTED);
+        assert!(out.contains("Tunnel adapter             ok"));
+        assert!(out.contains("Server identity verified   failed"));
+        assert!(out.contains("Kill switch: on"));
+        assert!(out.contains("Status: Not connected"));
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     fn temp_policy(name: &str, text: &str) -> String {
@@ -187,6 +268,9 @@ mod tests {
         assert_eq!(code, EXIT_NOT_CONNECTED);
         assert!(out.contains("Status: Not connected"));
         assert!(out.contains("No Septuvo service is running"));
+        let (code, out, _) = call(&["status", "--runtime-dir", "/nonexistent-septuvo-cli"]);
+        assert_eq!(code, EXIT_NOT_CONNECTED);
+        assert!(out.contains("/nonexistent-septuvo-cli"));
         for label in [
             "Tunnel adapter",
             "Server identity verified",

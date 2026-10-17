@@ -1,6 +1,6 @@
 name: Rust
 
-# Track N1 (non-crypto foundation): format, lint and test the Rust workspace.
+# Tracks N1 and N2 (non-crypto foundation): format, lint and test the Rust workspace.
 on:
   pull_request:
   push:
@@ -28,7 +28,7 @@ jobs:
           rustc --version
           cargo --version
 
-      - name: No third-party crates (N1 work order)
+      - name: No third-party crates (N1 and N2 work orders)
         run: |
           if grep -q '^source = ' Cargo.lock; then
             echo "Cargo.lock contains a third-party crate; N1 allows the standard library only." >&2
@@ -88,3 +88,11 @@ jobs:
 
       - name: Run the namespace lab (IPv6 required)
         run: sudo tests/lab/namespaces/run.sh --require-ipv6 target/debug/examples/render_nft
+
+      # N2-02: the privileged service and the unprivileged CLI, with two
+      # throw-away users, in throw-away namespaces on this runner only.
+      - name: Build the service and the CLI
+        run: cargo build -p septuvo-daemon -p septuvo-cli --bins --locked
+
+      - name: Run the service lab
+        run: sudo tests/lab/namespaces/daemon.sh target/debug/septuvod target/debug/septuvo

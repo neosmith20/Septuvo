@@ -2,7 +2,12 @@
 //! model shared by the CLI now and by the service and apps later, and the
 //! `policy check` command.
 //!
-//! Development preview: no networking, no cryptography, no system changes.
+//! [`service`] talks to the local Septuvo service (`septuvod`) over its
+//! Unix sockets (N2-02).
+//!
+//! Development preview: no VPN networking, no cryptography; the CLI itself
+//! never changes the system (only the service does).
 
 pub mod policy_cmd;
+pub mod service;
 pub mod status;
