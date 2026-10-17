@@ -120,17 +120,18 @@ fn fuzz_daemon_settings() {
                 Some("root"),
                 "root is never the helper"
             );
-            // Round trip: written back, the same settings.
+            // Round trip: written back (with TOML escapes), the same settings.
+            let q = |v: &str| v.replace('\\', "\\\\").replace('"', "\\\"");
             let mut again = format!(
                 "version = 1\n[daemon]\nmode = \"lab\"\nlab_namespace = \"{}\"\nruntime_dir = \"{}\"\n\
              control_group = \"{}\"\ndevice_config = \"{}\"\n",
-                s.lab_namespace,
-                s.runtime_dir.display(),
-                s.control_group,
-                s.device_config.display()
+                q(&s.lab_namespace),
+                q(&s.runtime_dir.to_string_lossy()),
+                q(&s.control_group),
+                q(&s.device_config.to_string_lossy())
             );
             if let Some(u) = &s.captive_helper_user {
-                let _ = writeln!(again, "captive_helper_user = \"{u}\"");
+                let _ = writeln!(again, "captive_helper_user = \"{}\"", q(u));
             }
             assert_eq!(settings::parse(&again).as_ref(), Ok(&s), "round trip");
             true

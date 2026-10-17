@@ -164,7 +164,10 @@ impl std::error::Error for RenderError {}
 
 /// Interface names are written into the ruleset, so they are validated
 /// strictly: this is hostile input as far as the generator is concerned.
-fn valid_interface(name: &str) -> bool {
+/// The configuration validator uses this same function, so a configuration
+/// that is accepted always renders (N3-03 fuzzing found the two had drifted).
+#[must_use]
+pub fn valid_interface(name: &str) -> bool {
     (1..=15).contains(&name.len())
         && name != "."
         && name != ".."

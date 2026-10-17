@@ -80,17 +80,24 @@ The fix then gets a regression test that names the seed.
 
 ## Bugs found
 
-**Two real bugs, both fixed with regression tests:**
+**Three real bugs, all fixed with regression tests:**
 
 | Where | Bug | Fix |
 | --- | --- | --- |
 | `septuvo-ipc`, `Response::with` (seed `0x35f6d570c8fcedeb`) | A response built with many long fields could encode to **4,298 bytes, more than the 4,096 the client accepts**. The client would then show "invalid answer from the Septuvo service". Not reachable with today's status fields, but nothing prevented it | Fields that would not fit are dropped. A missing field already reads as "unknown", never as passed, so this fails safe. An error with an empty message also no longer gains a trailing space when re-encoded |
+| `septuvo-config`, device schema (found in CI, seed `0xc8c5a99ba1125cd2`) | The validator accepted a tunnel interface name starting with `-` (`-1septuvo0`), but the kill-switch renderer refuses one: **a configuration that passed `septuvo-config check` would fail at connect**. The two rules had drifted apart when the renderer was hardened in #60 | The validator now calls the renderer's own check, `nft::valid_interface`, so the rules cannot drift again |
 | `septuvo-server`, `Records::revoke` / `remove` (seed `0x496239978f4b4369`) | Errors for impossible device names **repeated the name, control characters included**. Printed to a terminal, such a name could carry escape sequences. The command-line tool already filtered them, but the library did not | An invalid name is refused without being repeated |
 
-**Three mistakes in the new tests themselves, also found by fuzzing and corrected (not product bugs):**
+**Mistakes in the new tests themselves, also found by fuzzing and corrected (not product bugs):**
 - a semicolon count that forgot one fixed comment line;
 - an address comparison that ignored upper-case IPv6;
-- an over-strict generator.
+- an over-strict generator;
+- a settings round-trip writer that did not escape quotes in paths.
+
+**A flaw in the first version of this workflow, also caught in this PR:** it piped `cargo test` through `tee` without `pipefail`, so **a failing run was reported as success**. A long-run job that "finished" after 12 seconds exposed it. Both jobs now:
+- set `pipefail`;
+- fail if the target did not run;
+- turn failure lines into readable annotations.
 
 ## Not included
 

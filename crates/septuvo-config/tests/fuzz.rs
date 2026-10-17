@@ -358,7 +358,10 @@ fn fuzz_device_schema() {
                 // kill switch never fails at connect time for a valid file.
                 let ks = kill_switch(&c);
                 if let Err(e) = nft::render(&c.policy, &ks) {
-                    panic!("accepted configuration does not render: {e}");
+                    panic!(
+                        "accepted configuration does not render: {e} (interface {:?})",
+                        c.tunnel.interface
+                    );
                 }
                 true
             }

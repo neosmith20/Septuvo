@@ -300,15 +300,13 @@ fn dns(doc: &Document, policy: &Policy) -> Result<DnsPolicy, ConfigError> {
     })
 }
 
-/// Same rules as the kill-switch renderer: 1 to 15 characters from
-/// `A-Z a-z 0-9 _ - .`, not `.` or `..`.
+/// Exactly the kill-switch renderer's rule (one shared function): 1 to 15
+/// characters from `A-Z a-z 0-9 _ - .`, not `.` or `..`, not starting with
+/// `-`. The rules had drifted apart, so a configuration the validator
+/// accepted could fail at connect (found by the N3-03 fuzzing, case seed
+/// 0xc8c5a99ba1125cd2).
 fn interface_name(name: &str) -> bool {
-    (1..=15).contains(&name.len())
-        && name
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.'))
-        && name != "."
-        && name != ".."
+    septuvo_policy::nft::valid_interface(name)
 }
 
 fn tunnel(doc: &Document) -> Result<TunnelSettings, ConfigError> {
@@ -326,7 +324,7 @@ fn tunnel(doc: &Document) -> Result<TunnelSettings, ConfigError> {
             return Err(s.invalid(
                 "interface",
                 span,
-                "1 to 15 characters from A-Z, a-z, 0-9, '_', '-' and '.'",
+                "1 to 15 characters from A-Z, a-z, 0-9, '_', '-' and '.', not starting with '-'",
             ));
         }
         settings.interface = name.to_string();
@@ -670,5 +668,25 @@ resolvers = ["1.1.1.1"]
         assert_eq!(span.line, 12);
         assert!(e.to_string().starts_with("line 12, column "));
         assert!(e.to_string().contains("dns.resolvers"));
+    }
+
+    /// Regression (N3-03 fuzzing, case seed 0xc8c5a99ba1125cd2): an interface
+    /// name starting with '-' was accepted here but refused by the renderer.
+    #[test]
+    fn interface_names_follow_the_renderer_exactly() {
+        let with = |name: &str| {
+            parse_device(&format!(
+                "version = 1\n[server]\nendpoints = [\"203.0.113.7:51820\"]\n\
+                 [routing]\nmode = \"full-tunnel\"\n[dns]\nresolvers = [\"10.77.0.1\"]\n\
+                 [tunnel]\ninterface = \"{name}\"\n"
+            ))
+        };
+        for bad in ["-1septuvo0", "-", ".", "..", "a234567890123456", "tun 0"] {
+            assert!(with(bad).is_err(), "{bad:?}");
+            assert!(!septuvo_policy::nft::valid_interface(bad));
+        }
+        for good in ["septuvo0", "wg_test-1.2", "a-"] {
+            assert!(with(good).is_ok(), "{good:?}");
+        }
     }
 }
