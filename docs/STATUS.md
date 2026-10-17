@@ -94,7 +94,7 @@ Dates are `YYYY-MM-DD` UTC: the authorization date for READY rows, the merge dat
 | --- | --- | --- | --- | --- | --- |
 | N2-01 | ACCEPTED | N1-04 | 2026-10-17 | [Work order N2, merged in PR #55](https://github.com/neosmith20/Septuvo/pull/55) | [PR #56](https://github.com/neosmith20/Septuvo/pull/56) |
 | N2-02 | ACCEPTED | N2-01 | 2026-10-17 | [Work order N2, merged in PR #55](https://github.com/neosmith20/Septuvo/pull/55) | [PR #57](https://github.com/neosmith20/Septuvo/pull/57) |
-| N2-03 | READY | N2-02 | 2026-10-16 | [Work order N2, merged in PR #55](https://github.com/neosmith20/Septuvo/pull/55) | — |
+| N2-03 | ACCEPTED | N2-02 | 2026-10-17 | [Work order N2, merged in PR #55](https://github.com/neosmith20/Septuvo/pull/55) | [PR #58](https://github.com/neosmith20/Septuvo/pull/58) |
 | N2-04 | READY | N2-03 | 2026-10-16 | [Work order N2, merged in PR #55](https://github.com/neosmith20/Septuvo/pull/55) | — |
 
 ## Dotted subtasks (owner authorized separately)

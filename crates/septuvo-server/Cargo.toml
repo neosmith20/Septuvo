@@ -1,0 +1,19 @@
+[package]
+name = "septuvo-server"
+description = "Septuvo Server administration: device records (development preview; no enrollment, keys or network listener)"
+version.workspace = true
+edition.workspace = true
+license = "PolyForm-Noncommercial-1.0.0"
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "septuvo-server"
+path = "src/bin/septuvo-server.rs"
+
+[dependencies]
+septuvo-config = { path = "../septuvo-config" }
+septuvo-policy = { path = "../septuvo-policy" }
+
+[lints]
+workspace = true

@@ -98,5 +98,4 @@ septuvo.toml: line 7, column 8: dns.mode: "system" DNS would send queries outsid
 ## Not in this task
 
 - Applying the configuration: the privileged service is N2-02.
-- Server device records: N2-04.
 - Anything that needs enrollment or the Septuvo Protocol (after G1).
