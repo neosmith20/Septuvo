@@ -1,0 +1,141 @@
+name: Fuzz
+
+# N3-03: standard-library fuzzing of every parser (docs/build/fuzzing.md).
+# - Every pull request: a short run of every target with a fresh seed.
+# - Weekly, on demand, or on a pull request labelled "fuzz-long": a long run,
+#   one parallel job per target (default 30 minutes each).
+# The seed of any failure is printed; replay it with SEPTUVO_FUZZ_REPLAY.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  schedule:
+    - cron: "17 6 * * 1" # Mondays 06:17 UTC
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: "Minutes per target"
+        required: false
+        default: "30"
+
+permissions:
+  contents: read
+
+jobs:
+  short:
+    name: fuzz (short run, every target)
+    if: github.event_name == 'pull_request' && github.event.action != 'labeled'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, verified 2026-10-13
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned toolchain from rust-toolchain.toml
+        run: |
+          channel="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          test -n "$channel"
+          rustup toolchain install "$channel" --profile minimal
+          rustc --version
+
+      - name: Short run (20,000 cases per target, fresh seed)
+        env:
+          SEPTUVO_FUZZ_ITERS: "20000"
+          SEPTUVO_FUZZ_SEED: ${{ github.run_id }}
+        run: |
+          report_failure() {
+            # A failing case or build becomes a readable annotation.
+            [ "$1" = 0 ] && return 0
+            if grep -q "FUZZ FAILURE" fuzz.log; then
+              grep -E "FUZZ FAILURE|panicked at|input:|replay:" fuzz.log | head -8 | while IFS= read -r l; do echo "::error title=fuzz failure::$l"; done
+              grep -A2 "panicked at" fuzz.log | head -6 | while IFS= read -r l; do echo "::error title=fuzz property::$l"; done
+            else
+              tail -n 15 fuzz.log | while IFS= read -r l; do echo "::error title=fuzz build or run::$l"; done
+            fi
+          }
+          set -o pipefail
+          status=0
+          cargo test --release --locked --workspace --test fuzz -- --nocapture --test-threads 1 2>&1 | tee fuzz.log || status=$?
+          report_failure "$status"
+          {
+            echo "### Fuzz short run (seed ${SEPTUVO_FUZZ_SEED})"
+            echo '```'
+            grep -oE 'fuzz fuzz_[a-z_]+: [0-9]+ cases .*' fuzz.log || echo "(no fuzz results found)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+  long:
+    name: fuzz (long run) ${{ matrix.target }}
+    if: >-
+      github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'fuzz-long'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { crate: septuvo-policy, target: fuzz_policy_file }
+          - { crate: septuvo-policy, target: fuzz_prefix }
+          - { crate: septuvo-policy, target: fuzz_nft_render }
+          - { crate: septuvo-config, target: fuzz_toml_subset }
+          - { crate: septuvo-config, target: fuzz_device_schema }
+          - { crate: septuvo-config, target: fuzz_server_schema }
+          - { crate: septuvo-ipc, target: fuzz_ipc_request }
+          - { crate: septuvo-ipc, target: fuzz_ipc_response }
+          - { crate: septuvo-ipc, target: fuzz_ipc_builder }
+          - { crate: septuvo-server, target: fuzz_device_records }
+          - { crate: septuvo-server, target: fuzz_record_operations }
+          - { crate: septuvo-daemon, target: fuzz_daemon_settings }
+          - { crate: septuvo-daemon, target: fuzz_resolver_file }
+          - { crate: septuvo-daemon, target: fuzz_account_files }
+          - { crate: septuvo-daemon, target: fuzz_control_requests }
+          - { crate: septuvo-daemon, target: fuzz_status_socket_changes_nothing }
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, verified 2026-10-13
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned toolchain from rust-toolchain.toml
+        run: |
+          channel="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          test -n "$channel"
+          rustup toolchain install "$channel" --profile minimal
+          rustc --version
+
+      - name: Build
+        run: cargo test --release --locked -p ${{ matrix.crate }} --test fuzz --no-run
+
+      - name: Long run
+        env:
+          MINUTES: ${{ github.event.inputs.minutes || '30' }}
+          SEPTUVO_FUZZ_SEED: ${{ github.run_id }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          case "$MINUTES" in ''|*[!0-9]*) echo "minutes must be a number" >&2; exit 2 ;; esac
+          export SEPTUVO_FUZZ_SECONDS=$((MINUTES * 60))
+          report_failure() {
+            # A failing case or build becomes a readable annotation.
+            [ "$1" = 0 ] && return 0
+            if grep -q "FUZZ FAILURE" fuzz.log; then
+              grep -E "FUZZ FAILURE|panicked at|input:|replay:" fuzz.log | head -8 | while IFS= read -r l; do echo "::error title=fuzz failure::$l"; done
+              grep -A2 "panicked at" fuzz.log | head -6 | while IFS= read -r l; do echo "::error title=fuzz property::$l"; done
+            else
+              tail -n 15 fuzz.log | while IFS= read -r l; do echo "::error title=fuzz build or run::$l"; done
+            fi
+          }
+          set -o pipefail
+          status=0
+          cargo test --release --locked -p ${{ matrix.crate }} --test fuzz -- "$TARGET" --exact --nocapture 2>&1 | tee fuzz.log || status=$?
+          report_failure "$status"
+          grep -qE "fuzz ${TARGET}: [0-9]+ cases .*all properties held" fuzz.log || { echo "::error title=fuzz::${TARGET} did not complete"; status=1; }
+          {
+            echo "### ${TARGET}: ${MINUTES} minutes, seed ${SEPTUVO_FUZZ_SEED}"
+            echo '```'
+            grep -oE 'fuzz fuzz_[a-z_]+: [0-9]+ cases .*|FUZZ FAILURE.*|replay:.*' fuzz.log || echo "(no fuzz results found)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
