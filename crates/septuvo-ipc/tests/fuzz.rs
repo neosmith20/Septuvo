@@ -2,6 +2,10 @@
 //! response builder of the local control protocol.
 //! Longer runs: `SEPTUVO_FUZZ_SECONDS=60 cargo test -p septuvo-ipc --test fuzz -- --nocapture`.
 
+// The check functions are public so the cargo-fuzz targets (fuzz/) can call
+// them; they panic on purpose when a property fails.
+#![allow(clippy::must_use_candidate, clippy::missing_panics_doc)]
+
 #[path = "../../septuvo-policy/tests/support/fuzzer.rs"]
 mod fuzzer;
 
@@ -57,22 +61,7 @@ fn fuzz_ipc_request() {
         s.push('\n');
         s.into_bytes()
     };
-    run(
-        "fuzz_ipc_request",
-        &corpus,
-        structured,
-        |data| match parse_request(data) {
-            // Only the canonical encoding of a command is ever accepted.
-            Ok(command) => {
-                assert_eq!(command.encode().as_bytes(), data, "canonical form");
-                if let Command::Captive { minutes, .. } = command {
-                    assert!((1..=septuvo_ipc::MAX_CAPTIVE_MINUTES).contains(&minutes));
-                }
-                true
-            }
-            Err(_) => false,
-        },
-    );
+    run("fuzz_ipc_request", &corpus, structured, check_ipc_request);
 }
 
 fn structured_response(rng: &mut Rng) -> Vec<u8> {
@@ -105,19 +94,12 @@ fn fuzz_ipc_response() {
         ],
         dict: DICT,
     };
-    run("fuzz_ipc_response", &corpus, structured_response, |data| {
-        match parse_response(data) {
-            Ok(r) => {
-                assert!(r.fields.len() <= MAX_FIELDS);
-                // What the client accepted re-encodes to something it accepts
-                // again, unchanged.
-                let again = parse_response(r.encode().as_bytes());
-                assert_eq!(again.as_ref(), Ok(&r), "round trip");
-                true
-            }
-            Err(_) => false,
-        }
-    });
+    run(
+        "fuzz_ipc_response",
+        &corpus,
+        structured_response,
+        check_ipc_response,
+    );
 }
 
 /// The service builds every response with `Response::ok/error/with`. Whatever
@@ -130,51 +112,83 @@ fn fuzz_ipc_builder() {
         dict: &[],
     };
     let structured = |rng: &mut Rng| rng.next_u64().to_le_bytes().to_vec();
-    run("fuzz_ipc_builder", &corpus, structured, |data| {
-        let mut seed = [0u8; 8];
-        for (i, b) in data.iter().take(8).enumerate() {
-            seed[i] = *b;
+    run("fuzz_ipc_builder", &corpus, structured, check_ipc_builder);
+}
+
+/// Property check for `fuzz_ipc_request` (also called by the cargo-fuzz target).
+pub fn check_ipc_request(data: &[u8]) -> bool {
+    match parse_request(data) {
+        // Only the canonical encoding of a command is ever accepted.
+        Ok(command) => {
+            assert_eq!(command.encode().as_bytes(), data, "canonical form");
+            if let Command::Captive { minutes, .. } = command {
+                assert!((1..=septuvo_ipc::MAX_CAPTIVE_MINUTES).contains(&minutes));
+            }
+            true
         }
-        let mut rng = Rng::new(u64::from_le_bytes(seed));
-        let any = |rng: &mut Rng, max: usize| -> String {
-            let n = rng.below(max + 1);
-            (0..n)
-                .map(|_| {
-                    char::from_u32(u32::try_from(rng.next_u64() % 0x2_0000).unwrap_or(0))
-                        .unwrap_or('?')
-                })
-                .collect()
-        };
-        let mut r = if rng.chance(50) {
-            Response::ok()
+        Err(_) => false,
+    }
+}
+
+/// Property check for `fuzz_ipc_response` (also called by the cargo-fuzz target).
+pub fn check_ipc_response(data: &[u8]) -> bool {
+    match parse_response(data) {
+        Ok(r) => {
+            assert!(r.fields.len() <= MAX_FIELDS);
+            // What the client accepted re-encodes to something it accepts
+            // again, unchanged.
+            let again = parse_response(r.encode().as_bytes());
+            assert_eq!(again.as_ref(), Ok(&r), "round trip");
+            true
+        }
+        Err(_) => false,
+    }
+}
+
+/// Property check for `fuzz_ipc_builder` (also called by the cargo-fuzz target).
+pub fn check_ipc_builder(data: &[u8]) -> bool {
+    let mut seed = [0u8; 8];
+    for (i, b) in data.iter().take(8).enumerate() {
+        seed[i] = *b;
+    }
+    let mut rng = Rng::new(u64::from_le_bytes(seed));
+    let any = |rng: &mut Rng, max: usize| -> String {
+        let n = rng.below(max + 1);
+        (0..n)
+            .map(|_| {
+                char::from_u32(u32::try_from(rng.next_u64() % 0x2_0000).unwrap_or(0)).unwrap_or('?')
+            })
+            .collect()
+    };
+    let mut r = if rng.chance(50) {
+        Response::ok()
+    } else {
+        let code = if rng.chance(50) {
+            word(&mut rng, b"abc_", MAX_KEY_BYTES + 2)
         } else {
-            let code = if rng.chance(50) {
-                word(&mut rng, b"abc_", MAX_KEY_BYTES + 2)
-            } else {
-                any(&mut rng, 40)
-            };
-            let message = any(&mut rng, MAX_VALUE_BYTES + 50);
-            Response::error(&code, &message)
+            any(&mut rng, 40)
         };
-        for _ in 0..rng.below(MAX_FIELDS + 10) {
-            let key = if rng.chance(80) {
-                word(&mut rng, b"abcdefghijklmnopqrstuvwxyz_", MAX_KEY_BYTES + 2)
-            } else {
-                any(&mut rng, 40)
-            };
-            let value = any(&mut rng, MAX_VALUE_BYTES + 50);
-            r = r.with(&key, &value);
-        }
-        let encoded = r.encode();
-        assert!(
-            encoded.len() <= MAX_RESPONSE_BYTES,
-            "built response of {} bytes exceeds the {MAX_RESPONSE_BYTES}-byte limit",
-            encoded.len()
-        );
-        let parsed = parse_response(encoded.as_bytes()).expect("a built response always parses");
-        if let Outcome::Err { code, .. } = &parsed.outcome {
-            assert_ne!(code.len(), 0);
-        }
-        true
-    });
+        let message = any(&mut rng, MAX_VALUE_BYTES + 50);
+        Response::error(&code, &message)
+    };
+    for _ in 0..rng.below(MAX_FIELDS + 10) {
+        let key = if rng.chance(80) {
+            word(&mut rng, b"abcdefghijklmnopqrstuvwxyz_", MAX_KEY_BYTES + 2)
+        } else {
+            any(&mut rng, 40)
+        };
+        let value = any(&mut rng, MAX_VALUE_BYTES + 50);
+        r = r.with(&key, &value);
+    }
+    let encoded = r.encode();
+    assert!(
+        encoded.len() <= MAX_RESPONSE_BYTES,
+        "built response of {} bytes exceeds the {MAX_RESPONSE_BYTES}-byte limit",
+        encoded.len()
+    );
+    let parsed = parse_response(encoded.as_bytes()).expect("a built response always parses");
+    if let Outcome::Err { code, .. } = &parsed.outcome {
+        assert_ne!(code.len(), 0);
+    }
+    true
 }

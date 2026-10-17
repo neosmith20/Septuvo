@@ -5,6 +5,9 @@ name: Fuzz
 # - Weekly, on demand, or on a pull request labelled "fuzz-long": a long run,
 #   one parallel job per target (default 30 minutes each).
 # The seed of any failure is printed; replay it with SEPTUVO_FUZZ_REPLAY.
+# H-018 (D-035): the same 16 property checks also run under cargo-fuzz /
+# libFuzzer (coverage-guided, nightly, development only): a 20-second run of
+# every target on each pull request, and 30 minutes per target in the long run.
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
@@ -139,3 +142,89 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
+
+  libfuzzer-short:
+    name: libfuzzer (coverage-guided, 20 s per target)
+    if: github.event_name == 'pull_request' && github.event.action != 'labeled'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      FUZZ_TOOLCHAIN: nightly-2026-10-01
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, verified 2026-10-13
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned toolchains, and cargo-fuzz (pinned, from crates.io)
+        run: |
+          channel="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          test -n "$channel"
+          rustup toolchain install "$channel" --profile minimal --component rustfmt
+          rustup toolchain install "$FUZZ_TOOLCHAIN" --profile minimal
+          cargo install cargo-fuzz --version 0.13.2 --locked
+          cargo "+$FUZZ_TOOLCHAIN" fuzz --version
+
+      - name: Starting corpus from the standard-library fuzz tests
+        run: SEPTUVO_FUZZ_EXPORT_CORPUS="$PWD/fuzz/corpus" cargo test --release --locked --workspace --test fuzz
+
+      - name: Format of the fuzz crate
+        run: cargo fmt --manifest-path fuzz/Cargo.toml --check
+
+      - name: Run every target for 20 seconds
+        run: fuzz/ci-run.sh 20 $(cut -d' ' -f2 fuzz/targets.txt)
+
+  libfuzzer-long:
+    name: libfuzzer (long run) ${{ matrix.target }}
+    if: >-
+      github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'fuzz-long'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      FUZZ_TOOLCHAIN: nightly-2026-10-01
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - policy_file
+          - prefix
+          - nft_render
+          - toml_subset
+          - device_schema
+          - server_schema
+          - ipc_request
+          - ipc_response
+          - ipc_builder
+          - device_records
+          - record_operations
+          - daemon_settings
+          - resolver_file
+          - account_files
+          - control_requests
+          - status_socket_changes_nothing
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, verified 2026-10-13
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned toolchains, and cargo-fuzz (pinned, from crates.io)
+        run: |
+          channel="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          test -n "$channel"
+          rustup toolchain install "$channel" --profile minimal --component rustfmt
+          rustup toolchain install "$FUZZ_TOOLCHAIN" --profile minimal
+          cargo install cargo-fuzz --version 0.13.2 --locked
+          cargo "+$FUZZ_TOOLCHAIN" fuzz --version
+
+      - name: Starting corpus from the standard-library fuzz tests
+        run: SEPTUVO_FUZZ_EXPORT_CORPUS="$PWD/fuzz/corpus" cargo test --release --locked --workspace --test fuzz
+
+      - name: Long run
+        env:
+          MINUTES: ${{ github.event.inputs.minutes || '30' }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          case "$MINUTES" in ''|*[!0-9]*) echo "minutes must be a number" >&2; exit 2 ;; esac
+          fuzz/ci-run.sh $((MINUTES * 60)) "$TARGET"

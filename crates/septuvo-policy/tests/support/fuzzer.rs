@@ -20,6 +20,7 @@
 //! | `SEPTUVO_FUZZ_SECONDS` | run each target for this long instead | unset |
 //! | `SEPTUVO_FUZZ_SEED` | base seed (decimal or `0x` hex) | fixed per target |
 //! | `SEPTUVO_FUZZ_REPLAY` | run exactly one case seed (`0x…`) | unset |
+//! | `SEPTUVO_FUZZ_EXPORT_CORPUS` | instead of running, write the seeds and 256 generated inputs per target to `DIR/<target>/`, the starting corpus for cargo-fuzz | unset |
 //!
 //! Lives in `septuvo-policy` (Apache-2.0) and is included by path into the
 //! other crates' fuzz tests; Apache-2.0 code may be used by the `PolyForm`
@@ -255,6 +256,10 @@ pub fn run(
     mut structured: impl FnMut(&mut Rng) -> Vec<u8>,
     mut check: impl FnMut(&[u8]) -> bool,
 ) {
+    if let Some(dir) = std::env::var_os("SEPTUVO_FUZZ_EXPORT_CORPUS") {
+        export_corpus(std::path::Path::new(&dir), target, corpus, &mut structured);
+        return;
+    }
     // Seeds alone first: they must always pass.
     for seed in corpus.seeds {
         check(seed.as_bytes());
@@ -300,6 +305,31 @@ pub fn run(
         "fuzz {target}: {cases} cases ({accepted} accepted) in {:.1}s, base seed 0x{base:016x}: \
          all properties held",
         started.elapsed().as_secs_f64()
+    );
+}
+
+/// Writes the seed inputs and 256 generated ones for `target` (named
+/// `fuzz_x`) into `dir/x/`, the starting corpus of the cargo-fuzz target `x`.
+fn export_corpus(
+    dir: &std::path::Path,
+    target: &str,
+    corpus: &Corpus<'_>,
+    structured: &mut dyn FnMut(&mut Rng) -> Vec<u8>,
+) {
+    let out = dir.join(target.strip_prefix("fuzz_").unwrap_or(target));
+    std::fs::create_dir_all(&out).expect("create corpus directory");
+    let mut inputs: Vec<Vec<u8>> = corpus.seeds.iter().map(|s| s.as_bytes().to_vec()).collect();
+    for i in 0..256u64 {
+        let mut rng = Rng::new(name_hash(target) ^ i);
+        inputs.push(input(&mut rng, corpus, structured));
+    }
+    for (i, data) in inputs.iter().enumerate() {
+        std::fs::write(out.join(format!("seed-{i:04}")), data).expect("write corpus file");
+    }
+    eprintln!(
+        "fuzz {target}: exported {} corpus files to {}",
+        inputs.len(),
+        out.display()
     );
 }
 

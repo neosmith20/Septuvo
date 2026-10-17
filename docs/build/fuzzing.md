@@ -2,6 +2,8 @@
 
 **What:** systematic testing of every Septuvo parser with millions of generated, mutated and hostile inputs, using only the Rust standard library.
 
+**Two layers:** a standard-library runner that runs everywhere, in every `cargo test`, and **coverage-guided fuzzing with cargo-fuzz** on top (H-018, below).
+
 **Why:** configuration files, the local control protocol, device records and system files are all **hostile input** (AGENTS.md). Hand-written tests check the cases someone thought of. Fuzzing checks the ones nobody did.
 
 ## Method
@@ -99,17 +101,29 @@ The fix then gets a regression test that names the seed.
 - fail if the target did not run;
 - turn failure lines into readable annotations.
 
-## Not included
+## Coverage-guided fuzzing (cargo-fuzz)
 
-**Coverage-guided fuzzing** (`cargo-fuzz` / libFuzzer, or AFL) would find deeper bugs faster, because it watches which code each input reaches. It needs a third-party crate and a nightly toolchain, so it is an **owner decision on dependencies (D-015)**.
+**Added in H-018, on the owner's decision D-035.** The same 16 property checks also run under **cargo-fuzz / libFuzzer**, which watches which code each input reaches and keeps the inputs that reach new code. That finds deep bugs much faster than random generation.
 
-**To add it later:**
-1. Approve `cargo-fuzz` (development-only, never shipped).
-2. Add a `fuzz/` directory with one `fuzz_target!` per row of the table above, calling the same property functions.
-3. Use the seed inputs here as the starting corpus.
-4. Run it in the weekly job on nightly.
+- **Where:** [`fuzz/`](../../fuzz), a **separate Cargo workspace**, so the main workspace keeps no third-party crates. One target per row of the table above, e.g. `fuzz/fuzz_targets/toml_subset.rs`. Each target includes the crate's `tests/fuzz.rs` and calls its `check_*` function, so **there is one definition of every property**.
+- **Starting corpus:** exported from the standard-library runner (`SEPTUVO_FUZZ_EXPORT_CORPUS=DIR`): each target's seeds and 256 generated inputs.
+- **Development only:** never built into or shipped with Septuvo. Dependency review: [dependency-review-cargo-fuzz.md](../reviews/dependency-review-cargo-fuzz.md).
 
-The standard-library runner stays as the per-pull-request check.
+**Running it locally** needs a nightly toolchain and cargo-fuzz:
+
+```sh
+rustup toolchain install nightly-2026-10-01
+cargo install cargo-fuzz --version 0.13.2 --locked
+SEPTUVO_FUZZ_EXPORT_CORPUS="$PWD/fuzz/corpus" cargo test --release --workspace --test fuzz
+cargo +nightly-2026-10-01 fuzz run --fuzz-dir fuzz toml_subset fuzz/corpus/toml_subset -- -max_total_time=600
+fuzz/ci-run.sh 60 toml_subset ipc_request      # what CI runs: fixed time, failures as annotations
+```
+
+**When a target fails,** libFuzzer saves the input in `fuzz/artifacts/<target>/`, and CI shows it in hex with the replay command (`cargo +nightly-2026-10-01 fuzz run --fuzz-dir fuzz <target> <file>`). Turn it into a regression test in the crate, as for the standard-library runner.
+
+**In CI** ([`fuzz.yml`](../../.github/workflows/fuzz.yml)):
+- **Every pull request:** every target runs for 20 seconds (`libfuzzer-short`).
+- **Weekly, on demand, or with the `fuzz-long` label:** 30 minutes per target in parallel jobs (`libfuzzer-long`), next to the standard-library long run.
 
 ## Results
 

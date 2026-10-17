@@ -2,6 +2,10 @@
 //! prefixes and the nftables renderer. Run with more cases or for a time:
 //! `SEPTUVO_FUZZ_SECONDS=60 cargo test -p septuvo-policy --test fuzz -- --nocapture`.
 
+// The check functions are public so the cargo-fuzz targets (fuzz/) can call
+// them; they panic on purpose when a property fails.
+#![allow(clippy::must_use_candidate, clippy::missing_panics_doc)]
+
 #[path = "support/fuzzer.rs"]
 mod fuzzer;
 
@@ -90,44 +94,12 @@ fn fuzz_policy_file() {
         seeds: POLICY_SEEDS,
         dict: POLICY_DICT,
     };
-    run("fuzz_policy_file", &corpus, structured_policy, |data| {
-        let Ok(text) = std::str::from_utf8(data) else {
-            return false;
-        };
-        match parse_policy(text) {
-            Ok(policy) => {
-                // Round trip: the policy written back parses to the same policy.
-                let again = policy_text(
-                    policy.mode(),
-                    policy.rules().iter().map(|r| (r.action, r.prefix)),
-                );
-                assert_eq!(parse_policy(&again).as_ref(), Ok(&policy), "round trip");
-                // Deciding never panics, for any address and path state.
-                for addr in [
-                    "0.0.0.0",
-                    "10.1.2.3",
-                    "192.168.1.20",
-                    "::",
-                    "2001:db8:50::1",
-                ] {
-                    let addr: IpAddr = addr.parse().unwrap();
-                    let _ = policy.decide(addr, PathState::Up);
-                    let _ = policy.decide(addr, PathState::Down);
-                }
-                true
-            }
-            Err(e) => {
-                // Errors are bounded and never echo the input back.
-                let msg = e.to_string();
-                assert!(msg.len() <= 200, "error message too long: {msg}");
-                assert!(
-                    e.line <= text.split('\n').count(),
-                    "line number out of range"
-                );
-                false
-            }
-        }
-    });
+    run(
+        "fuzz_policy_file",
+        &corpus,
+        structured_policy,
+        check_policy_file,
+    );
 }
 
 #[test]
@@ -143,23 +115,7 @@ fn fuzz_prefix() {
         dict: POLICY_DICT,
     };
     let structured = |rng: &mut Rng| prefix_text(rng).into_bytes();
-    run("fuzz_prefix", &corpus, structured, |data| {
-        let Ok(text) = std::str::from_utf8(data) else {
-            return false;
-        };
-        if let Ok(p) = text.parse::<Prefix>() {
-            let shown = p.to_string();
-            assert_eq!(shown.parse::<Prefix>(), Ok(p), "round trip of {shown}");
-            assert!(p.contains(p.addr()), "a prefix contains its own address");
-            let max = match p.addr() {
-                IpAddr::V4(_) => 32,
-                IpAddr::V6(_) => 128,
-            };
-            assert!(p.prefix_len() <= max);
-            return true;
-        }
-        false
-    });
+    run("fuzz_prefix", &corpus, structured, check_prefix);
 }
 
 /// Interface names, including hostile ones that must never reach nft.
@@ -191,78 +147,12 @@ fn fuzz_nft_render() {
         seeds: &[],
         dict: &[],
     };
-    run("fuzz_nft_render", &corpus, structured_killswitch, |data| {
-        let mut seed = [0u8; 8];
-        for (i, b) in data.iter().take(8).enumerate() {
-            seed[i] = *b;
-        }
-        let mut rng = Rng::new(u64::from_le_bytes(seed) ^ u64::try_from(data.len()).unwrap_or(0));
-        let mut rules = Vec::new();
-        for _ in 0..rng.below(20) {
-            if let Ok(p) = prefix_text(&mut rng).parse::<Prefix>() {
-                rules.push((
-                    *rng.pick(&[Action::Tunnel, Action::Direct, Action::Block]),
-                    p,
-                ));
-            }
-        }
-        rules.push((Action::Tunnel, "10.0.0.0/8".parse().unwrap()));
-        let mode = *rng.pick(&[Mode::FullTunnel, Mode::Split]);
-        let Ok(policy) = parse_policy(&policy_text(mode, rules)) else {
-            return false;
-        };
-        let addrs = |rng: &mut Rng, max: usize| (0..rng.below(max)).map(|_| ip(rng)).collect();
-        let ks = KillSwitch {
-            tunnel_interface: if rng.chance(70) {
-                (*rng.pick(&IFACES[..2])).to_string()
-            } else {
-                (*rng.pick(IFACES)).to_string()
-            },
-            endpoints: (0..{
-                let max = if rng.chance(90) { 5 } else { 20 };
-                rng.below(max)
-            })
-                .map(|_| {
-                    let port = if rng.chance(90) {
-                        1 + rng.below(65_535)
-                    } else {
-                        usize::try_from(rng.interesting_number() & 0xffff).unwrap_or(0)
-                    };
-                    (ip(&mut rng), u16::try_from(port).unwrap_or(0))
-                })
-                .collect(),
-            dns: match rng.below(3) {
-                0 => DnsRules::TunnelOnly,
-                1 => DnsRules::Resolvers {
-                    resolvers: {
-                        let max = if rng.chance(90) { 4 } else { 20 };
-                        let mut r: Vec<IpAddr> = addrs(&mut rng, max);
-                        if rng.chance(90) {
-                            r.push(ip(&mut rng));
-                        }
-                        r
-                    },
-                    lan_exceptions: addrs(&mut rng, 5),
-                },
-                _ => DnsRules::System,
-            },
-            captive_helper: match rng.below(10) {
-                0..=3 => None,
-                4 => Some(0),
-                _ => Some(u32::try_from(rng.interesting_number() & 0xffff_ffff).unwrap_or(1)),
-            },
-        };
-        let rendered = check_render(&policy, &ks);
-        let seconds = u32::try_from(rng.interesting_number() & 0x3ff).unwrap_or(0);
-        let resolvers: Vec<IpAddr> = addrs(&mut rng, 7);
-        if let Ok(s) = nft::captive_script(seconds, &resolvers) {
-            assert!((1..=MAX_CAPTIVE_SECONDS).contains(&seconds));
-            assert!(resolvers.len() <= nft::MAX_CAPTIVE_RESOLVERS);
-            assert!(s.len() <= 1024, "captive script bounded");
-            assert!(!s.contains(';'));
-        }
-        rendered
-    });
+    run(
+        "fuzz_nft_render",
+        &corpus,
+        structured_killswitch,
+        check_nft_render,
+    );
 }
 
 /// Properties of a rendered ruleset: only validated values reach it, its
@@ -315,4 +205,137 @@ fn check_render(policy: &Policy, ks: &KillSwitch) -> bool {
         assert!(!s.contains("captive") && !s.contains("skuid"));
     }
     true
+}
+
+/// Property check for `fuzz_policy_file` (also called by the cargo-fuzz target).
+pub fn check_policy_file(data: &[u8]) -> bool {
+    let Ok(text) = std::str::from_utf8(data) else {
+        return false;
+    };
+    match parse_policy(text) {
+        Ok(policy) => {
+            // Round trip: the policy written back parses to the same policy.
+            let again = policy_text(
+                policy.mode(),
+                policy.rules().iter().map(|r| (r.action, r.prefix)),
+            );
+            assert_eq!(parse_policy(&again).as_ref(), Ok(&policy), "round trip");
+            // Deciding never panics, for any address and path state.
+            for addr in [
+                "0.0.0.0",
+                "10.1.2.3",
+                "192.168.1.20",
+                "::",
+                "2001:db8:50::1",
+            ] {
+                let addr: IpAddr = addr.parse().unwrap();
+                let _ = policy.decide(addr, PathState::Up);
+                let _ = policy.decide(addr, PathState::Down);
+            }
+            true
+        }
+        Err(e) => {
+            // Errors are bounded and never echo the input back.
+            let msg = e.to_string();
+            assert!(msg.len() <= 200, "error message too long: {msg}");
+            assert!(
+                e.line <= text.split('\n').count(),
+                "line number out of range"
+            );
+            false
+        }
+    }
+}
+
+/// Property check for `fuzz_prefix` (also called by the cargo-fuzz target).
+pub fn check_prefix(data: &[u8]) -> bool {
+    let Ok(text) = std::str::from_utf8(data) else {
+        return false;
+    };
+    if let Ok(p) = text.parse::<Prefix>() {
+        let shown = p.to_string();
+        assert_eq!(shown.parse::<Prefix>(), Ok(p), "round trip of {shown}");
+        assert!(p.contains(p.addr()), "a prefix contains its own address");
+        let max = match p.addr() {
+            IpAddr::V4(_) => 32,
+            IpAddr::V6(_) => 128,
+        };
+        assert!(p.prefix_len() <= max);
+        return true;
+    }
+    false
+}
+
+/// Property check for `fuzz_nft_render` (also called by the cargo-fuzz target).
+pub fn check_nft_render(data: &[u8]) -> bool {
+    let mut seed = [0u8; 8];
+    for (i, b) in data.iter().take(8).enumerate() {
+        seed[i] = *b;
+    }
+    let mut rng = Rng::new(u64::from_le_bytes(seed) ^ u64::try_from(data.len()).unwrap_or(0));
+    let mut rules = Vec::new();
+    for _ in 0..rng.below(20) {
+        if let Ok(p) = prefix_text(&mut rng).parse::<Prefix>() {
+            rules.push((
+                *rng.pick(&[Action::Tunnel, Action::Direct, Action::Block]),
+                p,
+            ));
+        }
+    }
+    rules.push((Action::Tunnel, "10.0.0.0/8".parse().unwrap()));
+    let mode = *rng.pick(&[Mode::FullTunnel, Mode::Split]);
+    let Ok(policy) = parse_policy(&policy_text(mode, rules)) else {
+        return false;
+    };
+    let addrs = |rng: &mut Rng, max: usize| (0..rng.below(max)).map(|_| ip(rng)).collect();
+    let ks = KillSwitch {
+        tunnel_interface: if rng.chance(70) {
+            (*rng.pick(&IFACES[..2])).to_string()
+        } else {
+            (*rng.pick(IFACES)).to_string()
+        },
+        endpoints: (0..{
+            let max = if rng.chance(90) { 5 } else { 20 };
+            rng.below(max)
+        })
+            .map(|_| {
+                let port = if rng.chance(90) {
+                    1 + rng.below(65_535)
+                } else {
+                    usize::try_from(rng.interesting_number() & 0xffff).unwrap_or(0)
+                };
+                (ip(&mut rng), u16::try_from(port).unwrap_or(0))
+            })
+            .collect(),
+        dns: match rng.below(3) {
+            0 => DnsRules::TunnelOnly,
+            1 => DnsRules::Resolvers {
+                resolvers: {
+                    let max = if rng.chance(90) { 4 } else { 20 };
+                    let mut r: Vec<IpAddr> = addrs(&mut rng, max);
+                    if rng.chance(90) {
+                        r.push(ip(&mut rng));
+                    }
+                    r
+                },
+                lan_exceptions: addrs(&mut rng, 5),
+            },
+            _ => DnsRules::System,
+        },
+        captive_helper: match rng.below(10) {
+            0..=3 => None,
+            4 => Some(0),
+            _ => Some(u32::try_from(rng.interesting_number() & 0xffff_ffff).unwrap_or(1)),
+        },
+    };
+    let rendered = check_render(&policy, &ks);
+    let seconds = u32::try_from(rng.interesting_number() & 0x3ff).unwrap_or(0);
+    let resolvers: Vec<IpAddr> = addrs(&mut rng, 7);
+    if let Ok(s) = nft::captive_script(seconds, &resolvers) {
+        assert!((1..=MAX_CAPTIVE_SECONDS).contains(&seconds));
+        assert!(resolvers.len() <= nft::MAX_CAPTIVE_RESOLVERS);
+        assert!(s.len() <= 1024, "captive script bounded");
+        assert!(!s.contains(';'));
+    }
+    rendered
 }
