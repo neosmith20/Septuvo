@@ -54,6 +54,7 @@ device_config = "/etc/septuvo/septuvo.toml"   # required; see config.md
 | `septuvo status [--runtime-dir DIR]` | Shows the four checks (D-020): adapter, server identity, traffic, DNS, plus the service state and the kill switch. **Server identity is always "failed"** (no peer authentication before G1), so the result is always "Not connected" (exit 3) |
 | `septuvo connect [--runtime-dir DIR]` | Installs the N1 kill switch for the configured policy. Protected traffic is blocked, because no VPN path exists; the server endpoints stay reachable |
 | `septuvo disconnect [--runtime-dir DIR]` | A deliberate disconnect: removes the Septuvo rules **and restores the original resolver file**. This is the only way they are removed (Q2) |
+| `septuvo captive-portal [--minutes N] [--network-dns] [--runtime-dir DIR]` | Captive-portal mode (Q1, N3-02): for **at most 5 minutes**, lets **only the sign-in helper account** reach web servers outside the tunnel. Every other program stays blocked. It then re-blocks by itself. See below |
 
 **DNS (N2-03).** With tunnel DNS (`[dns] resolvers`, see [config.md](config.md)), connect also:
 - allows DNS only to those resolvers, only through the tunnel, plus the listed LAN exceptions directly. All other DNS on UDP/TCP 53, DNS over TLS and DNS over QUIC is dropped, in full-tunnel and split mode alike;
@@ -63,7 +64,17 @@ Status reports `dns_policy` and `resolver_file`. The DNS stage itself stays "unk
 
 **If the service stops or crashes,** the rules stay in place (fail closed). After a restart it reports them as `blocking-left-from-earlier-run` and leaves them alone.
 
-**The local protocol** is a single text line per request (`SEPTUVO/1 STATUS`), answered with `SEPTUVO/1 OK` or `SEPTUVO/1 ERR code message`, then `key=value` lines and `END`.
+## Captive-portal mode (N3-02)
+
+`septuvo captive-portal [--minutes N] [--network-dns]` opens a sign-in window of at most 5 minutes. It applies **only to the dedicated helper account** (`daemon.captive_helper_user`, created by the packages as `septuvo-portal`, never root); every other program stays fully blocked. Further limits:
+- **Web only, outside the tunnel:** the helper may use TCP 80/443 outside the tunnel, and nothing else.
+- **DNS:** encrypted DNS over HTTPS by default. The network's own DNS only with `--network-dns`, for the helper, for that window. The resolver file is never changed.
+- **Expiry:** the kernel ends the window even if the service dies.
+- **Limits:** at most 3 windows per connection, each logged.
+
+Design, the RFC 8910/8908 and DoH evaluation, unsupported legacy portals and the phased plan: **[captive-portal.md](captive-portal.md)**.
+
+**The local protocol** is a single text line per request (`SEPTUVO/1 STATUS`, or `SEPTUVO/1 CAPTIVE N [NETWORK-DNS]` with N a single digit, 1–5), answered with `SEPTUVO/1 OK` or `SEPTUVO/1 ERR code message`, then `key=value` lines and `END`.
 - Requests are at most 64 bytes, and responses at most 4096 bytes and 32 fields.
 - Only printable ASCII is allowed.
 - One request per connection, with a 5-second time-out.
@@ -90,8 +101,10 @@ CI runs it on every pull request.
 
 **Recorded 2026-10-17** on Linux x86_64 (this workspace, Rust 1.97): **17 passed, 0 failed.**
 
+**Captive-portal lab (N3-02):** `sudo tests/lab/namespaces/captive.sh [--require-ipv6] target/debug/septuvod target/debug/septuvo`, cases CP00–CP53. What it proves: [captive-portal.md](captive-portal.md#tests).
+
 ## Not in this task
 
 - Server administration: N2-04.
 - A tunnel, peer authentication or anything else that needs the Septuvo Protocol: after G1.
-- Running as a system service with an installer: later milestones.
+- Running as a system service with an installer: done in N3-01 ([install.md](install.md)).

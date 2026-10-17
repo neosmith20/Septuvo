@@ -39,6 +39,7 @@ fn run(args: &[String]) -> Result<String, String> {
         tunnel_interface: interface.clone(),
         endpoints,
         dns: DnsRules::TunnelOnly,
+        captive_helper: None,
     };
     render(&policy, &ks).map_err(|e| e.to_string())
 }

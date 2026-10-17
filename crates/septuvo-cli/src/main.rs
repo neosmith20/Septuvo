@@ -3,8 +3,11 @@
 //! Development preview only: it has no VPN, tunnel or cryptographic
 //! functionality. `status` asks the local service `septuvod` and shows the
 //! four-stage status model (D-020); `connect` and `disconnect` ask the
-//! service to turn the kill switch on or off; `policy check` validates and
-//! explains a policy file. The tool itself never changes the system.
+//! service to turn the kill switch on or off; `captive-portal` asks it to
+//! open a captive-portal window for the dedicated sign-in helper account
+//! only, for at most five minutes (N3-02); `policy check`
+//! validates and explains a policy file. The tool itself never changes the
+//! system.
 
 use septuvo_cli::{policy_cmd, service};
 use septuvo_ipc::Command;
@@ -27,11 +30,21 @@ Usage:
                                        switch on (lab preview, no tunnel)
   septuvo disconnect [--runtime-dir DIR]
                                        Ask the service to turn it off
+  septuvo captive-portal [--minutes N] [--network-dns] [--runtime-dir DIR]
+                                       For N minutes (1-5, default 5), let
+                                       ONLY the sign-in helper account reach
+                                       web servers outside the tunnel, to
+                                       sign in to a hotel or airport network;
+                                       every other program stays blocked.
+                                       --network-dns also lets the helper
+                                       (only) use the network's own DNS for
+                                       this window. Ends by itself.
   septuvo policy check FILE [--dst ADDRESS] [--path up|down]
                                        Validate a policy file and explain
                                        what happens to traffic
 
-connect and disconnect need membership of the service's control group.
+connect, disconnect and captive-portal need membership of the service's
+control group.
 
 Exit codes: 0 success, 1 invalid policy, unreadable file or service
 error, 2 usage error, 3 status shows the VPN is not working.
@@ -91,6 +104,24 @@ fn run(args: &[String], out: &mut impl Write, err: &mut impl Write) -> io::Resul
                 EXIT_INVALID
             })
         }
+        [cmd, rest @ ..] if cmd == "captive-portal" => {
+            let Some((minutes, network_dns, runtime_dir)) = captive_args(rest) else {
+                writeln!(
+                    err,
+                    "septuvo: usage: septuvo captive-portal [--minutes 1-5] [--network-dns] [--runtime-dir DIR]"
+                )?;
+                return Ok(EXIT_USAGE);
+            };
+            let reply = service::ask(
+                &runtime_dir,
+                Command::Captive {
+                    minutes,
+                    network_dns,
+                },
+            );
+            out.write_all(reply.text.as_bytes())?;
+            Ok(if reply.ok { EXIT_OK } else { EXIT_INVALID })
+        }
         [cmd, sub, file, rest @ ..] if cmd == "policy" && sub == "check" => {
             let opts = match policy_cmd::parse_args(rest) {
                 Ok(o) => o,
@@ -131,6 +162,43 @@ fn runtime_dir(rest: &[String]) -> Option<PathBuf> {
         }
         _ => None,
     }
+}
+
+/// `[--minutes N] [--network-dns] [--runtime-dir DIR]` in any order, each
+/// at most once. `N` may only shorten the five-minute window.
+fn captive_args(rest: &[String]) -> Option<(u8, bool, PathBuf)> {
+    let mut minutes = None;
+    let mut network_dns = false;
+    let mut dir = None;
+    let mut it = rest.iter();
+    while let Some(flag) = it.next() {
+        if flag == "--network-dns" {
+            if network_dns {
+                return None;
+            }
+            network_dns = true;
+            continue;
+        }
+        let value = it.next()?;
+        match flag.as_str() {
+            "--minutes" if minutes.is_none() => {
+                let n: u8 = value.parse().ok()?;
+                if !(1..=septuvo_ipc::MAX_CAPTIVE_MINUTES).contains(&n) || value.len() != 1 {
+                    return None;
+                }
+                minutes = Some(n);
+            }
+            "--runtime-dir" if dir.is_none() && Path::new(value).is_absolute() => {
+                dir = Some(PathBuf::from(value));
+            }
+            _ => return None,
+        }
+    }
+    Some((
+        minutes.unwrap_or(septuvo_ipc::MAX_CAPTIVE_MINUTES),
+        network_dns,
+        dir.unwrap_or_else(|| PathBuf::from(septuvo_ipc::DEFAULT_RUNTIME_DIR)),
+    ))
 }
 
 fn main() -> ExitCode {
@@ -213,6 +281,54 @@ mod tests {
         ] {
             assert_eq!(call(args).0, EXIT_USAGE, "{args:?}");
         }
+    }
+
+    #[test]
+    fn captive_portal_arguments_only_shorten_the_window() {
+        let s = |v: &[&str]| v.iter().map(ToString::to_string).collect::<Vec<_>>();
+        assert_eq!(
+            captive_args(&s(&[])),
+            Some((5, false, PathBuf::from("/run/septuvo")))
+        );
+        assert_eq!(
+            captive_args(&s(&[
+                "--runtime-dir",
+                "/tmp/x",
+                "--network-dns",
+                "--minutes",
+                "1"
+            ])),
+            Some((1, true, PathBuf::from("/tmp/x")))
+        );
+        for bad in [
+            &["--minutes", "6"][..],
+            &["--minutes", "0"],
+            &["--minutes", "05"],
+            &["--minutes", "+5"],
+            &["--minutes", "-1"],
+            &["--minutes"],
+            &["--minutes", "1", "--minutes", "2"],
+            &["--runtime-dir", "relative"],
+            &["--forever", "1"],
+            &["--network-dns", "--network-dns"],
+            &["--network-dns=yes"],
+        ] {
+            assert_eq!(captive_args(&s(bad)), None, "{bad:?}");
+            let mut args = vec!["captive-portal"];
+            args.extend_from_slice(bad);
+            assert_eq!(call(&args).0, EXIT_USAGE, "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn captive_portal_without_a_service_fails_cleanly() {
+        let (code, out, _) = call(&[
+            "captive-portal",
+            "--runtime-dir",
+            "/nonexistent-septuvo-cli",
+        ]);
+        assert_eq!(code, EXIT_INVALID);
+        assert!(out.contains("No Septuvo service is running"));
     }
 
     #[test]

@@ -45,7 +45,7 @@ Work order: [work-orders/N2.md](work-orders/N2.md).
 
 Work order: [work-orders/N3.md](work-orders/N3.md).
 - **N3-01:** installer and hardened systemd service setup (still lab-only), with a complete uninstall.
-- **N3-02:** captive-portal mode (Q1): user-started, at most 5 minutes, kernel-enforced expiry.
+- **N3-02:** captive-portal mode (Q1): user-started, at most 5 minutes, kernel-enforced expiry, **for a dedicated helper account only**, so ordinary programs stay protected. Trusted DNS by default; the network's DNS only on explicit request, for the helper. RFC 8910/8908 discovery and a DoH client are planned for phase 2.
 - **N3-03:** fuzz testing of every parser (standard library only).
 - **N3-04:** live status view, `septuvo watch`.
 

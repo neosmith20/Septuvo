@@ -99,6 +99,9 @@ result $ok "I12 the service runs, inside the lab namespace septuvo-lab"
 [ $ok = 1 ] || journalctl -u septuvod.service --no-pager -n 20 | sed 's/^/      /'
 systemd-analyze security septuvod.service --no-pager 2>/dev/null | tail -1 | sed 's/^/      exposure: /'
 
+uid=$(id -u septuvo-portal 2>/dev/null)
+[ -n "$uid" ] && [ "$uid" != 0 ] && ok=1 || ok=0
+result $ok "I12b the captive-portal helper account exists (uid ${uid:-none}, never root)"
 useradd -M -N -s /usr/sbin/nologin -G septuvo "$MEMBER"
 useradd -M -N -s /usr/sbin/nologin "$OTHER"
 out=$(runuser -u "$OTHER" -- /usr/bin/septuvo status); rc=$?
@@ -109,6 +112,8 @@ result $ok "I14 a user outside the septuvo group cannot connect"
 runuser -u "$MEMBER" -- /usr/bin/septuvo connect > "$WORK/connect.log" 2>&1 \
   && ip netns exec septuvo-lab nft list table inet septuvo > /dev/null 2>&1 && ok=1 || ok=0
 result $ok "I15 a septuvo group member can connect: the kill switch is on in the lab namespace"
+ip netns exec septuvo-lab nft list chain inet septuvo output 2>/dev/null | grep -q "meta skuid $uid tcp dport @captive_web accept" && ok=1 || ok=0
+result $ok "I15b the installed service scopes captive-portal rules to the helper account only"
 [ $ok = 1 ] || sed 's/^/      /' "$WORK/connect.log"
 nft list table inet septuvo > /dev/null 2>&1 && ok=0 || ok=1
 result $ok "I16 the host's own firewall is untouched (rules only in the lab namespace)"
@@ -133,6 +138,8 @@ for f in /usr/libexec/septuvo /usr/bin/septuvo /usr/sbin/septuvo-server \
   [ -e "$f" ] && left="$left $f"
 done
 getent group septuvo > /dev/null && left="$left group:septuvo"
+getent passwd septuvo-portal > /dev/null && left="$left user:septuvo-portal"
+getent group septuvo-portal > /dev/null && left="$left group:septuvo-portal"
 ip netns list | grep -qw septuvo-lab && left="$left netns:septuvo-lab"
 systemctl list-unit-files 2>/dev/null | grep -q '^septuvo' && left="$left units"
 [ $rc = 0 ] && [ -z "$left" ] && ok=1 || ok=0

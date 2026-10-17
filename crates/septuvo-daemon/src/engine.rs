@@ -9,6 +9,17 @@
 //! With tunnel DNS (N2-03) connect also restricts DNS to the configured
 //! resolvers through the tunnel and points the resolver file at them; a
 //! deliberate disconnect restores both.
+//!
+//! Captive-portal mode (Q1, N3-02, revised after the owner's review of
+//! PR #63) applies **only to one dedicated helper account**: while a window
+//! is open, that account (and no other program) may reach web servers
+//! outside the tunnel, for at most five minutes, only while connected, at
+//! most [`MAX_CAPTIVE_WINDOWS`] times per connection. Plain DNS to the
+//! network's resolvers is opened for the helper only when explicitly
+//! authorized for that window; the resolver file is never changed. The
+//! **kernel** ends the window (timeout sets, see `septuvo_policy::nft`), so
+//! it closes on time even if this service dies; the service only remembers
+//! the deadline to show the time left.
 
 use crate::resolver::Resolver;
 use septuvo_config::{DeviceConfig, DnsPolicy};
@@ -16,6 +27,19 @@ use septuvo_ipc::{Command, Response};
 use septuvo_policy::nft::{self, DnsRules, KillSwitch};
 use std::path::Path;
 use std::process::{Command as Process, Stdio};
+use std::time::{Duration, Instant};
+
+/// Shown in status and on start while a captive-portal window is open.
+pub const CAPTIVE_WARNING: &str = "captive-portal window: the sign-in helper account may reach web \
+     servers (TCP 80/443) OUTSIDE the tunnel, unprotected; every other program stays blocked";
+
+/// Shown when the network's DNS was authorized for the window.
+pub const NETWORK_DNS_WARNING: &str = "network DNS authorized for the helper only: answers from this \
+     network are untrusted; the system resolver is unchanged";
+
+/// Most captive-portal windows per connection: asking again cannot keep a
+/// window open indefinitely. Disconnect and connect again to start over.
+pub const MAX_CAPTIVE_WINDOWS: u8 = 3;
 
 /// Shown for peer authentication, which does not exist before G1.
 pub const PEER_NOTE: &str = "peer authentication is not available before the G1 security review";
@@ -29,6 +53,9 @@ pub trait Firewall {
     fn apply(&mut self, script: &str) -> Result<(), String>;
     /// True if Septuvo rules are currently installed.
     fn active(&mut self) -> bool;
+    /// True if the captive-portal web set currently holds elements, that is
+    /// the kernel still keeps the window open.
+    fn captive_open(&mut self) -> bool;
 }
 
 /// The real firewall: the `nft` program, found at a fixed path (a
@@ -81,6 +108,28 @@ impl Firewall for Nftables {
             .status()
             .is_ok_and(|s| s.success())
     }
+
+    fn captive_open(&mut self) -> bool {
+        let Some(nft) = nft_binary() else {
+            return false;
+        };
+        // Fixed arguments only, passed directly (no shell). The kernel hides
+        // expired elements, so "elements =" means the window is still open.
+        Process::new(nft)
+            .args([
+                "list",
+                "set",
+                nft::TABLE_FAMILY,
+                nft::TABLE_NAME,
+                nft::CAPTIVE_WEB_SET,
+            ])
+            .stdin(Stdio::null())
+            .stderr(Stdio::null())
+            .output()
+            .is_ok_and(|o| {
+                o.status.success() && String::from_utf8_lossy(&o.stdout).contains("elements =")
+            })
+    }
 }
 
 /// Whether the tunnel interface exists, from `/sys/class/net`.
@@ -108,6 +157,16 @@ pub struct Engine<F: Firewall, I: Interfaces, R: Resolver> {
     resolver: R,
     /// The user asked to be protected (connect) and has not disconnected.
     wanted: bool,
+    /// When the current captive-portal window ends, if this service opened
+    /// it. Display only: the kernel enforces the end.
+    captive_until: Option<Instant>,
+    /// Whether the current window authorized the network's DNS (`None`:
+    /// opened before this service started).
+    captive_network_dns: Option<bool>,
+    /// User ID of the dedicated helper account; `None`: not configured.
+    captive_helper: Option<u32>,
+    /// Windows opened since the last connect.
+    captive_windows: u8,
 }
 
 impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
@@ -121,7 +180,19 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
             interfaces,
             resolver,
             wanted: false,
+            captive_until: None,
+            captive_network_dns: None,
+            captive_helper: None,
+            captive_windows: 0,
         }
+    }
+
+    /// Enables captive-portal mode for the dedicated helper account `uid`
+    /// (never 0; the renderer refuses root as well).
+    #[must_use]
+    pub fn with_captive_helper(mut self, uid: Option<u32>) -> Self {
+        self.captive_helper = uid.filter(|&u| u != 0);
+        self
     }
 
     /// Handles one command. `control` is true if it came over the control
@@ -134,6 +205,10 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
             Command::Status => self.status(),
             Command::Connect => self.connect(),
             Command::Disconnect => self.disconnect(),
+            Command::Captive {
+                minutes,
+                network_dns,
+            } => self.captive(minutes, network_dns),
         }
     }
 
@@ -156,6 +231,7 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
                 },
                 DnsPolicy::System => DnsRules::System,
             },
+            captive_helper: self.captive_helper,
         }
     }
 
@@ -175,6 +251,10 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
             return Response::error("firewall", &e);
         }
         self.wanted = true;
+        // The new table starts with empty captive-portal sets.
+        self.captive_until = None;
+        self.captive_network_dns = None;
+        self.captive_windows = 0;
         if let Some(servers) = self.tunnel_resolvers().map(<[_]>::to_vec)
             && let Err(e) = self.resolver.install(&servers)
         {
@@ -192,6 +272,9 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
             return Response::error("firewall", &e);
         }
         self.wanted = false;
+        // Removing the table ended any captive-portal window at once.
+        self.captive_until = None;
+        self.captive_network_dns = None;
         if let Err(e) = self.resolver.restore() {
             return Response::error("resolver", &format!("rules removed, but {e}"));
         }
@@ -201,8 +284,82 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
         )
     }
 
+    /// Opens a captive-portal window for the helper account for `minutes`
+    /// (1 to 5). Asking again restarts the window from now (it never adds
+    /// up) and counts as a new window.
+    fn captive(&mut self, minutes: u8, network_dns: bool) -> Response {
+        if !(1..=septuvo_ipc::MAX_CAPTIVE_MINUTES).contains(&minutes) {
+            return Response::error(
+                "invalid_request",
+                "captive-portal mode lasts 1 to 5 minutes",
+            );
+        }
+        if self.captive_helper.is_none() {
+            return Response::error(
+                "not_configured",
+                "captive-portal mode needs a dedicated helper account (daemon.captive_helper_user)",
+            );
+        }
+        if !self.wanted || !self.firewall.active() {
+            return Response::error(
+                "not_connected",
+                "captive-portal mode is only available while connected (kill switch on)",
+            );
+        }
+        if self.captive_windows >= MAX_CAPTIVE_WINDOWS {
+            return Response::error(
+                "limit",
+                "at most 3 captive-portal windows per connection; disconnect and connect again",
+            );
+        }
+        // Never automatic: the network's DNS only when asked for this window.
+        let resolvers = if network_dns {
+            self.resolver.network_resolvers()
+        } else {
+            Vec::new()
+        };
+        let seconds = u32::from(minutes) * 60;
+        let script = match nft::captive_script(seconds, &resolvers) {
+            Ok(s) => s,
+            Err(e) => return Response::error("invalid_request", &e.to_string()),
+        };
+        if let Err(e) = self.firewall.apply(&script) {
+            return Response::error("firewall", &e);
+        }
+        self.captive_windows += 1;
+        self.captive_until = Some(Instant::now() + Duration::from_secs(u64::from(seconds)));
+        self.captive_network_dns = Some(!resolvers.is_empty());
+        // Every window is logged (journal), never silent. Only counts and
+        // yes/no flags: no account, address or other detail is written.
+        eprintln!(
+            "septuvod: captive-portal window {} of {MAX_CAPTIVE_WINDOWS} opened for {minutes} min \
+             for the helper account (network DNS: {})",
+            self.captive_windows,
+            if resolvers.is_empty() { "no" } else { "yes" }
+        );
+        let mut r = self.status().with("message", CAPTIVE_WARNING);
+        if network_dns && resolvers.is_empty() {
+            r = r.with(
+                "captive_resolvers",
+                "no network resolver found: web ports only (DNS over HTTPS)",
+            );
+        } else if !resolvers.is_empty() {
+            let list: Vec<String> = resolvers.iter().map(ToString::to_string).collect();
+            r = r.with(
+                "captive_resolvers",
+                &format!("network DNS for the helper: {}", list.join(", ")),
+            );
+        }
+        r
+    }
+
     fn status(&mut self) -> Response {
         let kill_switch = self.firewall.active();
+        let captive = kill_switch && self.firewall.captive_open();
+        if !captive {
+            self.captive_until = None;
+            self.captive_network_dns = None;
+        }
         let adapter = if self.interfaces.is_up(&self.config.tunnel.interface) {
             "pass"
         } else {
@@ -231,7 +388,56 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
                     "system"
                 },
             )
+            .with("captive_portal", self.captive_state(captive))
+            .with_if(captive, "captive_remaining", &self.captive_remaining())
+            .with_if(captive, "captive_warning", CAPTIVE_WARNING)
+            .with_if(captive, "captive_dns", self.captive_dns())
+            .with_if(
+                self.captive_helper.is_some(),
+                "captive_helper",
+                &self
+                    .captive_helper
+                    .map(|u| format!("uid {u}"))
+                    .unwrap_or_default(),
+            )
+            .with_if(
+                self.captive_helper.is_some() && self.wanted,
+                "captive_windows_left",
+                &(MAX_CAPTIVE_WINDOWS - self.captive_windows.min(MAX_CAPTIVE_WINDOWS)).to_string(),
+            )
             .with("note", PEER_NOTE)
+    }
+
+    fn captive_state(&self, open: bool) -> &'static str {
+        match (self.captive_helper, open) {
+            (_, true) => "open",
+            (Some(_), false) => "closed",
+            (None, false) => "not-configured",
+        }
+    }
+
+    fn captive_dns(&self) -> &'static str {
+        match self.captive_network_dns {
+            Some(true) => NETWORK_DNS_WARNING,
+            Some(false) => {
+                "helper: encrypted DNS only (DNS over HTTPS); the network's DNS is not opened"
+            }
+            None => "unknown (window opened before this service started)",
+        }
+    }
+
+    /// Seconds left in the window, or "unknown" if it was opened before this
+    /// service started (it still ends on time: the kernel enforces it).
+    fn captive_remaining(&self) -> String {
+        self.captive_until.map_or_else(
+            || "unknown".to_string(),
+            |until| {
+                until
+                    .saturating_duration_since(Instant::now())
+                    .as_secs()
+                    .to_string()
+            },
+        )
     }
 
     fn dns_policy(&self) -> String {
@@ -253,6 +459,8 @@ mod tests {
     #[derive(Default)]
     struct FakeFirewall {
         installed: Option<String>,
+        /// The last captive-portal script, while the "kernel" keeps it open.
+        captive: Option<String>,
         fail: bool,
         applied: usize,
     }
@@ -263,6 +471,13 @@ mod tests {
                 return Err("simulated failure".into());
             }
             self.applied += 1;
+            if script.contains("add element") {
+                assert!(self.installed.is_some(), "sets exist only with the table");
+                self.captive = Some(script.to_string());
+                return Ok(());
+            }
+            // A new or removed table always starts with empty sets.
+            self.captive = None;
             self.installed = if script.contains("delete table") && !script.contains("chain") {
                 None
             } else {
@@ -272,6 +487,9 @@ mod tests {
         }
         fn active(&mut self) -> bool {
             self.installed.is_some()
+        }
+        fn captive_open(&mut self) -> bool {
+            self.captive.is_some()
         }
     }
 
@@ -296,6 +514,9 @@ mod tests {
         fn installed(&self) -> bool {
             self.servers.is_some()
         }
+        fn network_resolvers(&self) -> Vec<std::net::IpAddr> {
+            vec!["192.168.1.1".parse().unwrap()]
+        }
     }
 
     struct FakeInterfaces(bool);
@@ -314,8 +535,25 @@ mod tests {
         .expect("valid test configuration")
     }
 
+    const HELPER: u32 = 995;
+
     fn engine(fw: FakeFirewall, up: bool) -> Engine<FakeFirewall, FakeInterfaces, FakeResolver> {
         Engine::new(config(), fw, FakeInterfaces(up), FakeResolver::default())
+            .with_captive_helper(Some(HELPER))
+    }
+
+    fn captive(minutes: u8, network_dns: bool) -> Command {
+        Command::Captive {
+            minutes,
+            network_dns,
+        }
+    }
+
+    fn code(r: &Response) -> &str {
+        match &r.outcome {
+            Outcome::Err { code, .. } => code,
+            Outcome::Ok => "ok",
+        }
     }
 
     #[test]
@@ -419,6 +657,191 @@ mod tests {
         let r = e.handle(Command::Connect, true);
         assert!(matches!(r.outcome, Outcome::Err { ref code, .. } if code == "invalid_policy"));
         assert_eq!(e.firewall.applied, 0, "nothing was sent to nft");
+    }
+
+    fn remaining(r: &Response) -> u64 {
+        r.field("captive_remaining")
+            .and_then(|s| s.parse().ok())
+            .expect("seconds left")
+    }
+
+    #[test]
+    fn captive_portal_needs_a_helper_the_control_socket_and_a_connection() {
+        let mut none = Engine::new(
+            config(),
+            FakeFirewall::default(),
+            FakeInterfaces(false),
+            FakeResolver::default(),
+        );
+        let _ = none.handle(Command::Connect, true);
+        assert_eq!(
+            code(&none.handle(captive(5, false), true)),
+            "not_configured"
+        );
+        assert!(
+            !none.firewall.installed.clone().unwrap().contains("captive"),
+            "no helper, no captive rules at all"
+        );
+        assert_eq!(
+            none.handle(Command::Status, false).field("captive_portal"),
+            Some("not-configured")
+        );
+        let root = Engine::new(
+            config(),
+            FakeFirewall::default(),
+            FakeInterfaces(false),
+            FakeResolver::default(),
+        )
+        .with_captive_helper(Some(0));
+        assert_eq!(root.captive_helper, None, "root is never the helper");
+
+        let mut e = engine(FakeFirewall::default(), false);
+        assert_eq!(code(&e.handle(captive(5, false), true)), "not_connected");
+        let _ = e.handle(Command::Connect, true);
+        let applied = e.firewall.applied;
+        assert_eq!(code(&e.handle(captive(5, false), false)), "not_permitted");
+        for minutes in [0, 6, 255] {
+            assert_eq!(
+                code(&e.handle(captive(minutes, false), true)),
+                "invalid_request"
+            );
+        }
+        assert_eq!(e.firewall.applied, applied, "refusals change nothing");
+        assert_eq!(e.firewall.captive, None);
+        let s = e.handle(Command::Status, false);
+        assert_eq!(s.field("captive_portal"), Some("closed"));
+        assert_eq!(s.field("captive_warning"), None);
+    }
+
+    #[test]
+    fn the_rules_name_the_helper_and_trusted_dns_is_the_default() {
+        let mut e = engine(FakeFirewall::default(), false);
+        let _ = e.handle(Command::Connect, true);
+        let rules = e.firewall.installed.clone().unwrap();
+        assert!(rules.contains("meta skuid 995 tcp dport @captive_web accept"));
+        assert!(rules.contains("meta skuid 995 oifname \"septuvo0\" drop"));
+        let r = e.handle(captive(5, false), true);
+        assert_eq!(r.outcome, Outcome::Ok);
+        let script = e.firewall.captive.clone().expect("window opened");
+        assert!(script.contains("captive_web { 80 timeout 300s, 443 timeout 300s }"));
+        assert!(
+            !script.contains("captive_dns4 {"),
+            "no fallback to the network's DNS unless explicitly authorized"
+        );
+        assert_eq!(r.field("captive_portal"), Some("open"));
+        assert!((295..=300).contains(&remaining(&r)));
+        assert_eq!(r.field("captive_warning"), Some(CAPTIVE_WARNING));
+        assert!(
+            r.field("captive_dns")
+                .unwrap()
+                .contains("encrypted DNS only")
+        );
+        assert_eq!(r.field("captive_windows_left"), Some("2"));
+        assert_eq!(r.field("peer"), Some("fail"), "still never connected");
+        assert_eq!(
+            e.resolver.servers,
+            Some(vec!["10.77.0.1".parse().unwrap()]),
+            "the resolver file still names the tunnel resolver"
+        );
+    }
+
+    #[test]
+    fn network_dns_only_when_explicitly_authorized_and_only_for_the_window() {
+        let mut e = engine(FakeFirewall::default(), false);
+        let _ = e.handle(Command::Connect, true);
+        let r = e.handle(captive(2, true), true);
+        assert_eq!(r.outcome, Outcome::Ok);
+        let script = e.firewall.captive.clone().unwrap();
+        assert!(script.contains("captive_dns4 { 192.168.1.1 timeout 120s }"));
+        assert!(!script.contains("10.77.0.1"), "never the tunnel resolver");
+        assert_eq!(r.field("captive_dns"), Some(NETWORK_DNS_WARNING));
+        let r = e.handle(captive(1, false), true);
+        assert!(
+            remaining(&r) <= 60,
+            "asking again restarts from now, never adds up"
+        );
+        let script = e.firewall.captive.clone().unwrap();
+        assert!(script.contains("80 timeout 60s"));
+        assert!(
+            script.contains("flush set inet septuvo captive_dns4"),
+            "the next window drops the earlier DNS authorization"
+        );
+        assert!(!script.contains("captive_dns4 {"));
+    }
+
+    #[test]
+    fn repeated_requests_cannot_keep_a_window_open_indefinitely() {
+        let mut e = engine(FakeFirewall::default(), false);
+        let _ = e.handle(Command::Connect, true);
+        for left in ["2", "1", "0"] {
+            let r = e.handle(captive(5, false), true);
+            assert_eq!(r.field("captive_windows_left"), Some(left));
+        }
+        let applied = e.firewall.applied;
+        let r = e.handle(captive(5, false), true);
+        assert_eq!(code(&r), "limit");
+        assert_eq!(
+            e.firewall.applied, applied,
+            "the fourth request changes nothing"
+        );
+        e.firewall.captive = None; // the kernel ended the last window
+        assert_eq!(
+            code(&e.handle(captive(1, false), true)),
+            "limit",
+            "still refused after the window ends"
+        );
+        let _ = e.handle(Command::Disconnect, true);
+        let _ = e.handle(Command::Connect, true);
+        assert_eq!(
+            e.handle(captive(1, false), true).outcome,
+            Outcome::Ok,
+            "a deliberate reconnect starts over"
+        );
+    }
+
+    #[test]
+    fn captive_portal_ends_on_disconnect_reconnect_and_kernel_expiry() {
+        let mut e = engine(FakeFirewall::default(), false);
+        let _ = e.handle(Command::Connect, true);
+        let _ = e.handle(captive(5, false), true);
+        let r = e.handle(Command::Disconnect, true);
+        assert_eq!(r.field("captive_portal"), Some("closed"));
+        assert_eq!(e.firewall.captive, None);
+
+        let _ = e.handle(Command::Connect, true);
+        let _ = e.handle(captive(5, false), true);
+        let r = e.handle(Command::Connect, true);
+        assert_eq!(
+            r.field("captive_portal"),
+            Some("closed"),
+            "a new table starts closed"
+        );
+
+        let _ = e.handle(captive(5, false), true);
+        e.firewall.captive = None; // the kernel removed the elements
+        let s = e.handle(Command::Status, false);
+        assert_eq!(s.field("captive_portal"), Some("closed"));
+        assert_eq!(s.field("captive_remaining"), None);
+    }
+
+    #[test]
+    fn a_window_opened_before_a_restart_is_shown_with_unknown_time() {
+        let fw = FakeFirewall {
+            installed: Some("table inet septuvo { chain output { policy drop; } }".into()),
+            captive: Some("add element".into()),
+            ..FakeFirewall::default()
+        };
+        let mut e = engine(fw, false);
+        let s = e.handle(Command::Status, false);
+        assert_eq!(s.field("captive_portal"), Some("open"));
+        assert_eq!(s.field("captive_remaining"), Some("unknown"));
+        assert_eq!(s.field("captive_warning"), Some(CAPTIVE_WARNING));
+        assert!(s.field("captive_dns").unwrap().starts_with("unknown"));
+        assert_eq!(
+            code(&e.handle(captive(5, false), true)),
+            "not_connected",
+            "rules from an earlier run must be reconnected first"
+        );
     }
 
     #[test]

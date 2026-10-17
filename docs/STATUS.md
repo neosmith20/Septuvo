@@ -101,7 +101,7 @@ Dates are `YYYY-MM-DD` UTC: the authorization date for READY rows, the merge dat
 
 | Task ID | State | Predecessor | Owner decision date (UTC) | Work-order approval | Completion evidence |
 | --- | --- | --- | --- | --- | --- |
-| N3-01 | READY | N2-04 | 2026-10-17 | [Work order N3, merged in PR #61](https://github.com/neosmith20/Septuvo/pull/61) | — |
+| N3-01 | ACCEPTED | N2-04 | 2026-10-17 | [Work order N3, merged in PR #61](https://github.com/neosmith20/Septuvo/pull/61) | [PR #62](https://github.com/neosmith20/Septuvo/pull/62) |
 | N3-02 | READY | N3-01 | 2026-10-17 | [Work order N3, merged in PR #61](https://github.com/neosmith20/Septuvo/pull/61) | — |
 | N3-03 | READY | N3-02 | 2026-10-17 | [Work order N3, merged in PR #61](https://github.com/neosmith20/Septuvo/pull/61) | — |
 | N3-04 | READY | N3-03 | 2026-10-17 | [Work order N3, merged in PR #61](https://github.com/neosmith20/Septuvo/pull/61) | — |

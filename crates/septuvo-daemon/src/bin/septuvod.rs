@@ -78,17 +78,36 @@ fn main() -> ExitCode {
             &format!("control group '{}' does not exist", settings.control_group),
         );
     };
+    // Captive-portal mode (N3-02): only for a dedicated account, never root.
+    let captive_helper = match &settings.captive_helper_user {
+        None => None,
+        Some(user) => {
+            let passwd = std::fs::read_to_string("/etc/passwd").unwrap_or_default();
+            match guard::user_id(&passwd, user) {
+                Some(0) => {
+                    return fail(
+                        1,
+                        &format!("captive helper account '{user}' is root; refusing"),
+                    );
+                }
+                Some(uid) => Some(uid),
+                None => {
+                    return fail(
+                        1,
+                        &format!("captive helper account '{user}' does not exist"),
+                    );
+                }
+            }
+        }
+    };
     let listeners = match sockets::listen(&settings.runtime_dir, gid) {
         Ok(l) => l,
         Err(e) => return fail(4, &e.to_string()),
     };
     let resolver = ResolvConf::for_lab_namespace(&settings.lab_namespace);
-    let engine: Shared = Arc::new(Mutex::new(Engine::new(
-        config,
-        Nftables,
-        SysClassNet,
-        resolver,
-    )));
+    let engine: Shared = Arc::new(Mutex::new(
+        Engine::new(config, Nftables, SysClassNet, resolver).with_captive_helper(captive_helper),
+    ));
     println!(
         "septuvod: ready (lab mode, namespace {}, sockets in {})",
         settings.lab_namespace,
