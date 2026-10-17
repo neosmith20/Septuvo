@@ -45,6 +45,38 @@ pub fn details(response: &Response) -> String {
             let _ = writeln!(s, "{label}: {value}");
         }
     }
+    s.push_str(&captive_lines(response));
+    s
+}
+
+/// The captive-portal lines: always the state; while open, a warning that
+/// cannot be missed and the time left.
+#[must_use]
+pub fn captive_lines(response: &Response) -> String {
+    let mut s = String::new();
+    match response.field("captive_portal") {
+        Some("open") => {
+            let left = match response.field("captive_remaining") {
+                Some(n) if n.bytes().all(|b| b.is_ascii_digit()) && !n.is_empty() => {
+                    let n: u64 = n.parse().unwrap_or(0);
+                    format!("{}:{:02} left", n / 60, n % 60)
+                }
+                _ => "time left unknown; it still ends on time".to_string(),
+            };
+            let _ = writeln!(s, "Captive portal: OPEN ({left})");
+            let warning = response
+                .field("captive_warning")
+                .unwrap_or("traffic is leaving outside the tunnel");
+            let _ = writeln!(s, "WARNING: {warning}");
+            if let Some(dns) = response.field("captive_resolvers") {
+                let _ = writeln!(s, "Captive portal {dns}");
+            }
+        }
+        Some("closed") => {
+            let _ = writeln!(s, "Captive portal: closed");
+        }
+        _ => {}
+    }
     s
 }
 
@@ -137,6 +169,31 @@ mod tests {
         assert!(d.contains("Service state: blocking"));
         assert!(d.contains("Kill switch: on"));
         assert!(d.contains("G1"));
+    }
+
+    #[test]
+    fn captive_portal_lines_warn_and_count_down() {
+        let open = Response::ok()
+            .with("captive_portal", "open")
+            .with("captive_remaining", "299")
+            .with("captive_warning", "outside the tunnel");
+        let d = details(&open);
+        assert!(d.contains("Captive portal: OPEN (4:59 left)"));
+        assert!(d.contains("WARNING: outside the tunnel"));
+        let unknown = Response::ok()
+            .with("captive_portal", "open")
+            .with("captive_remaining", "unknown");
+        let d = details(&unknown);
+        assert!(d.contains("time left unknown; it still ends on time"));
+        assert!(
+            d.contains("WARNING:"),
+            "a warning even without the service's text"
+        );
+        assert!(
+            details(&Response::ok().with("captive_portal", "closed"))
+                .contains("Captive portal: closed")
+        );
+        assert!(!details(&Response::ok()).contains("Captive"));
     }
 
     #[test]

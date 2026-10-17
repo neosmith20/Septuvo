@@ -54,6 +54,7 @@ device_config = "/etc/septuvo/septuvo.toml"   # required; see config.md
 | `septuvo status [--runtime-dir DIR]` | Shows the four checks (D-020): adapter, server identity, traffic, DNS, plus the service state and the kill switch. **Server identity is always "failed"** (no peer authentication before G1), so the result is always "Not connected" (exit 3) |
 | `septuvo connect [--runtime-dir DIR]` | Installs the N1 kill switch for the configured policy. Protected traffic is blocked, because no VPN path exists; the server endpoints stay reachable |
 | `septuvo disconnect [--runtime-dir DIR]` | A deliberate disconnect: removes the Septuvo rules **and restores the original resolver file**. This is the only way they are removed (Q2) |
+| `septuvo captive-portal [--minutes N] [--runtime-dir DIR]` | Captive-portal mode (Q1, N3-02): for **at most 5 minutes**, lets web traffic and the network's own DNS out directly so you can sign in to a hotel or airport network. Then it re-blocks by itself. See below |
 
 **DNS (N2-03).** With tunnel DNS (`[dns] resolvers`, see [config.md](config.md)), connect also:
 - allows DNS only to those resolvers, only through the tunnel, plus the listed LAN exceptions directly. All other DNS on UDP/TCP 53, DNS over TLS and DNS over QUIC is dropped, in full-tunnel and split mode alike;
@@ -63,7 +64,33 @@ Status reports `dns_policy` and `resolver_file`. The DNS stage itself stays "unk
 
 **If the service stops or crashes,** the rules stay in place (fail closed). After a restart it reports them as `blocking-left-from-earlier-run` and leaves them alone.
 
-**The local protocol** is a single text line per request (`SEPTUVO/1 STATUS`), answered with `SEPTUVO/1 OK` or `SEPTUVO/1 ERR code message`, then `key=value` lines and `END`.
+## Captive-portal mode (N3-02)
+
+Hotel, airport and café networks often show a sign-in page before anything else works. With the kill switch on, that page cannot load. `septuvo captive-portal` opens a short, limited window:
+
+| Opened, outside the tunnel | Still blocked |
+| --- | --- |
+| Web traffic: TCP 80 and 443, any address | Everything else: QUIC (UDP 443), other TCP and UDP ports, DNS over TLS/QUIC (853) |
+| DNS (UDP and TCP 53) to the **network's own resolvers**: the `nameserver` lines of the original resolver file (the backup while connected), at most 4, never loopback or multicast | DNS to any other server; hosts the policy `block`s; `tunnel` prefixes (tunnel only) |
+
+**How the window ends:**
+- **The kernel closes the window, not the service.** The kill-switch table always contains three empty nftables sets with timeouts (`captive_web`, `captive_dns4`, `captive_dns6`). Opening the window adds elements that expire after N minutes, and the kernel removes them itself. **A crashed or killed service therefore cannot leave the bypass open.** The lab kills the service mid-window and checks the window still closes on time.
+- **5 minutes is the most.** `--minutes` (1–5, default 5) can only shorten it.
+- **Asking again restarts the window from now.** It never adds up.
+- **Disconnect ends it at once**, and so does a new connect.
+- **Nothing ever opens it automatically**, including "always on" (Q4).
+
+**Who and when:**
+- Only control-group members (the control socket), and only while connected (the kill switch on and wanted by this service).
+- After a service restart, rules left from the earlier run must be reconnected first.
+
+**Status** shows `captive_portal` open or closed. While open, it also shows the time left (or "unknown" if the window was opened before a restart; it still ends on time) and a warning that traffic is leaving outside the tunnel, unprotected.
+
+**Known limits:**
+- **Everything on web ports goes out unprotected while the window is open.** That includes DNS over HTTPS, which cannot be told apart from other HTTPS.
+- **The resolver file is not changed during the window**, so it still names the tunnel resolver. Tools that ask the network's resolver directly, or a browser pointed at the sign-in page's address, work. Ordinary name lookups through the system resolver do not. Pointing the resolver file at the network's untrusted resolver for the window is a security decision **left to the owner** and not made here.
+
+**The local protocol** is a single text line per request (`SEPTUVO/1 STATUS`, or `SEPTUVO/1 CAPTIVE N` with N a single digit, 1–5), answered with `SEPTUVO/1 OK` or `SEPTUVO/1 ERR code message`, then `key=value` lines and `END`.
 - Requests are at most 64 bytes, and responses at most 4096 bytes and 32 fields.
 - Only printable ASCII is allowed.
 - One request per connection, with a 5-second time-out.
@@ -90,8 +117,27 @@ CI runs it on every pull request.
 
 **Recorded 2026-10-17** on Linux x86_64 (this workspace, Rust 1.97): **17 passed, 0 failed.**
 
+**Captive-portal lab (N3-02):**
+
+```sh
+sudo tests/lab/namespaces/captive.sh [--require-ipv6] target/debug/septuvod target/debug/septuvo
+```
+
+It uses three namespaces: a device, a "hotel" network with a sign-in page and a resolver, and the far end of a stand-in tunnel. It also creates two throw-away users. It checks cases CP00–CP31:
+- **Refusals:** captive-portal mode is refused while not connected and for non-members.
+- **Before** the window: the sign-in page, HTTPS and network DNS are blocked.
+- **During** the window: TCP 80/443 and network DNS go out directly, IPv4 and IPv6. Other DNS servers, DNS over TLS, QUIC, other ports and policy-blocked hosts stay blocked, and the tunnel is still used.
+- **Status** shows the warning and still never says connected.
+- **Service killed mid-window:** the window stays the kernel's, and **after the timeout, with no service running, everything is blocked again**.
+- **Restarts and repeats:** a restarted service reports a window it did not open; asking again restarts the window and never adds up.
+- **Ending:** disconnect ends it at once, and reconnecting starts closed.
+
+It takes about 70 seconds, because one real 1-minute window runs. CI runs it with IPv6 required on every pull request.
+
+**Recorded 2026-10-17** on Linux x86_64 (this workspace, Rust 1.97, no IPv6 in this kernel): **30 passed, 0 failed, 3 skipped** (the IPv6 cases; CI runs them).
+
 ## Not in this task
 
 - Server administration: N2-04.
 - A tunnel, peer authentication or anything else that needs the Septuvo Protocol: after G1.
-- Running as a system service with an installer: later milestones.
+- Running as a system service with an installer: done in N3-01 ([install.md](install.md)).

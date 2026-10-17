@@ -3,7 +3,8 @@
 //! The small, versioned text protocol between the unprivileged `septuvo`
 //! command-line tool and the privileged service `septuvod`, over Unix
 //! sockets on the same machine. It carries **no secrets and no traffic**:
-//! only commands (status, connect, disconnect) and status fields.
+//! only commands (status, connect, disconnect, captive-portal mode) and
+//! status fields.
 //!
 //! ```text
 //! request:   SEPTUVO/1 STATUS\n
@@ -65,6 +66,9 @@ pub fn control_socket(runtime_dir: &Path) -> PathBuf {
     runtime_dir.join(CONTROL_DIR).join(CONTROL_SOCKET)
 }
 
+/// Longest captive-portal window a client may ask for, in minutes (Q1).
+pub const MAX_CAPTIVE_MINUTES: u8 = 5;
+
 /// A command from the CLI to the service.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Command {
@@ -74,6 +78,12 @@ pub enum Command {
     Connect,
     /// Deliberately disconnect: the only way protection is lifted (Q2).
     Disconnect,
+    /// Open captive-portal mode for 1 to [`MAX_CAPTIVE_MINUTES`] minutes
+    /// (Q1, N3-02). On the wire: `CAPTIVE N`.
+    Captive {
+        /// Length of the window, 1 to [`MAX_CAPTIVE_MINUTES`].
+        minutes: u8,
+    },
 }
 
 impl Command {
@@ -84,6 +94,7 @@ impl Command {
             Command::Status => "STATUS",
             Command::Connect => "CONNECT",
             Command::Disconnect => "DISCONNECT",
+            Command::Captive { .. } => "CAPTIVE",
         }
     }
 
@@ -97,7 +108,10 @@ impl Command {
     /// The request line for this command.
     #[must_use]
     pub fn encode(self) -> String {
-        format!("{VERSION} {}\n", self.as_str())
+        match self {
+            Command::Captive { minutes } => format!("{VERSION} CAPTIVE {minutes}\n"),
+            other => format!("{VERSION} {}\n", other.as_str()),
+        }
     }
 }
 
@@ -170,7 +184,19 @@ pub fn parse_request(bytes: &[u8]) -> Result<Command, ProtocolError> {
         "STATUS" => Ok(Command::Status),
         "CONNECT" => Ok(Command::Connect),
         "DISCONNECT" => Ok(Command::Disconnect),
-        _ => Err(ProtocolError::UnknownCommand),
+        _ => match command.strip_prefix("CAPTIVE ") {
+            Some(n) => captive_minutes(n).map(|minutes| Command::Captive { minutes }),
+            None => Err(ProtocolError::UnknownCommand),
+        },
+    }
+}
+
+/// Exactly one digit, 1 to [`MAX_CAPTIVE_MINUTES`]: no sign, no leading
+/// zero, no spaces.
+fn captive_minutes(n: &str) -> Result<u8, ProtocolError> {
+    match n.as_bytes() {
+        [d @ b'1'..=b'9'] if d - b'0' <= MAX_CAPTIVE_MINUTES => Ok(d - b'0'),
+        _ => Err(ProtocolError::Malformed),
     }
 }
 
@@ -236,6 +262,16 @@ impl Response {
             self.fields.push((key.to_string(), clean(value)));
         }
         self
+    }
+
+    /// [`Response::with`], only if `condition` holds.
+    #[must_use]
+    pub fn with_if(self, condition: bool, key: &str, value: &str) -> Self {
+        if condition {
+            self.with(key, value)
+        } else {
+            self
+        }
     }
 
     /// The value of the first field called `key`.
@@ -393,6 +429,12 @@ mod tests {
         for c in [Command::Status, Command::Connect, Command::Disconnect] {
             assert_eq!(parse_request(c.encode().as_bytes()), Ok(c));
         }
+        for minutes in 1..=MAX_CAPTIVE_MINUTES {
+            let c = Command::Captive { minutes };
+            assert_eq!(c.encode(), format!("SEPTUVO/1 CAPTIVE {minutes}\n"));
+            assert_eq!(parse_request(c.encode().as_bytes()), Ok(c));
+            assert!(c.needs_control());
+        }
         assert!(!Command::Status.needs_control());
         assert!(Command::Connect.needs_control());
         assert!(Command::Disconnect.needs_control());
@@ -415,6 +457,34 @@ mod tests {
         for (input, expected) in cases {
             assert_eq!(parse_request(input), Err(expected), "{input:?}");
         }
+    }
+
+    #[test]
+    fn captive_requests_are_strictly_bounded() {
+        for bad in [
+            "CAPTIVE 0",
+            "CAPTIVE 6",
+            "CAPTIVE 9",
+            "CAPTIVE 10",
+            "CAPTIVE 05",
+            "CAPTIVE +5",
+            "CAPTIVE -1",
+            "CAPTIVE  5",
+            "CAPTIVE 5 ",
+            "CAPTIVE x",
+            "CAPTIVE ",
+        ] {
+            let line = format!("{VERSION} {bad}\n");
+            assert_eq!(
+                parse_request(line.as_bytes()),
+                Err(ProtocolError::Malformed),
+                "{bad:?}"
+            );
+        }
+        assert_eq!(
+            parse_request(b"SEPTUVO/1 CAPTIVE\n"),
+            Err(ProtocolError::UnknownCommand)
+        );
     }
 
     #[test]

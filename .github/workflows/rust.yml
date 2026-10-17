@@ -101,6 +101,10 @@ jobs:
       - name: Run the DNS lab (IPv6 required)
         run: sudo tests/lab/namespaces/dns.sh --require-ipv6 target/debug/septuvod target/debug/septuvo
 
+      # N3-02: captive-portal mode, with one real 1-minute window (IPv6 required).
+      - name: Run the captive-portal lab (IPv6 required)
+        run: sudo tests/lab/namespaces/captive.sh --require-ipv6 target/debug/septuvod target/debug/septuvo
+
   # N3-01: installer and systemd service. A staged install (no root), then a
   # real install, use and uninstall on this disposable runner only.
   install:

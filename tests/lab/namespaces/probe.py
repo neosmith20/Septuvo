@@ -2,7 +2,8 @@
 """Packet probe for the Septuvo namespace lab (N1-03). Standard library only.
 
 listen LOGFILE READYFILE ADDRESS...
-    Receive on UDP ports 53, 67, 547 and 5000 and TCP ports 53, 853 and 5000,
+    Receive on UDP ports 53, 67, 443, 547 and 5000 and TCP ports 53, 80, 443,
+    853 and 5000,
     on each listed lab address only (never on all interfaces). Every payload
     received is appended to LOGFILE as one line. READYFILE is created once
     all sockets are bound. Addresses that appear later (the stand-in tunnel
@@ -22,8 +23,8 @@ import selectors
 import socket
 import sys
 
-UDP_PORTS = (53, 67, 547, 5000)
-TCP_PORTS = (53, 853, 5000)
+UDP_PORTS = (53, 67, 443, 547, 5000)
+TCP_PORTS = (53, 80, 443, 853, 5000)
 
 
 def listen(logfile, readyfile, addresses):

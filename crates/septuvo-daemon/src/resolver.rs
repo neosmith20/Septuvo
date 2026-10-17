@@ -33,6 +33,31 @@ pub trait Resolver {
     fn restore(&mut self) -> Result<(), String>;
     /// True if the current file is Septuvo's.
     fn installed(&self) -> bool;
+    /// The network's own resolvers (captive-portal mode, N3-02): the
+    /// `nameserver` lines of the original file, which is the backup while
+    /// Septuvo's file is installed. At most
+    /// [`septuvo_policy::nft::MAX_CAPTIVE_RESOLVERS`]; loopback, unspecified
+    /// and multicast addresses and anything unparsable are skipped.
+    fn network_resolvers(&self) -> Vec<IpAddr>;
+}
+
+/// Largest resolver file read when looking for the network's resolvers.
+const MAX_ORIGINAL_BYTES: u64 = 64 * 1024;
+
+/// The usable `nameserver` addresses in a resolver file's text.
+#[must_use]
+pub fn nameservers(text: &str) -> Vec<IpAddr> {
+    text.lines()
+        .filter_map(|line| {
+            let mut words = line.split_whitespace();
+            (words.next() == Some("nameserver"))
+                .then(|| words.next())
+                .flatten()
+                .and_then(|w| w.parse::<IpAddr>().ok())
+                .filter(|a| !a.is_loopback() && !a.is_unspecified() && !a.is_multicast())
+        })
+        .take(septuvo_policy::nft::MAX_CAPTIVE_RESOLVERS)
+        .collect()
 }
 
 /// A `resolv.conf` at a fixed path, with its backup next to it.
@@ -175,6 +200,28 @@ impl Resolver for ResolvConf {
     fn installed(&self) -> bool {
         ours(&self.path)
     }
+
+    fn network_resolvers(&self) -> Vec<IpAddr> {
+        use std::io::Read;
+        let original = if exists(&self.backup) {
+            &self.backup
+        } else if !ours(&self.path) {
+            &self.path
+        } else {
+            return Vec::new();
+        };
+        if is_symlink(original) {
+            return Vec::new();
+        }
+        let mut text = String::new();
+        let read =
+            File::open(original).and_then(|f| f.take(MAX_ORIGINAL_BYTES).read_to_string(&mut text));
+        if read.is_ok() {
+            nameservers(&text)
+        } else {
+            Vec::new()
+        }
+    }
 }
 
 #[cfg(test)]
@@ -245,6 +292,42 @@ mod tests {
         );
         fs::remove_file(r.path()).unwrap();
         assert!(r.install(&[]).is_err());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn network_resolvers_come_from_the_original_file() {
+        let (dir, mut r) = temp("network");
+        fs::write(
+            r.path(),
+            "# comment\nnameserver 192.168.1.1\nnameserver 127.0.0.53\nnameserver   fe80::1\n\
+             nameserver bogus\nnameserver 0.0.0.0\nnameserver 224.0.0.251\noptions edns0\n\
+             nameserver 192.168.1.2\nnameserver 192.168.1.3\nnameserver 192.168.1.4\n",
+        )
+        .unwrap();
+        let expect: Vec<IpAddr> = ["192.168.1.1", "fe80::1", "192.168.1.2", "192.168.1.3"]
+            .iter()
+            .map(|a| a.parse().unwrap())
+            .collect();
+        assert_eq!(
+            r.network_resolvers(),
+            expect,
+            "skips bad entries, at most four"
+        );
+        r.install(&servers()).unwrap();
+        assert_eq!(
+            r.network_resolvers(),
+            expect,
+            "while Septuvo's file is installed, the backup is read"
+        );
+        r.restore().unwrap();
+        fs::remove_file(r.path()).unwrap();
+        r.install(&servers()).unwrap();
+        assert_eq!(
+            r.network_resolvers(),
+            Vec::<IpAddr>::new(),
+            "no original: none (never the tunnel resolvers)"
+        );
         fs::remove_dir_all(dir).unwrap();
     }
 

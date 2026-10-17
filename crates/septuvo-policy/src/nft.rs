@@ -21,8 +21,18 @@
 //! - policy rules follow in most-specific-first order, and every rule is
 //!   terminal, so a less specific rule can never re-allow a tunnel prefix.
 //!
-//! Scope: locally generated traffic (the output hook). Forwarded traffic,
-//! captive-portal mode (Q1) and routes are not rendered here.
+//! - captive-portal mode (Q1, N3-02): three **timeout sets** are always part
+//!   of the table and start empty. [`captive_script`] fills them with elements
+//!   that carry a kernel timeout of at most [`MAX_CAPTIVE_SECONDS`]; while an
+//!   element is present, web traffic (TCP 80 and 443) and DNS to the network's
+//!   own resolvers may leave outside the tunnel. The **kernel** removes the
+//!   elements when the time is up, so a crashed or killed service cannot
+//!   leave the bypass open. Policy `block` and `tunnel` rules still win over
+//!   the web exception, and nothing else (UDP, other ports, router traffic)
+//!   is ever opened.
+//!
+//! Scope: locally generated traffic (the output hook). Forwarded traffic and
+//! routes are not rendered here.
 
 use crate::policy::{Action, Mode, Policy};
 use crate::prefix::Family;
@@ -39,6 +49,16 @@ pub const TABLE_NAME: &str = "septuvo";
 pub const MAX_ENDPOINTS: usize = 16;
 /// Maximum number of resolver plus LAN DNS exception addresses in one ruleset.
 pub const MAX_DNS_ADDRESSES: usize = 16;
+/// Longest captive-portal window, in seconds (Q1: five minutes).
+pub const MAX_CAPTIVE_SECONDS: u32 = 300;
+/// Most network resolvers opened during a captive-portal window.
+pub const MAX_CAPTIVE_RESOLVERS: usize = 4;
+/// Set of TCP ports (80, 443) open outside the tunnel during the window.
+pub const CAPTIVE_WEB_SET: &str = "captive_web";
+/// Set of IPv4 network resolvers reachable during the window.
+pub const CAPTIVE_DNS4_SET: &str = "captive_dns4";
+/// Set of IPv6 network resolvers reachable during the window.
+pub const CAPTIVE_DNS6_SET: &str = "captive_dns6";
 
 /// How the kill switch treats DNS.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -86,6 +106,12 @@ pub enum RenderError {
     BadDnsAddresses,
     /// [`DnsRules::System`] with a full-tunnel policy would leak DNS.
     SystemDnsInFullTunnel,
+    /// A captive-portal window of 0 seconds or longer than
+    /// [`MAX_CAPTIVE_SECONDS`].
+    BadCaptiveDuration,
+    /// More than [`MAX_CAPTIVE_RESOLVERS`] network resolvers, or an address
+    /// that cannot be a resolver (unspecified or multicast).
+    BadCaptiveResolvers,
 }
 
 impl fmt::Display for RenderError {
@@ -105,6 +131,14 @@ impl fmt::Display for RenderError {
             RenderError::SystemDnsInFullTunnel => {
                 f.write_str("system DNS would send queries outside the tunnel in full-tunnel mode")
             }
+            RenderError::BadCaptiveDuration => write!(
+                f,
+                "a captive-portal window lasts between 1 and {MAX_CAPTIVE_SECONDS} seconds"
+            ),
+            RenderError::BadCaptiveResolvers => write!(
+                f,
+                "at most {MAX_CAPTIVE_RESOLVERS} network resolvers, each a unicast address"
+            ),
         }
     }
 }
@@ -136,27 +170,7 @@ fn daddr(family: Family) -> &'static str {
 /// # Errors
 /// See [`RenderError`].
 pub fn render(policy: &Policy, ks: &KillSwitch) -> Result<String, RenderError> {
-    if !valid_interface(&ks.tunnel_interface) {
-        return Err(RenderError::BadInterfaceName);
-    }
-    if ks.endpoints.len() > MAX_ENDPOINTS {
-        return Err(RenderError::TooManyEndpoints);
-    }
-    if ks.endpoints.iter().any(|&(_, port)| port == 0) {
-        return Err(RenderError::BadEndpointPort);
-    }
-    match &ks.dns {
-        DnsRules::Resolvers {
-            resolvers,
-            lan_exceptions,
-        } if resolvers.is_empty() || resolvers.len() + lan_exceptions.len() > MAX_DNS_ADDRESSES => {
-            return Err(RenderError::BadDnsAddresses);
-        }
-        DnsRules::System if policy.mode() == Mode::FullTunnel => {
-            return Err(RenderError::SystemDnsInFullTunnel);
-        }
-        _ => {}
-    }
+    validate(policy, ks)?;
     let tun = &ks.tunnel_interface;
     let mut s = String::new();
     // `add` then `delete` makes replacement work whether or not the table
@@ -168,6 +182,7 @@ pub fn render(policy: &Policy, ks: &KillSwitch) -> Result<String, RenderError> {
     let _ = writeln!(s, "add table {TABLE}");
     let _ = writeln!(s, "delete table {TABLE}");
     let _ = writeln!(s, "table {TABLE} {{");
+    render_captive_sets(&mut s);
     let _ = writeln!(s, "\tchain output {{");
     let _ = writeln!(
         s,
@@ -194,6 +209,7 @@ pub fn render(policy: &Policy, ks: &KillSwitch) -> Result<String, RenderError> {
             daddr(family_of(addr))
         );
     }
+    render_captive_dns(&mut s, tun);
     render_dns(&mut s, policy, tun, &ks.dns);
     let _ = writeln!(s, "\t\t# Policy rules, most specific first; each is final");
     for rule in policy.rules() {
@@ -211,6 +227,14 @@ pub fn render(policy: &Policy, ks: &KillSwitch) -> Result<String, RenderError> {
             }
         }
     }
+    let _ = writeln!(
+        s,
+        "\t\t# Captive portal (Q1): web traffic outside the tunnel, only while opened"
+    );
+    let _ = writeln!(
+        s,
+        "\t\toifname != \"{tun}\" tcp dport @{CAPTIVE_WEB_SET} accept"
+    );
     match policy.mode() {
         Mode::FullTunnel => {
             let _ = writeln!(
@@ -232,11 +256,74 @@ pub fn render(policy: &Policy, ks: &KillSwitch) -> Result<String, RenderError> {
     Ok(s)
 }
 
+/// Checks every input that is written into the ruleset.
+fn validate(policy: &Policy, ks: &KillSwitch) -> Result<(), RenderError> {
+    if !valid_interface(&ks.tunnel_interface) {
+        return Err(RenderError::BadInterfaceName);
+    }
+    if ks.endpoints.len() > MAX_ENDPOINTS {
+        return Err(RenderError::TooManyEndpoints);
+    }
+    if ks.endpoints.iter().any(|&(_, port)| port == 0) {
+        return Err(RenderError::BadEndpointPort);
+    }
+    match &ks.dns {
+        DnsRules::Resolvers {
+            resolvers,
+            lan_exceptions,
+        } if resolvers.is_empty() || resolvers.len() + lan_exceptions.len() > MAX_DNS_ADDRESSES => {
+            return Err(RenderError::BadDnsAddresses);
+        }
+        DnsRules::System if policy.mode() == Mode::FullTunnel => {
+            return Err(RenderError::SystemDnsInFullTunnel);
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
 fn family_of(addr: IpAddr) -> Family {
     match addr {
         IpAddr::V4(_) => Family::V4,
         IpAddr::V6(_) => Family::V6,
     }
+}
+
+/// The captive-portal timeout sets, empty until [`captive_script`] fills them.
+fn render_captive_sets(s: &mut String) {
+    let _ = writeln!(
+        s,
+        "\t# Captive-portal mode (Q1): empty unless opened; the kernel removes elements on timeout"
+    );
+    let _ = writeln!(
+        s,
+        "\tset {CAPTIVE_WEB_SET} {{ type inet_service; flags timeout; }}"
+    );
+    let _ = writeln!(
+        s,
+        "\tset {CAPTIVE_DNS4_SET} {{ type ipv4_addr; flags timeout; }}"
+    );
+    let _ = writeln!(
+        s,
+        "\tset {CAPTIVE_DNS6_SET} {{ type ipv6_addr; flags timeout; }}"
+    );
+}
+
+/// DNS to the network's resolvers while the window is open; before the DNS
+/// drop rules so it can take effect.
+fn render_captive_dns(s: &mut String, tun: &str) {
+    let _ = writeln!(
+        s,
+        "\t\t# Captive portal (Q1): DNS to the network's resolvers, only while opened"
+    );
+    let _ = writeln!(
+        s,
+        "\t\tip daddr @{CAPTIVE_DNS4_SET} oifname != \"{tun}\" meta l4proto {{ tcp, udp }} th dport 53 accept"
+    );
+    let _ = writeln!(
+        s,
+        "\t\tip6 daddr @{CAPTIVE_DNS6_SET} oifname != \"{tun}\" meta l4proto {{ tcp, udp }} th dport 53 accept"
+    );
 }
 
 /// DNS rules: after the underlay exceptions, before the policy rules, so no
@@ -288,6 +375,51 @@ fn render_dns(s: &mut String, policy: &Policy, tun: &str, dns: &DnsRules) {
             let _ = writeln!(s, "\t\t# DNS: system resolver (split mode, not protected)");
         }
     }
+}
+
+/// Script that opens captive-portal mode for `seconds` (Q1, N3-02): web
+/// traffic and DNS to `resolvers` may leave outside the tunnel until the
+/// kernel removes the elements.
+///
+/// The sets are flushed first in the same transaction, so asking again
+/// restarts the window from now; it never adds up. Requires the kill-switch
+/// table from [`render`].
+///
+/// # Errors
+/// [`RenderError::BadCaptiveDuration`] or [`RenderError::BadCaptiveResolvers`].
+pub fn captive_script(seconds: u32, resolvers: &[IpAddr]) -> Result<String, RenderError> {
+    if !(1..=MAX_CAPTIVE_SECONDS).contains(&seconds) {
+        return Err(RenderError::BadCaptiveDuration);
+    }
+    if resolvers.len() > MAX_CAPTIVE_RESOLVERS
+        || resolvers
+            .iter()
+            .any(|r| r.is_unspecified() || r.is_multicast())
+    {
+        return Err(RenderError::BadCaptiveResolvers);
+    }
+    let mut s = String::from("# Septuvo captive-portal window (kernel-enforced timeout)\n");
+    for set in [CAPTIVE_WEB_SET, CAPTIVE_DNS4_SET, CAPTIVE_DNS6_SET] {
+        let _ = writeln!(s, "flush set {TABLE} {set}");
+    }
+    let _ = writeln!(
+        s,
+        "add element {TABLE} {CAPTIVE_WEB_SET} {{ 80 timeout {seconds}s, 443 timeout {seconds}s }}"
+    );
+    for (set, family) in [
+        (CAPTIVE_DNS4_SET, Family::V4),
+        (CAPTIVE_DNS6_SET, Family::V6),
+    ] {
+        let list: Vec<String> = resolvers
+            .iter()
+            .filter(|r| family_of(**r) == family)
+            .map(|r| format!("{r} timeout {seconds}s"))
+            .collect();
+        if !list.is_empty() {
+            let _ = writeln!(s, "add element {TABLE} {set} {{ {} }}", list.join(", "));
+        }
+    }
+    Ok(s)
 }
 
 /// Script that removes every Septuvo rule (explicit disconnect, uninstall).
@@ -382,7 +514,18 @@ mod tests {
             Err(RenderError::SystemDnsInFullTunnel)
         );
         let s = render(&split, &system).unwrap();
-        assert!(!s.contains("dport 53"), "system DNS adds no DNS rules");
+        assert!(
+            !dns_rules_outside_captive(&s),
+            "system DNS adds no DNS rules"
+        );
+    }
+
+    /// True if a DNS rule other than the (normally empty) captive-portal
+    /// rules is present.
+    fn dns_rules_outside_captive(script: &str) -> bool {
+        lines(script)
+            .iter()
+            .any(|l| l.contains("dport 53") && !l.contains("@captive"))
     }
 
     fn lines(script: &str) -> Vec<&str> {
@@ -415,8 +558,9 @@ mod tests {
         assert!(endpoint < block, "endpoint exception precedes policy rules");
         assert!(s.contains("ip6 hoplimit 255 accept"));
         let accepts = lines(&s).iter().filter(|l| l.ends_with("accept")).count();
-        // lo, DHCPv4, DHCPv6, ND, endpoint, default
-        assert_eq!(accepts, 6);
+        // lo, DHCPv4, DHCPv6, ND, endpoint, default, plus the three
+        // captive-portal rules that match only while their sets are filled
+        assert_eq!(accepts, 9);
     }
 
     #[test]
@@ -429,7 +573,7 @@ mod tests {
             &ks(),
         )
         .unwrap();
-        assert!(!split.contains("dport 53"));
+        assert!(!dns_rules_outside_captive(&split));
     }
 
     #[test]
@@ -450,6 +594,82 @@ mod tests {
             "accept",
             "split default is the last rule"
         );
+    }
+
+    #[test]
+    fn captive_sets_start_empty_and_their_rules_are_placed_safely() {
+        let p = parse_policy("mode full-tunnel\nblock 10.0.0.0/8\n").unwrap();
+        let s = render(&p, &with_resolvers(&["10.77.0.1"], &[])).unwrap();
+        assert!(s.contains("set captive_web { type inet_service; flags timeout; }"));
+        assert!(s.contains("set captive_dns4 { type ipv4_addr; flags timeout; }"));
+        assert!(s.contains("set captive_dns6 { type ipv6_addr; flags timeout; }"));
+        assert!(!s.contains("elements ="), "nothing is open by default");
+        let dns4 = position(
+            &s,
+            "ip daddr @captive_dns4 oifname != \"septuvo0\" meta l4proto { tcp, udp } th dport 53 accept",
+        );
+        let dns_drop = position(&s, "udp dport { 53, 853 } drop");
+        assert!(dns4 < dns_drop, "network DNS must come before the DNS drop");
+        let web = position(&s, "oifname != \"septuvo0\" tcp dport @captive_web accept");
+        let block = position(&s, "ip daddr 10.0.0.0/8 drop");
+        let default = position(&s, "oifname \"septuvo0\" accept");
+        assert!(block < web, "policy block rules still win over the portal");
+        assert!(web < default, "the portal rule comes before the default");
+        // DNS over TLS/QUIC (853) is never part of the portal exception.
+        assert!(
+            !lines(&s)
+                .iter()
+                .any(|l| l.contains("@captive") && l.contains("853"))
+        );
+    }
+
+    #[test]
+    fn captive_script_restarts_the_window_and_is_bounded() {
+        let s = captive_script(
+            300,
+            &["192.168.1.1".parse().unwrap(), "fe80::1".parse().unwrap()],
+        )
+        .unwrap();
+        let l = lines(&s);
+        assert_eq!(l[1], "flush set inet septuvo captive_web");
+        assert_eq!(l[2], "flush set inet septuvo captive_dns4");
+        assert_eq!(l[3], "flush set inet septuvo captive_dns6");
+        assert_eq!(
+            l[4],
+            "add element inet septuvo captive_web { 80 timeout 300s, 443 timeout 300s }"
+        );
+        assert_eq!(
+            l[5],
+            "add element inet septuvo captive_dns4 { 192.168.1.1 timeout 300s }"
+        );
+        assert_eq!(
+            l[6],
+            "add element inet septuvo captive_dns6 { fe80::1 timeout 300s }"
+        );
+        let web_only = captive_script(60, &[]).unwrap();
+        assert!(
+            !web_only.contains("captive_dns4 {"),
+            "no empty element lists"
+        );
+        assert_eq!(captive_script(0, &[]), Err(RenderError::BadCaptiveDuration));
+        assert_eq!(
+            captive_script(MAX_CAPTIVE_SECONDS + 1, &[]),
+            Err(RenderError::BadCaptiveDuration)
+        );
+        let five: Vec<IpAddr> = (1..=5)
+            .map(|i| format!("192.168.1.{i}").parse().unwrap())
+            .collect();
+        assert_eq!(
+            captive_script(60, &five),
+            Err(RenderError::BadCaptiveResolvers)
+        );
+        for bad in ["0.0.0.0", "::", "224.0.0.251", "ff02::fb"] {
+            assert_eq!(
+                captive_script(60, &[bad.parse().unwrap()]),
+                Err(RenderError::BadCaptiveResolvers),
+                "{bad}"
+            );
+        }
     }
 
     #[test]
