@@ -7,3 +7,4 @@ lab_namespace = "septuvo-lab"    # created by septuvo-lab-netns.service
 runtime_dir = "/run/septuvo"
 control_group = "septuvo"
 device_config = "/etc/septuvo/septuvo.toml"
+captive_helper_user = "septuvo-portal"   # captive-portal windows apply ONLY to this account

@@ -1,19 +1,29 @@
 #!/usr/bin/env bash
-# Septuvo namespace lab (N3-02): captive-portal mode (Q1).
+# Septuvo namespace lab (N3-02, revised after the owner's review of PR #63):
+# captive-portal mode for a dedicated helper account only.
 #
 # Usage (root, on a disposable lab machine or CI runner only):
 #   sudo tests/lab/namespaces/captive.sh [--require-ipv6] target/debug/septuvod target/debug/septuvo
 #
 # Namespaces (all throw-away):
 #   C  the device: runs septuvod (lab mode), full tunnel, tunnel DNS
-#   U  a hotel network: router and network resolver 192.168.1.1 (the
-#      device's original resolver file), a sign-in page 192.168.1.80, another
-#      LAN DNS server .54, an internet host 203.0.113.80 and a host the policy
-#      blocks, 203.0.113.99
+#   U  a hotel network:
+#        192.168.1.1   router (and the server endpoint, UDP 5000)
+#        192.168.1.66  the network's resolver, MALICIOUS: it answers
+#                      portal.example -> 192.168.1.80 (the sign-in page),
+#                      home.example   -> 10.77.0.1 (an address behind the tunnel)
+#                      blocked.example -> 203.0.113.99 (a host the policy blocks)
+#        192.168.1.80  the sign-in page (TCP 80/443)
+#        192.168.1.30  a LAN device the policy lists as direct
+#        192.168.1.54  another LAN DNS server
+#        203.0.113.80  an internet web server
+#        203.0.113.99  a host the policy blocks
+#        1.1.1.1       stand-in for a trusted DNS-over-HTTPS resolver (TCP 443;
+#                      plain TCP here: the lab tests the firewall path only)
 #   T  the far end of a stand-in tunnel interface septuvo0 (no encryption,
-#      no SVP), with the tunnel resolver 10.77.0.1
-# One 1-minute window covers the timeout AND a service killed during the
-# window: the kernel must close it on time either way.
+#      no SVP): 10.77.0.1, the tunnel resolver and a "home" server
+# Programs: "helper" runs as the dedicated captive-portal account, "root" and
+# "other" (an ordinary user) are ordinary applications.
 set -euo pipefail
 
 REQUIRE_V6=0
@@ -21,19 +31,18 @@ if [ "${1:-}" = "--require-ipv6" ]; then REQUIRE_V6=1; shift; fi
 DAEMON=$(realpath "${1:?usage: captive.sh [--require-ipv6] PATH/TO/septuvod PATH/TO/septuvo}")
 CLI=$(realpath "${2:?usage: captive.sh [--require-ipv6] PATH/TO/septuvod PATH/TO/septuvo}")
 HERE=$(cd "$(dirname "$0")" && pwd)
-PROBE="$HERE/probe.py"
 
 if [ "$(id -u)" != 0 ]; then
   echo "captive.sh: needs root (namespaces, test users); use a disposable lab VM or CI runner" >&2
   exit 2
 fi
-for tool in ip nft python3 runuser useradd userdel groupadd groupdel realpath; do
+for tool in ip nft python3 runuser useradd userdel groupadd groupdel realpath getent timeout; do
   command -v "$tool" >/dev/null || { echo "captive.sh: missing $tool" >&2; exit 2; }
 done
 
 ID=$$
 C="sv-pc-$ID" U="sv-pu-$ID" T="sv-pt-$ID"
-GROUP="sv-cp-$ID" MEMBER="svcm$ID" OTHER="svco$ID"
+GROUP="sv-cp-$ID" MEMBER="svcm$ID" OTHER="svco$ID" HELPER="svch$ID"
 WORK=$(mktemp -d)
 chmod 755 "$WORK"
 RUN="$WORK/run"
@@ -52,9 +61,9 @@ cleanup() {
       ip netns del "$ns" 2>/dev/null || true
     fi
   done
-  userdel "$MEMBER" 2>/dev/null || true
-  userdel "$OTHER" 2>/dev/null || true
+  for u in "$MEMBER" "$OTHER" "$HELPER"; do userdel "$u" 2>/dev/null || true; done
   groupdel "$GROUP" 2>/dev/null || true
+  groupdel "$HELPER" 2>/dev/null || true
   rm -rf "$RESOLV_DIR" "$WORK" "/etc/netns/.septuvo-$C.resolv.conf.backup" "/etc/netns/.septuvo-$C.resolv.conf.tmp"
 }
 trap cleanup EXIT
@@ -78,14 +87,27 @@ result() {   # $1: 1 pass, 0 fail, skip; $2: description
 }
 inC() { ip netns exec "$C" "$@"; }
 as() { local who=$1; shift; runuser -u "$who" -- "$@"; }
+# run WHO CMD...: WHO is helper, other or root
+run() {
+  local who=$1; shift
+  case "$who" in
+    helper) inC runuser -u "$HELPER" -- "$@" ;;
+    other) inC runuser -u "$OTHER" -- "$@" ;;
+    root) inC "$@" ;;
+  esac
+}
 
 # --- users, binaries, namespaces ---------------------------------------------
 groupadd "$GROUP"
 useradd -M -N -s /usr/sbin/nologin -G "$GROUP" "$MEMBER"
 useradd -M -N -s /usr/sbin/nologin "$OTHER"
+useradd -r -M -U -s /usr/sbin/nologin "$HELPER"
+HELPER_UID=$(id -u "$HELPER")
 mkdir "$WORK/bin"
 install -m 755 "$DAEMON" "$WORK/bin/septuvod"
 install -m 755 "$CLI" "$WORK/bin/septuvo"
+install -m 644 "$HERE/probe.py" "$WORK/bin/probe.py"
+PROBE="$WORK/bin/probe.py"
 
 for ns in "$C" "$U" "$T"; do
   ip netns add "$ns"
@@ -97,12 +119,12 @@ done
 ip link add eth0 netns "$C" type veth peer name c0 netns "$U"
 ip -n "$C" addr add 192.168.1.10/24 dev eth0
 v6 ip -n "$C" addr add 2001:db8:1::10/64 dev eth0 nodad
-for host in 1 54 80; do
+for host in 1 30 54 66 80; do
   ip -n "$U" addr add "192.168.1.$host/24" dev c0
-  v6 ip -n "$U" addr add "2001:db8:1::$host/64" dev c0 nodad
 done
-ip -n "$U" addr add 203.0.113.80/32 dev c0
-ip -n "$U" addr add 203.0.113.99/32 dev c0
+v6 ip -n "$U" addr add 2001:db8:1::1/64 dev c0 nodad
+v6 ip -n "$U" addr add 2001:db8:1::80/64 dev c0 nodad
+for a in 203.0.113.80 203.0.113.99 1.1.1.1; do ip -n "$U" addr add "$a/32" dev c0; done
 ip -n "$C" link set eth0 up
 ip -n "$U" link set c0 up
 ip -n "$C" route add default via 192.168.1.1
@@ -119,12 +141,18 @@ if [ $HAVE_V6 = 1 ]; then
   done
 fi
 
-U_ADDRS="192.168.1.1 192.168.1.54 192.168.1.80 203.0.113.80 203.0.113.99"
+U_ADDRS="192.168.1.1 192.168.1.30 192.168.1.54 192.168.1.80 203.0.113.80 203.0.113.99 1.1.1.1"
 [ $HAVE_V6 = 1 ] && U_ADDRS="$U_ADDRS 2001:db8:1::1 2001:db8:1::80"
 # shellcheck disable=SC2086
 ip netns exec "$U" python3 "$PROBE" listen "$WORK/u.log" "$WORK/u.ready" $U_ADDRS &
+ip netns exec "$U" python3 "$PROBE" dns-server "$WORK/dns.log" "$WORK/dns.ready" 192.168.1.66 \
+  portal.example=192.168.1.80 home.example=10.77.0.1 blocked.example=203.0.113.99 &
 ip netns exec "$T" python3 "$PROBE" listen "$WORK/t.log" "$WORK/t.ready" 10.77.0.1 &
-for _ in $(seq 50); do [ -f "$WORK/u.ready" ] && [ -f "$WORK/t.ready" ] && break; sleep 0.1; done
+for _ in $(seq 50); do
+  [ -f "$WORK/u.ready" ] && [ -f "$WORK/t.ready" ] && [ -f "$WORK/dns.ready" ] && break
+  sleep 0.1
+done
+touch "$WORK/dns.log"
 
 cat > "$WORK/septuvo.toml" <<EOF
 version = 1
@@ -132,11 +160,13 @@ version = 1
 endpoints = ["192.168.1.1:5000"]
 [routing]
 mode = "full-tunnel"
+direct = ["192.168.1.30/32"]
 block = ["203.0.113.99/32"]
 [dns]
 resolvers = ["10.77.0.1"]
 EOF
-cat > "$WORK/septuvod.toml" <<EOF
+settings() {   # $1: extra line
+  cat <<EOF
 version = 1
 [daemon]
 mode = "lab"
@@ -144,26 +174,32 @@ lab_namespace = "$C"
 runtime_dir = "$RUN"
 control_group = "$GROUP"
 device_config = "$WORK/septuvo.toml"
+$1
 EOF
+}
+settings "captive_helper_user = \"$HELPER\"" > "$WORK/septuvod.toml"
+settings "" > "$WORK/plain.toml"
+settings 'captive_helper_user = "root"' > "$WORK/root.toml"
 chmod 644 "$WORK"/*.toml
 mkdir -p "$RESOLV_DIR"
-{ echo "nameserver 192.168.1.1"; [ $HAVE_V6 = 1 ] && echo "nameserver 2001:db8:1::1"; } > "$RESOLV_DIR/resolv.conf"
+ORIGINAL="nameserver 192.168.1.66"
+echo "$ORIGINAL" > "$RESOLV_DIR/resolv.conf"
 
-start_daemon() {
+start_daemon() {   # $1: settings file
   : > "$WORK/daemon.log"
-  inC "$WORK/bin/septuvod" --settings "$WORK/septuvod.toml" >> "$WORK/daemon.log" 2>&1 &
+  inC "$WORK/bin/septuvod" --settings "${1:-$WORK/septuvod.toml}" >> "$WORK/daemon.log" 2>&1 &
   DPID=$!
   for _ in $(seq 50); do [ -S "$RUN/status.sock" ] && grep -q ready "$WORK/daemon.log" && return 0; sleep 0.1; done
   return 1
 }
-kill_daemon() { { kill -9 "$DPID"; wait "$DPID"; } 2>/dev/null; DPID=""; }
+kill_daemon() { { kill -9 "$DPID"; wait "$DPID"; } 2>/dev/null; DPID=""; rm -rf "$RUN"; }
 cli() { local who=$1; shift; as "$who" "$WORK/bin/septuvo" "$@" --runtime-dir "$RUN"; }
 
-# check DESCRIPTION PROTO DST PORT WHERE (u, t or none)
+# check DESCRIPTION WHO PROTO DST PORT WHERE (u, t or none)
 check() {
-  local desc=$1 proto=$2 dst=$3 port=$4 where=$5 token ok
+  local desc=$1 who=$2 proto=$3 dst=$4 port=$5 where=$6 token ok
   N_TOKEN=$((${N_TOKEN:-0} + 1)); token="cp$ID-$N_TOKEN"
-  inC python3 "$PROBE" send "$proto" "$dst" "$port" "$token" > /dev/null
+  run "$who" python3 "$PROBE" send "$proto" "$dst" "$port" "$token" > /dev/null
   sleep 0.2
   case "$where" in
     none) ! grep -qx "$token" "$WORK/u.log" "$WORK/t.log" 2>/dev/null && ok=1 || ok=0 ;;
@@ -172,86 +208,149 @@ check() {
   result $ok "$desc"
 }
 check6() { if [ $HAVE_V6 = 1 ]; then check "$@"; else result skip "$1"; fi; }
+# lookup WHO NAME PORT -> sets ANSWER and TOKEN; the connection's arrival is checked by the caller
+lookup() {
+  N_TOKEN=$((${N_TOKEN:-0} + 1)); TOKEN="cp$ID-$N_TOKEN"
+  ANSWER=$(run "$1" python3 "$PROBE" resolve-connect 192.168.1.66 "$2" "$3" "$TOKEN")
+  sleep 0.2
+}
+arrived() { grep -qx "$1" "$WORK/u.log" "$WORK/t.log" 2>/dev/null; }
 
 # Setup is done; from here on, failing commands are expected test outcomes.
 trap - ERR
 set +e
+
+# --- configuration guards -----------------------------------------------------
+inC "$WORK/bin/septuvod" --settings "$WORK/root.toml" > "$WORK/g.log" 2>&1; rc=$?
+[ $rc = 1 ] && ok=1 || ok=0
+result $ok "CP00 the service refuses root as the captive-portal helper (exit $rc)"
+start_daemon "$WORK/plain.toml" > /dev/null
+cli "$MEMBER" connect > /dev/null
+out=$(cli "$MEMBER" captive-portal); rc=$?
+[ $rc = 1 ] && grep -q "not_configured" <<<"$out" && ! inC nft list ruleset | grep -q captive && ok=1 || ok=0
+result $ok "CP01 without a helper account, captive-portal mode is unavailable and no captive rule exists"
+cli "$MEMBER" disconnect > /dev/null
+kill_daemon
+
 start_daemon && ok=1 || ok=0
-result $ok "CP00 septuvod starts in the lab namespace"
+result $ok "CP02 septuvod starts with helper account $HELPER (uid $HELPER_UID)"
 out=$(cli "$MEMBER" captive-portal); rc=$?
 [ $rc = 1 ] && grep -q "only available while connected" <<<"$out" && ok=1 || ok=0
-result $ok "CP01 captive-portal mode is refused while not connected (exit $rc)"
+result $ok "CP03 captive-portal mode is refused while not connected (exit $rc)"
 cli "$MEMBER" connect > /dev/null && ok=1 || ok=0
-result $ok "CP02 connect succeeds (kill switch on)"
+result $ok "CP04 connect succeeds (kill switch on)"
 
-check  "CP03 before: the sign-in page (TCP 80) outside the tunnel is blocked" tcp 192.168.1.80 80 none
-check  "CP04 before: HTTPS (TCP 443) outside the tunnel is blocked" tcp 203.0.113.80 443 none
-check  "CP05 before: DNS to the network's resolver is blocked" udp 192.168.1.1 53 none
-
+# --- before any window ---------------------------------------------------------
+check "CP05 before: the helper cannot reach the sign-in page" helper tcp 192.168.1.80 80 none
+check "CP06 before: an ordinary app cannot reach the sign-in page" root tcp 192.168.1.80 80 none
 out=$(cli "$OTHER" captive-portal --minutes 1); rc=$?
 [ $rc != 0 ] && ok=1 || ok=0
-check  "CP06 a user outside the control group cannot open it (exit $rc): page still blocked" tcp 192.168.1.80 80 none
-[ $ok = 1 ] || result 0 "CP06b the non-member command must fail"
+result $ok "CP07 a user outside the control group cannot open a window (exit $rc)"
+check "CP08 ...and the helper is still blocked" helper tcp 192.168.1.80 80 none
 
+# --- window 1: trusted DNS only (the default) -----------------------------------
 out=$(cli "$MEMBER" captive-portal --minutes 1); rc=$?
-OPENED=$(date +%s)
-[ $rc = 0 ] && grep -q "Captive portal: OPEN (" <<<"$out" && grep -q "WARNING: captive-portal mode" <<<"$out" \
-  && grep -q "network DNS: 192.168.1.1" <<<"$out" && ok=1 || ok=0
-result $ok "CP07 a member opens a 1-minute window; the warning and countdown are shown (exit $rc)"
+[ $rc = 0 ] && grep -q "Captive portal: OPEN (" <<<"$out" && grep -q "WARNING: captive-portal window: the sign-in helper account" <<<"$out" \
+  && grep -q "encrypted DNS only" <<<"$out" && grep -q "uid $HELPER_UID" <<<"$out" && ok=1 || ok=0
+result $ok "CP09 a member opens a window: warning, helper account, trusted-DNS-only and countdown shown (exit $rc)"
 [ $ok = 1 ] || sed 's/^/      /' <<<"$out"
 
-check  "CP08 during: the sign-in page (TCP 80) goes out directly" tcp 192.168.1.80 80 u
-check  "CP09 during: HTTPS (TCP 443) goes out directly" tcp 203.0.113.80 443 u
-check  "CP10 during: UDP DNS to the network's resolver goes out directly" udp 192.168.1.1 53 u
-check  "CP11 during: TCP DNS to the network's resolver goes out directly" tcp 192.168.1.1 53 u
-check  "CP12 during: DNS to another LAN DNS server stays blocked" udp 192.168.1.54 53 none
-check  "CP13 during: DNS over TLS (853) to the network's resolver stays blocked" tcp 192.168.1.1 853 none
-check  "CP14 during: QUIC (UDP 443) stays blocked" udp 203.0.113.80 443 none
-check  "CP15 during: other TCP ports stay blocked" tcp 203.0.113.80 5000 none
-check  "CP16 during: other UDP stays blocked" udp 203.0.113.80 5000 none
-check  "CP17 during: a host the policy blocks stays blocked, even on TCP 80" tcp 203.0.113.99 80 none
-check  "CP18 during: tunnel traffic still uses the tunnel" udp 10.77.0.1 53 t
-check6 "CP19 during: IPv6 sign-in page (TCP 80) goes out directly" tcp 2001:db8:1::80 80 u
-check6 "CP20 during: IPv6 DNS to the network's resolver goes out directly" udp 2001:db8:1::1 53 u
+check  "CP10 helper: the sign-in page on TCP 80 is reachable" helper tcp 192.168.1.80 80 u
+check  "CP11 helper: an HTTPS site on TCP 443 is reachable" helper tcp 203.0.113.80 443 u
+check  "CP12 helper: the trusted DoH resolver (1.1.1.1, TCP 443) is reachable" helper tcp 1.1.1.1 443 u
+check  "CP13 ordinary app (root): the sign-in page stays BLOCKED" root tcp 192.168.1.80 80 none
+check  "CP14 ordinary app (root): HTTPS outside the tunnel stays BLOCKED" root tcp 203.0.113.80 443 none
+check  "CP15 ordinary app (other user): HTTPS outside the tunnel stays BLOCKED" other tcp 203.0.113.80 443 none
+check  "CP16 ordinary app (other user): the DoH resolver outside the tunnel stays BLOCKED" other tcp 1.1.1.1 443 none
+check  "CP17 helper: the network's DNS is NOT opened without explicit authorization" helper udp 192.168.1.66 53 none
+check  "CP18 ordinary app: the network's DNS stays blocked" root udp 192.168.1.66 53 none
+check  "CP19 helper: QUIC (UDP 443) stays blocked" helper udp 203.0.113.80 443 none
+check  "CP20 helper: other TCP ports stay blocked" helper tcp 203.0.113.80 5000 none
+check  "CP21 helper: DNS over TLS (853) stays blocked" helper tcp 192.168.1.54 853 none
+check  "CP22 helper: never through the tunnel (TCP 80 to 10.77.0.1)" helper tcp 10.77.0.1 80 none
+check  "CP23 helper: never the tunnel resolver" helper udp 10.77.0.1 53 none
+check  "CP24 helper: a host the policy blocks stays blocked, even on TCP 80" helper tcp 203.0.113.99 80 none
+check  "CP25 helper: a LAN device listed as direct is not reachable by the helper" helper tcp 192.168.1.30 80 none
+check  "CP26 ordinary app: the direct LAN device still works as configured" root tcp 192.168.1.30 80 u
+check  "CP27 helper: the server endpoint is not reachable by the helper" helper udp 192.168.1.1 5000 none
+check  "CP28 ordinary app: tunnel DNS still uses the tunnel" root udp 10.77.0.1 53 t
+check6 "CP29 helper: IPv6 sign-in page (TCP 80) is reachable" helper tcp 2001:db8:1::80 80 u
+check6 "CP30 ordinary app: IPv6 sign-in page stays BLOCKED" root tcp 2001:db8:1::80 80 none
+head -1 "$RESOLV_DIR/resolv.conf" | grep -q "Written by septuvod" && grep -q "^nameserver 10.77.0.1$" "$RESOLV_DIR/resolv.conf" && ok=1 || ok=0
+result $ok "CP31 the system resolver file is unchanged during the window (tunnel resolver only)"
 out=$(cli "$OTHER" status)
-grep -q "Captive portal: OPEN" <<<"$out" && grep -q "WARNING:" <<<"$out" && grep -q "Status: Not connected" <<<"$out" && ok=1 || ok=0
-result $ok "CP21 status shows the open window and the warning, and still never claims connected"
+grep -q "Captive portal: OPEN" <<<"$out" && grep -q "WARNING:" <<<"$out" && grep -q "Status: Not connected" <<<"$out" \
+  && grep -q "windows left this connection: 2" <<<"$out" && ok=1 || ok=0
+result $ok "CP32 status shows the open window, the warning and windows left; never claims connected"
 
+# --- window 2: the network's DNS, explicitly authorized; malicious answers ------
+out=$(cli "$MEMBER" captive-portal --minutes 1 --network-dns); rc=$?
+OPENED=$(date +%s)
+[ $rc = 0 ] && grep -q "network DNS authorized for the helper only" <<<"$out" && grep -q "192.168.1.66" <<<"$out" && ok=1 || ok=0
+result $ok "CP33 --network-dns is explicit, warned about and lists the network's resolver (exit $rc)"
+: > "$WORK/dns.log"
+lookup helper portal.example 80
+grep -q "^answer:192.168.1.80 sent" <<<"$ANSWER" && arrived "$TOKEN" && ok=1 || ok=0
+result $ok "CP34 helper: resolves the sign-in page through the network's DNS and reaches it ($ANSWER)"
+lookup helper home.example 80
+grep -q "^answer:10.77.0.1 " <<<"$ANSWER" && ! arrived "$TOKEN" && ok=1 || ok=0
+result $ok "CP35 malicious answer pointing behind the tunnel cannot redirect the helper into it ($ANSWER)"
+lookup helper blocked.example 80
+grep -q "^answer:203.0.113.99 " <<<"$ANSWER" && ! arrived "$TOKEN" && ok=1 || ok=0
+result $ok "CP36 malicious answer pointing at a policy-blocked host is still blocked ($ANSWER)"
+before=$(wc -l < "$WORK/dns.log")
+lookup root portal.example 80
+lookup other portal.example 80
+grep -q "^noanswer" <<<"$ANSWER" && [ "$(wc -l < "$WORK/dns.log")" = "$before" ] && ok=1 || ok=0
+result $ok "CP37 ordinary apps cannot query the network's resolver even while it is authorized for the helper"
+run root timeout 4 getent hosts portal.example > /dev/null
+[ "$(wc -l < "$WORK/dns.log")" = "$before" ] && ok=1 || ok=0
+result $ok "CP38 ordinary system lookups never reach the network's resolver (the system resolver is the tunnel's)"
+check  "CP39 ordinary app: still blocked from the sign-in page" root tcp 192.168.1.80 80 none
+
+# --- crash, restart and kernel expiry ------------------------------------------
 kill_daemon
-check  "CP22 with the service killed mid-window, the window is still the kernel's: page reachable" tcp 192.168.1.80 80 u
+check  "CP40 service killed mid-window: the kernel still holds the window for the helper only" helper tcp 192.168.1.80 80 u
+check  "CP41 service killed mid-window: ordinary apps stay blocked" root tcp 192.168.1.80 80 none
 start_daemon > /dev/null
 out=$(cli "$OTHER" status)
 grep -q "time left unknown; it still ends on time" <<<"$out" && ok=1 || ok=0
-result $ok "CP23 a restarted service reports the window it did not open (time left unknown)"
+result $ok "CP42 a restarted service reports the window it did not open (time left unknown)"
 kill_daemon
-
 WAIT=$((OPENED + 63 - $(date +%s)))
 echo "      waiting ${WAIT}s for the kernel to end the window (service NOT running)"
 [ $WAIT -gt 0 ] && sleep $WAIT
-check  "CP24 after the timeout, with no service running: the sign-in page is blocked again" tcp 192.168.1.80 80 none
-check  "CP25 after the timeout: HTTPS outside the tunnel is blocked again" tcp 203.0.113.80 443 none
-check  "CP26 after the timeout: DNS to the network's resolver is blocked again" udp 192.168.1.1 53 none
-check6 "CP27 after the timeout: IPv6 sign-in page is blocked again" tcp 2001:db8:1::80 80 none
+check  "CP43 after the timeout, with no service running: the helper is blocked again" helper tcp 192.168.1.80 80 none
+check  "CP44 after the timeout: the helper's HTTPS is blocked again" helper tcp 203.0.113.80 443 none
+check  "CP45 after the timeout: the helper's network DNS is blocked again" helper udp 192.168.1.66 53 none
+check6 "CP46 after the timeout: the helper's IPv6 web access is blocked again" helper tcp 2001:db8:1::80 80 none
+check  "CP47 after the timeout: ordinary apps remain blocked (protected state)" root tcp 203.0.113.80 443 none
+
+# --- limits ----------------------------------------------------------------------
 start_daemon > /dev/null
 out=$(cli "$OTHER" status)
 grep -q "Captive portal: closed" <<<"$out" && grep -q "Kill switch: on" <<<"$out" && ok=1 || ok=0
-result $ok "CP28 status after the timeout: closed, kill switch still on"
-
+result $ok "CP48 status after the timeout: closed, kill switch still on"
 out=$(cli "$MEMBER" captive-portal); rc=$?
 [ $rc = 1 ] && grep -q "only available while connected" <<<"$out" && ok=1 || ok=0
-result $ok "CP28b after a restart, rules left from the earlier run must be reconnected first (exit $rc)"
+result $ok "CP49 after a restart, rules left from the earlier run must be reconnected first (exit $rc)"
 cli "$MEMBER" connect > /dev/null
 cli "$MEMBER" captive-portal > /dev/null
 cli "$MEMBER" captive-portal --minutes 1 > /dev/null
 set_text=$(inC nft list set inet septuvo captive_web)
 grep -q "80 timeout 1m" <<<"$set_text" && ! grep -q "timeout 5m" <<<"$set_text" && ! grep -q "timeout 6m" <<<"$set_text" && ok=1 || ok=0
-result $ok "CP29 asking again restarts the window from now; it never adds up"
+result $ok "CP50 asking again restarts the window from now; it never adds up"
 [ $ok = 1 ] || sed 's/^/      /' <<<"$set_text"
+cli "$MEMBER" captive-portal --minutes 1 > /dev/null
+out=$(cli "$MEMBER" captive-portal --minutes 1); rc=$?
+[ $rc = 1 ] && grep -q "at most 3 captive-portal windows per connection" <<<"$out" \
+  && [ "$(grep -c 'captive-portal window' "$WORK/daemon.log")" = 3 ] && ok=1 || ok=0
+result $ok "CP51 a fourth window per connection is refused, and every window was logged (exit $rc)"
 cli "$MEMBER" disconnect > /dev/null
 ! inC nft list table inet septuvo > /dev/null 2>&1 && ok=1 || ok=0
-result $ok "CP30 disconnect ends the window at once (no Septuvo rules left)"
+result $ok "CP52 disconnect ends the window at once (no Septuvo rules left)"
 cli "$MEMBER" connect > /dev/null
-check  "CP31 reconnecting starts with the window closed" tcp 192.168.1.80 80 none
+check  "CP53 reconnecting starts with the window closed" helper tcp 192.168.1.80 80 none
 cli "$MEMBER" disconnect > /dev/null
 
 echo

@@ -8,6 +8,7 @@
 //! runtime_dir = "/run/septuvo"
 //! control_group = "septuvo"
 //! device_config = "/etc/septuvo/septuvo.toml"
+//! captive_helper_user = "septuvo-portal"   # optional: captive-portal mode (N3-02)
 //! ```
 
 use septuvo_config::toml::{self, Value};
@@ -30,6 +31,9 @@ pub struct Settings {
     pub control_group: String,
     /// The device configuration (N2-01) the service applies.
     pub device_config: PathBuf,
+    /// The dedicated account captive-portal windows apply to (N3-02), or
+    /// `None`: captive-portal mode is then unavailable.
+    pub captive_helper_user: Option<String>,
 }
 
 /// Why the settings were rejected.
@@ -104,6 +108,7 @@ pub fn parse(text: &str) -> Result<Settings, SettingsError> {
     let mut runtime_dir = None;
     let mut control_group = None;
     let mut device_config = None;
+    let mut captive_helper_user = None;
     for e in &table.entries {
         let Value::String(v) = &e.value else {
             return err(format!(
@@ -117,6 +122,7 @@ pub fn parse(text: &str) -> Result<Settings, SettingsError> {
             "runtime_dir" => &mut runtime_dir,
             "control_group" => &mut control_group,
             "device_config" => &mut device_config,
+            "captive_helper_user" => &mut captive_helper_user,
             _ => return err(format!("{}: daemon.{}: unknown key", e.key_span, e.key)),
         };
         *slot = Some(v.clone());
@@ -148,11 +154,17 @@ pub fn parse(text: &str) -> Result<Settings, SettingsError> {
     if !plain_absolute(&device_config) {
         return err("daemon.device_config must be a plain absolute path");
     }
+    if let Some(user) = &captive_helper_user
+        && (!valid_group(user) || user == "root")
+    {
+        return err("daemon.captive_helper_user: invalid account name (and never root)");
+    }
     Ok(Settings {
         lab_namespace,
         runtime_dir: PathBuf::from(runtime_dir),
         control_group,
         device_config: PathBuf::from(device_config),
+        captive_helper_user,
     })
 }
 
@@ -187,6 +199,22 @@ mod tests {
         assert_eq!(s.runtime_dir, PathBuf::from("/run/septuvo"));
         assert_eq!(s.control_group, "septuvo");
         assert_eq!(s.device_config, PathBuf::from("/etc/septuvo/septuvo.toml"));
+        assert_eq!(s.captive_helper_user, None, "captive-portal mode is opt-in");
+    }
+
+    #[test]
+    fn captive_helper_user_is_validated() {
+        let with = |u: &str| parse(&format!("{GOOD}captive_helper_user = \"{u}\"\n"));
+        assert_eq!(
+            with("septuvo-portal")
+                .unwrap()
+                .captive_helper_user
+                .as_deref(),
+            Some("septuvo-portal")
+        );
+        for bad in ["root", "", "Portal", "a b", "../x", "x:y", "-x"] {
+            assert!(with(bad).is_err(), "{bad:?}");
+        }
     }
 
     #[test]

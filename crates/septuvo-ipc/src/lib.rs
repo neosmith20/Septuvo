@@ -78,11 +78,16 @@ pub enum Command {
     Connect,
     /// Deliberately disconnect: the only way protection is lifted (Q2).
     Disconnect,
-    /// Open captive-portal mode for 1 to [`MAX_CAPTIVE_MINUTES`] minutes
-    /// (Q1, N3-02). On the wire: `CAPTIVE N`.
+    /// Open a captive-portal window for the dedicated helper account, 1 to
+    /// [`MAX_CAPTIVE_MINUTES`] minutes (Q1, N3-02). On the wire: `CAPTIVE N`,
+    /// or `CAPTIVE N NETWORK-DNS` to also authorize the network's own DNS for
+    /// the helper during this one window.
     Captive {
         /// Length of the window, 1 to [`MAX_CAPTIVE_MINUTES`].
         minutes: u8,
+        /// Explicitly authorized: the helper (only) may query the network's
+        /// resolvers during this window. Never automatic.
+        network_dns: bool,
     },
 }
 
@@ -109,7 +114,14 @@ impl Command {
     #[must_use]
     pub fn encode(self) -> String {
         match self {
-            Command::Captive { minutes } => format!("{VERSION} CAPTIVE {minutes}\n"),
+            Command::Captive {
+                minutes,
+                network_dns: false,
+            } => format!("{VERSION} CAPTIVE {minutes}\n"),
+            Command::Captive {
+                minutes,
+                network_dns: true,
+            } => format!("{VERSION} CAPTIVE {minutes} NETWORK-DNS\n"),
             other => format!("{VERSION} {}\n", other.as_str()),
         }
     }
@@ -185,7 +197,16 @@ pub fn parse_request(bytes: &[u8]) -> Result<Command, ProtocolError> {
         "CONNECT" => Ok(Command::Connect),
         "DISCONNECT" => Ok(Command::Disconnect),
         _ => match command.strip_prefix("CAPTIVE ") {
-            Some(n) => captive_minutes(n).map(|minutes| Command::Captive { minutes }),
+            Some(rest) => {
+                let (n, network_dns) = match rest.strip_suffix(" NETWORK-DNS") {
+                    Some(n) => (n, true),
+                    None => (rest, false),
+                };
+                captive_minutes(n).map(|minutes| Command::Captive {
+                    minutes,
+                    network_dns,
+                })
+            }
             None => Err(ProtocolError::UnknownCommand),
         },
     }
@@ -430,11 +451,31 @@ mod tests {
             assert_eq!(parse_request(c.encode().as_bytes()), Ok(c));
         }
         for minutes in 1..=MAX_CAPTIVE_MINUTES {
-            let c = Command::Captive { minutes };
-            assert_eq!(c.encode(), format!("SEPTUVO/1 CAPTIVE {minutes}\n"));
-            assert_eq!(parse_request(c.encode().as_bytes()), Ok(c));
-            assert!(c.needs_control());
+            for network_dns in [false, true] {
+                let c = Command::Captive {
+                    minutes,
+                    network_dns,
+                };
+                assert_eq!(parse_request(c.encode().as_bytes()), Ok(c));
+                assert!(c.needs_control());
+            }
         }
+        assert_eq!(
+            Command::Captive {
+                minutes: 5,
+                network_dns: false
+            }
+            .encode(),
+            "SEPTUVO/1 CAPTIVE 5\n"
+        );
+        assert_eq!(
+            Command::Captive {
+                minutes: 1,
+                network_dns: true
+            }
+            .encode(),
+            "SEPTUVO/1 CAPTIVE 1 NETWORK-DNS\n"
+        );
         assert!(!Command::Status.needs_control());
         assert!(Command::Connect.needs_control());
         assert!(Command::Disconnect.needs_control());
@@ -473,6 +514,12 @@ mod tests {
             "CAPTIVE 5 ",
             "CAPTIVE x",
             "CAPTIVE ",
+            "CAPTIVE 5 network-dns",
+            "CAPTIVE 5 NETWORK-DNS ",
+            "CAPTIVE 5  NETWORK-DNS",
+            "CAPTIVE NETWORK-DNS",
+            "CAPTIVE 6 NETWORK-DNS",
+            "CAPTIVE 5 NETWORK-DNS NETWORK-DNS",
         ] {
             let line = format!("{VERSION} {bad}\n");
             assert_eq!(

@@ -60,8 +60,29 @@ pub fn group_id(etc_group: &str, name: &str) -> Option<u32> {
     })
 }
 
+/// The user ID of account `name` in `/etc/passwd` text.
+#[must_use]
+pub fn user_id(etc_passwd: &str, name: &str) -> Option<u32> {
+    etc_passwd.lines().find_map(|line| {
+        let mut parts = line.split(':');
+        let user = parts.next()?;
+        let _password = parts.next()?;
+        let uid = parts.next()?;
+        (user == name).then(|| uid.parse().ok()).flatten()
+    })
+}
+
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn reads_user_ids() {
+        let passwd = "root:x:0:0::/root:/bin/sh\nseptuvo-portal:x:995:995::/:/usr/sbin/nologin\nbad:x:abc:1::/:/bin/sh\n";
+        assert_eq!(user_id(passwd, "septuvo-portal"), Some(995));
+        assert_eq!(user_id(passwd, "root"), Some(0));
+        assert_eq!(user_id(passwd, "bad"), None);
+        assert_eq!(user_id(passwd, "septuvo"), None, "exact names only");
+    }
     use super::*;
 
     #[test]

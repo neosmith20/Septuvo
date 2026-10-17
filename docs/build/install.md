@@ -39,7 +39,7 @@ septuvo disconnect
 | `/usr/sbin/septuvo-server` | Server administration (N2-04) |
 | `/usr/lib/systemd/system/septuvo-lab-netns.service` | Creates the `septuvo-lab` namespace (loopback only) and removes it when stopped |
 | `/usr/lib/systemd/system/septuvod.service` | Runs the service **inside** that namespace |
-| `/usr/lib/sysusers.d/septuvo.conf` | The `septuvo` control group |
+| `/usr/lib/sysusers.d/septuvo.conf` | The `septuvo` control group, and the `septuvo-portal` captive-portal helper account (no login, no home; see [captive-portal.md](captive-portal.md)) |
 | `/usr/lib/tmpfiles.d/septuvo.conf` | `/etc/netns/septuvo-lab` (the lab namespace's resolver directory) |
 | `/etc/septuvo/septuvod.toml`, `septuvo.toml`, `septuvo-server.toml` | Configuration templates ([config.md](config.md), [daemon.md](daemon.md)) |
 | `/usr/share/doc/septuvo/` | License and notice |
@@ -73,7 +73,7 @@ The uninstaller runs in this order:
 2. It stops and removes the units.
 3. It removes leftover rules, even if the service had crashed.
 4. It removes the lab namespace and every installed file.
-5. It removes the `septuvo` group.
+5. It removes the `septuvo-portal` helper account and the `septuvo` group.
 
 **No Septuvo rules are left behind.** It says what it kept.
 
@@ -94,11 +94,12 @@ sudo tests/lab/install/run.sh --real target/release  # DISPOSABLE MACHINES ONLY
   - install;
   - `systemd-analyze verify`;
   - the service runs in the lab namespace;
+  - the captive-portal helper account exists (never root), and the installed rules are scoped to it;
   - status for any user, and connect refused for non-members;
   - the kill switch on in the lab namespace, with **the host firewall untouched**;
   - stopping keeps blocking, and disconnect after a restart;
   - re-install;
-  - **uninstall while connected leaves nothing** (files, units, group, namespace, rules);
+  - **uninstall while connected leaves nothing** (files, units, group, helper account, namespace, rules);
   - config kept, then `--purge`.
 
 **Recorded 2026-10-17** in this workspace (Linux x86_64, Rust 1.97; it has no systemd as its init system, so only the staged part can run here): **5 passed, 0 failed.** `systemd-analyze verify` passes for both units, run offline. The real install runs in CI.

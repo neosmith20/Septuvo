@@ -1,3 +1,8 @@
 # Septuvo VPN: members of this group may connect and disconnect
 # (septuvo connect / disconnect). Status is readable by everyone.
 g septuvo -
+# Captive-portal sign-in helper (N3-02): a dedicated system account with no
+# login, no home and no other rights. While a captive-portal window is open,
+# only programs running as this account may reach web servers outside the
+# tunnel; they can never use the tunnel itself.
+u septuvo-portal - "Septuvo captive-portal sign-in helper" - -

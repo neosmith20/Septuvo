@@ -502,9 +502,17 @@ Work allowed by D-029, defined in [work-orders/N3.md](work-orders/N3.md). Same b
 ### N3-02 — Captive-portal mode (Q1)
 
 - **Entry / prerequisites:** N3-01 complete within the approved N3 work order.
-- **Approved output locations:** `crates/septuvo-policy/`, `crates/septuvo-daemon/`, `crates/septuvo-ipc/`, `crates/septuvo-cli/`, `tests/lab/namespaces/`, `docs/build/daemon.md`.
-- **Exact work:** User-started, at most 5 minutes, TCP 80/443 and DNS to the network resolver only, warning shown, kernel-enforced expiry through an nftables timeout set, no adding up, ends on disconnect, never automatic.
-- **Acceptance evidence:** Renderer tests; namespace lab before/during/after cases, re-blocking after a killed service, non-member refused; status countdown.
+- **Approved output locations:** `crates/septuvo-policy/`, `crates/septuvo-daemon/`, `crates/septuvo-ipc/`, `crates/septuvo-cli/`, `packaging/linux/`, `tests/lab/namespaces/`, `tests/lab/install/`, `docs/build/captive-portal.md`, `docs/build/daemon.md`, `docs/build/install.md` (revised after the owner's review of PR #63).
+- **Exact work:**
+  - User-started windows of at most 5 minutes for **one dedicated helper account only** (kernel `skuid` match). Ordinary programs keep the kill switch unchanged.
+  - The helper may use TCP 80/443 outside the tunnel and nothing else: never the tunnel, never policy-listed hosts.
+  - Trusted DNS (DoH) by default. The network's DNS only with an explicit `--network-dns`, for the helper only; the resolver file is never changed.
+  - Kernel-enforced expiry through nftables timeout sets; no adding up; at most 3 windows per connection, each logged; ends on disconnect; never automatic.
+  - RFC 8910/8908 and a Septuvo DoH client are evaluated and planned for phase 2 (see the design note).
+- **Acceptance evidence:**
+  - Renderer tests: rules for ordinary programs are unchanged.
+  - Namespace lab: ordinary programs cannot use the window; helper scope; explicit network DNS; malicious DNS answers redirect nothing; the resolver file is unchanged; re-blocking after a killed service; all refusals; status countdown.
+  - Install test: the helper account is created and removed.
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin N3-03 until this pull request is merged; then continue without a new authorization (D-034).
 
 ### N3-03 — Fuzz testing (standard library only)

@@ -5,7 +5,8 @@
 #
 # Disconnects first (removing the kill switch and restoring the lab
 # namespace's resolver file), then removes the units, the lab namespace,
-# every installed file and the "septuvo" group. No Septuvo rules are left
+# every installed file, the "septuvo" group and the "septuvo-portal" helper
+# account. No Septuvo rules are left
 # behind. /etc/septuvo and the server's device records in
 # /var/lib/septuvo-server are kept unless --purge is given.
 # Licensed under PolyForm Noncommercial 1.0.0 (see NOTICE).
@@ -64,7 +65,13 @@ done
 rmdir "$PREFIX/libexec/septuvo" "$PREFIX/share/doc/septuvo" 2>/dev/null || true
 rm -rf /run/septuvo
 systemctl daemon-reload 2>/dev/null || true
-# 5. The control group.
+# 5. The captive-portal helper account and the control group.
+if getent passwd septuvo-portal >/dev/null; then
+  userdel septuvo-portal && say "removed account septuvo-portal"
+fi
+if getent group septuvo-portal >/dev/null; then
+  groupdel septuvo-portal 2>/dev/null || true
+fi
 if getent group septuvo >/dev/null; then
   groupdel septuvo && say "removed group septuvo"
 fi

@@ -21,15 +21,20 @@
 //! - policy rules follow in most-specific-first order, and every rule is
 //!   terminal, so a less specific rule can never re-allow a tunnel prefix.
 //!
-//! - captive-portal mode (Q1, N3-02): three **timeout sets** are always part
-//!   of the table and start empty. [`captive_script`] fills them with elements
-//!   that carry a kernel timeout of at most [`MAX_CAPTIVE_SECONDS`]; while an
-//!   element is present, web traffic (TCP 80 and 443) and DNS to the network's
-//!   own resolvers may leave outside the tunnel. The **kernel** removes the
-//!   elements when the time is up, so a crashed or killed service cannot
-//!   leave the bypass open. Policy `block` and `tunnel` rules still win over
-//!   the web exception, and nothing else (UDP, other ports, router traffic)
-//!   is ever opened.
+//! - captive-portal mode (Q1, N3-02, revised after the owner's review of
+//!   PR #63) exists **only for one dedicated helper account**
+//!   ([`KillSwitch::captive_helper`]), never for ordinary applications. Every
+//!   rule that mentions the helper matches its socket owner (`meta skuid`), so
+//!   the rules for every other program are exactly the kill switch without
+//!   captive-portal mode. The helper is isolated at all times: never through
+//!   the tunnel, never to a destination the policy names, never to the
+//!   server endpoints. While a window is open it may reach web servers (TCP
+//!   80 and 443) outside the tunnel, which covers encrypted DNS over HTTPS;
+//!   plain DNS to the network's resolvers only if that was explicitly
+//!   authorized for the window. The window lives in three **timeout sets**
+//!   that [`captive_script`] fills with elements of at most
+//!   [`MAX_CAPTIVE_SECONDS`]; the **kernel** removes them when the time is
+//!   up, so a crashed or killed service cannot leave the window open.
 //!
 //! Scope: locally generated traffic (the output hook). Forwarded traffic and
 //! routes are not rendered here.
@@ -53,11 +58,14 @@ pub const MAX_DNS_ADDRESSES: usize = 16;
 pub const MAX_CAPTIVE_SECONDS: u32 = 300;
 /// Most network resolvers opened during a captive-portal window.
 pub const MAX_CAPTIVE_RESOLVERS: usize = 4;
-/// Set of TCP ports (80, 443) open outside the tunnel during the window.
+/// Set of TCP ports (80, 443) the helper may use outside the tunnel during
+/// the window.
 pub const CAPTIVE_WEB_SET: &str = "captive_web";
-/// Set of IPv4 network resolvers reachable during the window.
+/// Set of IPv4 network resolvers the helper may query during the window
+/// (only when explicitly authorized).
 pub const CAPTIVE_DNS4_SET: &str = "captive_dns4";
-/// Set of IPv6 network resolvers reachable during the window.
+/// Set of IPv6 network resolvers the helper may query during the window
+/// (only when explicitly authorized).
 pub const CAPTIVE_DNS6_SET: &str = "captive_dns6";
 
 /// How the kill switch treats DNS.
@@ -89,6 +97,10 @@ pub struct KillSwitch {
     pub endpoints: Vec<(IpAddr, u16)>,
     /// DNS handling.
     pub dns: DnsRules,
+    /// User ID of the dedicated captive-portal helper account, or `None` if
+    /// captive-portal mode is not configured (then no captive rule or set is
+    /// rendered at all). Never 0 (root).
+    pub captive_helper: Option<u32>,
 }
 
 /// Why a ruleset could not be rendered.
@@ -112,6 +124,8 @@ pub enum RenderError {
     /// More than [`MAX_CAPTIVE_RESOLVERS`] network resolvers, or an address
     /// that cannot be a resolver (unspecified or multicast).
     BadCaptiveResolvers,
+    /// The captive-portal helper would be root (user ID 0).
+    BadCaptiveHelper,
 }
 
 impl fmt::Display for RenderError {
@@ -139,6 +153,9 @@ impl fmt::Display for RenderError {
                 f,
                 "at most {MAX_CAPTIVE_RESOLVERS} network resolvers, each a unicast address"
             ),
+            RenderError::BadCaptiveHelper => {
+                f.write_str("the captive-portal helper must be a dedicated account, never root")
+            }
         }
     }
 }
@@ -182,7 +199,9 @@ pub fn render(policy: &Policy, ks: &KillSwitch) -> Result<String, RenderError> {
     let _ = writeln!(s, "add table {TABLE}");
     let _ = writeln!(s, "delete table {TABLE}");
     let _ = writeln!(s, "table {TABLE} {{");
-    render_captive_sets(&mut s);
+    if ks.captive_helper.is_some() {
+        render_captive_sets(&mut s);
+    }
     let _ = writeln!(s, "\tchain output {{");
     let _ = writeln!(
         s,
@@ -190,6 +209,9 @@ pub fn render(policy: &Policy, ks: &KillSwitch) -> Result<String, RenderError> {
     );
     let _ = writeln!(s, "\t\t# NP-U4 loopback");
     let _ = writeln!(s, "\t\toifname \"lo\" accept");
+    if let Some(uid) = ks.captive_helper {
+        render_captive_helper(&mut s, policy, tun, uid);
+    }
     let _ = writeln!(s, "\t\t# NP-U1 DHCPv4 and DHCPv6");
     let _ = writeln!(s, "\t\tudp sport 68 udp dport 67 accept");
     let _ = writeln!(s, "\t\tudp sport 546 udp dport 547 accept");
@@ -209,7 +231,6 @@ pub fn render(policy: &Policy, ks: &KillSwitch) -> Result<String, RenderError> {
             daddr(family_of(addr))
         );
     }
-    render_captive_dns(&mut s, tun);
     render_dns(&mut s, policy, tun, &ks.dns);
     let _ = writeln!(s, "\t\t# Policy rules, most specific first; each is final");
     for rule in policy.rules() {
@@ -227,14 +248,6 @@ pub fn render(policy: &Policy, ks: &KillSwitch) -> Result<String, RenderError> {
             }
         }
     }
-    let _ = writeln!(
-        s,
-        "\t\t# Captive portal (Q1): web traffic outside the tunnel, only while opened"
-    );
-    let _ = writeln!(
-        s,
-        "\t\toifname != \"{tun}\" tcp dport @{CAPTIVE_WEB_SET} accept"
-    );
     match policy.mode() {
         Mode::FullTunnel => {
             let _ = writeln!(
@@ -266,6 +279,9 @@ fn validate(policy: &Policy, ks: &KillSwitch) -> Result<(), RenderError> {
     }
     if ks.endpoints.iter().any(|&(_, port)| port == 0) {
         return Err(RenderError::BadEndpointPort);
+    }
+    if ks.captive_helper == Some(0) {
+        return Err(RenderError::BadCaptiveHelper);
     }
     match &ks.dns {
         DnsRules::Resolvers {
@@ -309,21 +325,36 @@ fn render_captive_sets(s: &mut String) {
     );
 }
 
-/// DNS to the network's resolvers while the window is open; before the DNS
-/// drop rules so it can take effect.
-fn render_captive_dns(s: &mut String, tun: &str) {
+/// The helper's rules, right after loopback and before every other rule, so
+/// they are the **only** rules that apply to the helper: it is isolated from
+/// the tunnel and from everything the policy names, may use DNS only to the
+/// (normally empty) network-resolver sets and web ports only while the web
+/// set is filled, and gets nothing else. No other program is affected.
+fn render_captive_helper(s: &mut String, policy: &Policy, tun: &str, uid: u32) {
+    let me = format!("meta skuid {uid}");
     let _ = writeln!(
         s,
-        "\t\t# Captive portal (Q1): DNS to the network's resolvers, only while opened"
+        "\t\t# Captive-portal helper (uid {uid}): the only account the window applies to"
+    );
+    let _ = writeln!(s, "\t\t{me} oifname \"{tun}\" drop");
+    let _ = writeln!(
+        s,
+        "\t\t{me} ip daddr @{CAPTIVE_DNS4_SET} meta l4proto {{ tcp, udp }} th dport 53 accept"
     );
     let _ = writeln!(
         s,
-        "\t\tip daddr @{CAPTIVE_DNS4_SET} oifname != \"{tun}\" meta l4proto {{ tcp, udp }} th dport 53 accept"
+        "\t\t{me} ip6 daddr @{CAPTIVE_DNS6_SET} meta l4proto {{ tcp, udp }} th dport 53 accept"
     );
-    let _ = writeln!(
-        s,
-        "\t\tip6 daddr @{CAPTIVE_DNS6_SET} oifname != \"{tun}\" meta l4proto {{ tcp, udp }} th dport 53 accept"
-    );
+    for rule in policy.rules() {
+        let _ = writeln!(
+            s,
+            "\t\t{me} {} {} drop",
+            daddr(rule.prefix.family()),
+            rule.prefix
+        );
+    }
+    let _ = writeln!(s, "\t\t{me} tcp dport @{CAPTIVE_WEB_SET} accept");
+    let _ = writeln!(s, "\t\t{me} drop");
 }
 
 /// DNS rules: after the underlay exceptions, before the policy rules, so no
@@ -438,6 +469,7 @@ mod tests {
             tunnel_interface: "septuvo0".into(),
             endpoints: vec![("203.0.113.7".parse().unwrap(), 51820)],
             dns: DnsRules::TunnelOnly,
+            captive_helper: None,
         }
     }
 
@@ -558,9 +590,8 @@ mod tests {
         assert!(endpoint < block, "endpoint exception precedes policy rules");
         assert!(s.contains("ip6 hoplimit 255 accept"));
         let accepts = lines(&s).iter().filter(|l| l.ends_with("accept")).count();
-        // lo, DHCPv4, DHCPv6, ND, endpoint, default, plus the three
-        // captive-portal rules that match only while their sets are filled
-        assert_eq!(accepts, 9);
+        // lo, DHCPv4, DHCPv6, ND, endpoint, default
+        assert_eq!(accepts, 6);
     }
 
     #[test]
@@ -596,31 +627,107 @@ mod tests {
         );
     }
 
+    fn with_helper(policy: &str) -> String {
+        let p = parse_policy(policy).unwrap();
+        let k = KillSwitch {
+            captive_helper: Some(995),
+            ..with_resolvers(&["10.77.0.1"], &["192.168.1.53"])
+        };
+        render(&p, &k).unwrap()
+    }
+
     #[test]
-    fn captive_sets_start_empty_and_their_rules_are_placed_safely() {
-        let p = parse_policy("mode full-tunnel\nblock 10.0.0.0/8\n").unwrap();
+    fn without_a_helper_there_is_no_captive_rule_or_set() {
+        let p = parse_policy("mode full-tunnel\n").unwrap();
         let s = render(&p, &with_resolvers(&["10.77.0.1"], &[])).unwrap();
-        assert!(s.contains("set captive_web { type inet_service; flags timeout; }"));
-        assert!(s.contains("set captive_dns4 { type ipv4_addr; flags timeout; }"));
-        assert!(s.contains("set captive_dns6 { type ipv6_addr; flags timeout; }"));
-        assert!(!s.contains("elements ="), "nothing is open by default");
+        assert!(!s.contains("captive"), "captive-portal mode not configured");
+        assert!(!s.contains("skuid"));
+    }
+
+    /// The core property of the revised design: every captive rule matches
+    /// the helper account only, so for every other program the ruleset is
+    /// exactly the kill switch without captive-portal mode.
+    #[test]
+    fn captive_rules_apply_to_the_helper_account_only() {
+        let policy =
+            "mode full-tunnel\ndirect 192.168.1.30/32\nblock 203.0.113.99/32\ntunnel 10.0.0.0/8\n";
+        let with = with_helper(policy);
+        let without = render(
+            &parse_policy(policy).unwrap(),
+            &with_resolvers(&["10.77.0.1"], &["192.168.1.53"]),
+        )
+        .unwrap();
+        let others: Vec<&str> = lines(&with)
+            .into_iter()
+            .filter(|l| !l.contains("skuid 995") && !l.to_lowercase().contains("captive"))
+            .collect();
+        assert_eq!(
+            others,
+            lines(&without),
+            "rules for ordinary applications are unchanged"
+        );
+        for l in lines(&with).iter().filter(|l| l.contains('@')) {
+            assert!(
+                l.starts_with("meta skuid 995 "),
+                "unscoped captive rule: {l}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_helper_is_isolated_and_its_rules_come_first() {
+        let s = with_helper(
+            "mode full-tunnel\ndirect 192.168.1.30/32\nblock 203.0.113.99/32\ntunnel 10.0.0.0/8\n",
+        );
+        let me = "meta skuid 995";
+        let lo = position(&s, "oifname \"lo\" accept");
+        let tunnel = position(&s, &format!("{me} oifname \"septuvo0\" drop"));
         let dns4 = position(
             &s,
-            "ip daddr @captive_dns4 oifname != \"septuvo0\" meta l4proto { tcp, udp } th dport 53 accept",
+            &format!("{me} ip daddr @captive_dns4 meta l4proto {{ tcp, udp }} th dport 53 accept"),
         );
-        let dns_drop = position(&s, "udp dport { 53, 853 } drop");
-        assert!(dns4 < dns_drop, "network DNS must come before the DNS drop");
-        let web = position(&s, "oifname != \"septuvo0\" tcp dport @captive_web accept");
-        let block = position(&s, "ip daddr 10.0.0.0/8 drop");
-        let default = position(&s, "oifname \"septuvo0\" accept");
-        assert!(block < web, "policy block rules still win over the portal");
-        assert!(web < default, "the portal rule comes before the default");
-        // DNS over TLS/QUIC (853) is never part of the portal exception.
+        let direct = position(&s, &format!("{me} ip daddr 192.168.1.30/32 drop"));
+        let block = position(&s, &format!("{me} ip daddr 203.0.113.99/32 drop"));
+        let tun_prefix = position(&s, &format!("{me} ip daddr 10.0.0.0/8 drop"));
+        let web = position(&s, &format!("{me} tcp dport @captive_web accept"));
+        let last = position(&s, &format!("{me} drop"));
+        let endpoint = position(&s, "ip daddr 203.0.113.7 udp dport 51820 accept");
+        assert!(lo < tunnel, "loopback first");
+        assert!(
+            tunnel < dns4,
+            "never through the tunnel, before anything is accepted"
+        );
+        assert!(
+            dns4 < direct && direct < web && block < web && tun_prefix < web,
+            "nothing the policy names, not even direct hosts"
+        );
+        assert!(
+            web < last && last < endpoint,
+            "a final drop: no later rule (endpoints, LAN DNS, direct, default) applies to the helper"
+        );
         assert!(
             !lines(&s)
                 .iter()
                 .any(|l| l.contains("@captive") && l.contains("853"))
         );
+        assert!(
+            !lines(&s)
+                .iter()
+                .any(|l| l.contains(me) && l.contains("udp dport @captive_web")),
+            "web ports are TCP only (no QUIC)"
+        );
+        assert!(s.contains("set captive_web { type inet_service; flags timeout; }"));
+        assert!(!s.contains("elements ="), "nothing is open by default");
+    }
+
+    #[test]
+    fn root_can_never_be_the_helper() {
+        let p = parse_policy("mode full-tunnel\n").unwrap();
+        let k = KillSwitch {
+            captive_helper: Some(0),
+            ..ks()
+        };
+        assert_eq!(render(&p, &k), Err(RenderError::BadCaptiveHelper));
     }
 
     #[test]

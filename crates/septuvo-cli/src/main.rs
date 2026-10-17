@@ -4,7 +4,8 @@
 //! functionality. `status` asks the local service `septuvod` and shows the
 //! four-stage status model (D-020); `connect` and `disconnect` ask the
 //! service to turn the kill switch on or off; `captive-portal` asks it to
-//! open captive-portal mode for at most five minutes (N3-02); `policy check`
+//! open a captive-portal window for the dedicated sign-in helper account
+//! only, for at most five minutes (N3-02); `policy check`
 //! validates and explains a policy file. The tool itself never changes the
 //! system.
 
@@ -29,11 +30,15 @@ Usage:
                                        switch on (lab preview, no tunnel)
   septuvo disconnect [--runtime-dir DIR]
                                        Ask the service to turn it off
-  septuvo captive-portal [--minutes N] [--runtime-dir DIR]
-                                       Let web traffic and the network's DNS
-                                       out directly for N minutes (1-5,
-                                       default 5) to sign in to a hotel or
-                                       airport network; ends by itself
+  septuvo captive-portal [--minutes N] [--network-dns] [--runtime-dir DIR]
+                                       For N minutes (1-5, default 5), let
+                                       ONLY the sign-in helper account reach
+                                       web servers outside the tunnel, to
+                                       sign in to a hotel or airport network;
+                                       every other program stays blocked.
+                                       --network-dns also lets the helper
+                                       (only) use the network's own DNS for
+                                       this window. Ends by itself.
   septuvo policy check FILE [--dst ADDRESS] [--path up|down]
                                        Validate a policy file and explain
                                        what happens to traffic
@@ -100,14 +105,20 @@ fn run(args: &[String], out: &mut impl Write, err: &mut impl Write) -> io::Resul
             })
         }
         [cmd, rest @ ..] if cmd == "captive-portal" => {
-            let Some((minutes, runtime_dir)) = captive_args(rest) else {
+            let Some((minutes, network_dns, runtime_dir)) = captive_args(rest) else {
                 writeln!(
                     err,
-                    "septuvo: usage: septuvo captive-portal [--minutes 1-5] [--runtime-dir DIR]"
+                    "septuvo: usage: septuvo captive-portal [--minutes 1-5] [--network-dns] [--runtime-dir DIR]"
                 )?;
                 return Ok(EXIT_USAGE);
             };
-            let reply = service::ask(&runtime_dir, Command::Captive { minutes });
+            let reply = service::ask(
+                &runtime_dir,
+                Command::Captive {
+                    minutes,
+                    network_dns,
+                },
+            );
             out.write_all(reply.text.as_bytes())?;
             Ok(if reply.ok { EXIT_OK } else { EXIT_INVALID })
         }
@@ -153,13 +164,21 @@ fn runtime_dir(rest: &[String]) -> Option<PathBuf> {
     }
 }
 
-/// `[--minutes N] [--runtime-dir DIR]` in any order, each at most once.
-/// `N` may only shorten the five-minute window.
-fn captive_args(rest: &[String]) -> Option<(u8, PathBuf)> {
+/// `[--minutes N] [--network-dns] [--runtime-dir DIR]` in any order, each
+/// at most once. `N` may only shorten the five-minute window.
+fn captive_args(rest: &[String]) -> Option<(u8, bool, PathBuf)> {
     let mut minutes = None;
+    let mut network_dns = false;
     let mut dir = None;
     let mut it = rest.iter();
     while let Some(flag) = it.next() {
+        if flag == "--network-dns" {
+            if network_dns {
+                return None;
+            }
+            network_dns = true;
+            continue;
+        }
         let value = it.next()?;
         match flag.as_str() {
             "--minutes" if minutes.is_none() => {
@@ -177,6 +196,7 @@ fn captive_args(rest: &[String]) -> Option<(u8, PathBuf)> {
     }
     Some((
         minutes.unwrap_or(septuvo_ipc::MAX_CAPTIVE_MINUTES),
+        network_dns,
         dir.unwrap_or_else(|| PathBuf::from(septuvo_ipc::DEFAULT_RUNTIME_DIR)),
     ))
 }
@@ -268,11 +288,17 @@ mod tests {
         let s = |v: &[&str]| v.iter().map(ToString::to_string).collect::<Vec<_>>();
         assert_eq!(
             captive_args(&s(&[])),
-            Some((5, PathBuf::from("/run/septuvo")))
+            Some((5, false, PathBuf::from("/run/septuvo")))
         );
         assert_eq!(
-            captive_args(&s(&["--runtime-dir", "/tmp/x", "--minutes", "1"])),
-            Some((1, PathBuf::from("/tmp/x")))
+            captive_args(&s(&[
+                "--runtime-dir",
+                "/tmp/x",
+                "--network-dns",
+                "--minutes",
+                "1"
+            ])),
+            Some((1, true, PathBuf::from("/tmp/x")))
         );
         for bad in [
             &["--minutes", "6"][..],
@@ -284,6 +310,8 @@ mod tests {
             &["--minutes", "1", "--minutes", "2"],
             &["--runtime-dir", "relative"],
             &["--forever", "1"],
+            &["--network-dns", "--network-dns"],
+            &["--network-dns=yes"],
         ] {
             assert_eq!(captive_args(&s(bad)), None, "{bad:?}");
             let mut args = vec!["captive-portal"];
