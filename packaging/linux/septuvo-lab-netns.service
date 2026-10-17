@@ -1,0 +1,21 @@
+# Septuvo VPN (development preview): the lab network namespace "septuvo-lab".
+#
+# Before the G1 security review the Septuvo service runs only inside this
+# named namespace and never changes the host's own firewall or DNS. This unit
+# creates the namespace (with only a loopback interface) and removes it again
+# when stopped. Licensed under PolyForm Noncommercial 1.0.0 (see NOTICE).
+[Unit]
+Description=Septuvo lab network namespace (development preview)
+Documentation=https://github.com/neosmith20/Septuvo/blob/main/docs/build/install.md
+Before=septuvod.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Idempotent: an existing namespace is kept, never replaced.
+ExecStart=/bin/sh -c '/usr/sbin/ip netns list | grep -qw septuvo-lab || /usr/sbin/ip netns add septuvo-lab'
+ExecStart=/usr/sbin/ip -n septuvo-lab link set lo up
+ExecStop=/usr/sbin/ip netns delete septuvo-lab
+
+[Install]
+WantedBy=multi-user.target

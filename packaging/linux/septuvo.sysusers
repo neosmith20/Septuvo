@@ -1,0 +1,3 @@
+# Septuvo VPN: members of this group may connect and disconnect
+# (septuvo connect / disconnect). Status is readable by everyone.
+g septuvo -

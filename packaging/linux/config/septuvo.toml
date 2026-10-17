@@ -1,0 +1,16 @@
+# Septuvo device configuration (development preview). See docs/build/config.md.
+# Edit the server endpoint before use. Nothing here can connect to a server
+# before the G1 security review: "connect" only turns the kill switch on.
+version = 1
+
+[server]
+endpoints = ["192.0.2.1:51820"]   # 192.0.2.0/24 is a documentation range: replace it
+
+[routing]
+mode = "full-tunnel"
+
+[dns]
+resolvers = ["10.77.0.1"]
+
+[logging]
+retention_days = 7

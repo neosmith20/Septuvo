@@ -1,0 +1,4 @@
+# Septuvo VPN: the lab namespace's resolver directory, which septuvod manages
+# while connected (it must exist for the service's ReadWritePaths).
+d /etc/netns 0755 root root -
+d /etc/netns/septuvo-lab 0755 root root -

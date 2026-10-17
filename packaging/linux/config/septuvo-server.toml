@@ -1,0 +1,13 @@
+# Septuvo Server configuration (development preview). See docs/build/config.md.
+# No port is opened before the G1 security review.
+version = 1
+
+[listen]
+port = 51820
+
+[network]
+ipv4_range = "10.77.0.0/24"
+ipv6_range = "fd77:77:77::/64"
+
+[storage]
+data_dir = "/var/lib/septuvo-server"

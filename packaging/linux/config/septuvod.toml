@@ -1,0 +1,9 @@
+# Septuvo VPN service settings (development preview). See docs/build/daemon.md.
+version = 1
+
+[daemon]
+mode = "lab"                     # the only mode before the G1 security review
+lab_namespace = "septuvo-lab"    # created by septuvo-lab-netns.service
+runtime_dir = "/run/septuvo"
+control_group = "septuvo"
+device_config = "/etc/septuvo/septuvo.toml"

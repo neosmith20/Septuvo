@@ -100,3 +100,37 @@ jobs:
       # N2-03: DNS lockdown and the resolver file (IPv6 required).
       - name: Run the DNS lab (IPv6 required)
         run: sudo tests/lab/namespaces/dns.sh --require-ipv6 target/debug/septuvod target/debug/septuvo
+
+  # N3-01: installer and systemd service. A staged install (no root), then a
+  # real install, use and uninstall on this disposable runner only.
+  install:
+    name: install (real install on a disposable runner)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, verified 2026-10-13
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned toolchain from rust-toolchain.toml
+        run: |
+          channel="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          test -n "$channel"
+          rustup toolchain install "$channel" --profile minimal
+          rustc --version
+
+      - name: Install lab tools (Ubuntu packages, runner only)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends nftables iproute2
+          systemctl --version | head -1
+
+      - name: Build release binaries (not published)
+        run: cargo build --release --locked --bins
+
+      - name: Staged install (no root)
+        run: tests/lab/install/run.sh target/release
+
+      - name: Real install, use and uninstall (disposable runner)
+        run: sudo tests/lab/install/run.sh --real target/release
