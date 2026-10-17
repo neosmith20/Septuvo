@@ -568,7 +568,7 @@ mod tests {
         lines(script)
             .iter()
             .position(|l| *l == needle)
-            .unwrap_or_else(|| panic!("missing line {needle:?} in\n{script}"))
+            .unwrap_or_else(|| panic!("missing line {needle:?} in the rendered script"))
     }
 
     #[test]

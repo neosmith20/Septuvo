@@ -294,12 +294,12 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
                 "captive-portal mode lasts 1 to 5 minutes",
             );
         }
-        let Some(uid) = self.captive_helper else {
+        if self.captive_helper.is_none() {
             return Response::error(
                 "not_configured",
                 "captive-portal mode needs a dedicated helper account (daemon.captive_helper_user)",
             );
-        };
+        }
         if !self.wanted || !self.firewall.active() {
             return Response::error(
                 "not_connected",
@@ -329,10 +329,11 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
         self.captive_windows += 1;
         self.captive_until = Some(Instant::now() + Duration::from_secs(u64::from(seconds)));
         self.captive_network_dns = Some(!resolvers.is_empty());
-        // Every window is logged (journal), never silent.
+        // Every window is logged (journal), never silent. Only counts and
+        // yes/no flags: no account, address or other detail is written.
         eprintln!(
             "septuvod: captive-portal window {} of {MAX_CAPTIVE_WINDOWS} opened for {minutes} min \
-             (helper uid {uid}, network DNS: {})",
+             for the helper account (network DNS: {})",
             self.captive_windows,
             if resolvers.is_empty() { "no" } else { "yes" }
         );
