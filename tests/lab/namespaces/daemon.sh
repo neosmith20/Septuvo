@@ -45,7 +45,7 @@ cleanup() {
   userdel "$MEMBER" 2>/dev/null || true
   userdel "$OTHER" 2>/dev/null || true
   groupdel "$GROUP" 2>/dev/null || true
-  rm -rf "$WORK"
+  rm -rf "/etc/netns/$C" "/etc/netns/.septuvo-$C.resolv.conf.backup" "/etc/netns/.septuvo-$C.resolv.conf.tmp" "$WORK"
 }
 trap cleanup EXIT
 trap 'echo "::error title=daemon lab setup::daemon.sh line $LINENO failed: $BASH_COMMAND"' ERR

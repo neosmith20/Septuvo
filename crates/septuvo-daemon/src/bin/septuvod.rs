@@ -6,6 +6,7 @@
 //! only a deliberate `septuvo disconnect` does (owner decision Q2).
 
 use septuvo_daemon::engine::{Engine, Nftables, SysClassNet};
+use septuvo_daemon::resolver::ResolvConf;
 use septuvo_daemon::{guard, settings, sockets};
 use std::os::unix::net::UnixListener;
 use std::path::PathBuf;
@@ -18,7 +19,7 @@ The privileged Septuvo VPN service. Development preview, lab only: it runs\n\
 as root inside a named test network namespace and turns the kill switch on\n\
 and off. It has no tunnel and protects nothing outside the lab.";
 
-type Shared = Arc<Mutex<Engine<Nftables, SysClassNet>>>;
+type Shared = Arc<Mutex<Engine<Nftables, SysClassNet, ResolvConf>>>;
 
 fn serve(listener: &UnixListener, engine: &Shared, control: bool) {
     for stream in listener.incoming() {
@@ -81,7 +82,13 @@ fn main() -> ExitCode {
         Ok(l) => l,
         Err(e) => return fail(4, &e.to_string()),
     };
-    let engine: Shared = Arc::new(Mutex::new(Engine::new(config, Nftables, SysClassNet)));
+    let resolver = ResolvConf::for_lab_namespace(&settings.lab_namespace);
+    let engine: Shared = Arc::new(Mutex::new(Engine::new(
+        config,
+        Nftables,
+        SysClassNet,
+        resolver,
+    )));
     println!(
         "septuvod: ready (lab mode, namespace {}, sockets in {})",
         settings.lab_namespace,

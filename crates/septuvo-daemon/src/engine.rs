@@ -5,10 +5,15 @@
 //! blocked because no VPN path exists. Status is honest about that: peer
 //! authentication always **fails**, so the overall status is never
 //! "connected" (D-020).
+//!
+//! With tunnel DNS (N2-03) connect also restricts DNS to the configured
+//! resolvers through the tunnel and points the resolver file at them; a
+//! deliberate disconnect restores both.
 
-use septuvo_config::DeviceConfig;
+use crate::resolver::Resolver;
+use septuvo_config::{DeviceConfig, DnsPolicy};
 use septuvo_ipc::{Command, Response};
-use septuvo_policy::nft::{self, KillSwitch};
+use septuvo_policy::nft::{self, DnsRules, KillSwitch};
 use std::path::Path;
 use std::process::{Command as Process, Stdio};
 
@@ -96,22 +101,25 @@ impl Interfaces for SysClassNet {
 }
 
 /// The service's state machine.
-pub struct Engine<F: Firewall, I: Interfaces> {
+pub struct Engine<F: Firewall, I: Interfaces, R: Resolver> {
     config: DeviceConfig,
     firewall: F,
     interfaces: I,
+    resolver: R,
     /// The user asked to be protected (connect) and has not disconnected.
     wanted: bool,
 }
 
-impl<F: Firewall, I: Interfaces> Engine<F, I> {
-    /// A new engine. Rules left by an earlier run (for example after a crash)
-    /// are kept: they are only removed by a deliberate disconnect (Q2).
-    pub fn new(config: DeviceConfig, firewall: F, interfaces: I) -> Self {
+impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
+    /// A new engine. Rules and a resolver file left by an earlier run (for
+    /// example after a crash) are kept: they are only removed by a deliberate
+    /// disconnect (Q2).
+    pub fn new(config: DeviceConfig, firewall: F, interfaces: I, resolver: R) -> Self {
         Engine {
             config,
             firewall,
             interfaces,
+            resolver,
             wanted: false,
         }
     }
@@ -138,6 +146,23 @@ impl<F: Firewall, I: Interfaces> Engine<F, I> {
                 .iter()
                 .map(|e| (e.ip(), e.port()))
                 .collect(),
+            dns: match &self.config.dns {
+                DnsPolicy::Tunnel {
+                    resolvers,
+                    lan_exceptions,
+                } => DnsRules::Resolvers {
+                    resolvers: resolvers.clone(),
+                    lan_exceptions: lan_exceptions.clone(),
+                },
+                DnsPolicy::System => DnsRules::System,
+            },
+        }
+    }
+
+    fn tunnel_resolvers(&self) -> Option<&[std::net::IpAddr]> {
+        match &self.config.dns {
+            DnsPolicy::Tunnel { resolvers, .. } => Some(resolvers),
+            DnsPolicy::System => None,
         }
     }
 
@@ -146,29 +171,34 @@ impl<F: Firewall, I: Interfaces> Engine<F, I> {
             Ok(s) => s,
             Err(e) => return Response::error("invalid_policy", &e.to_string()),
         };
-        match self.firewall.apply(&script) {
-            Ok(()) => {
-                self.wanted = true;
-                self.status().with(
-                    "message",
-                    "kill switch on: protected traffic is blocked; no tunnel exists before G1",
-                )
-            }
-            Err(e) => Response::error("firewall", &e),
+        if let Err(e) = self.firewall.apply(&script) {
+            return Response::error("firewall", &e);
         }
+        self.wanted = true;
+        if let Some(servers) = self.tunnel_resolvers().map(<[_]>::to_vec)
+            && let Err(e) = self.resolver.install(&servers)
+        {
+            // The kill switch is on, so DNS still cannot leak; report it.
+            return Response::error("resolver", &format!("kill switch on, but {e}"));
+        }
+        self.status().with(
+            "message",
+            "kill switch on: protected traffic is blocked; no tunnel exists before G1",
+        )
     }
 
     fn disconnect(&mut self) -> Response {
-        match self.firewall.apply(&nft::removal_script()) {
-            Ok(()) => {
-                self.wanted = false;
-                self.status().with(
-                    "message",
-                    "disconnected: Septuvo rules removed (deliberate disconnect)",
-                )
-            }
-            Err(e) => Response::error("firewall", &e),
+        if let Err(e) = self.firewall.apply(&nft::removal_script()) {
+            return Response::error("firewall", &e);
         }
+        self.wanted = false;
+        if let Err(e) = self.resolver.restore() {
+            return Response::error("resolver", &format!("rules removed, but {e}"));
+        }
+        self.status().with(
+            "message",
+            "disconnected: Septuvo rules removed and the resolver file restored (deliberate disconnect)",
+        )
     }
 
     fn status(&mut self) -> Response {
@@ -192,7 +222,26 @@ impl<F: Firewall, I: Interfaces> Engine<F, I> {
             .with("peer", "fail")
             .with("reachability", "unknown")
             .with("dns", "unknown")
+            .with("dns_policy", &self.dns_policy())
+            .with(
+                "resolver_file",
+                if self.resolver.installed() {
+                    "septuvo"
+                } else {
+                    "system"
+                },
+            )
             .with("note", PEER_NOTE)
+    }
+
+    fn dns_policy(&self) -> String {
+        match &self.config.dns {
+            DnsPolicy::Tunnel { resolvers, .. } => {
+                let list: Vec<String> = resolvers.iter().map(ToString::to_string).collect();
+                format!("only through the tunnel to {}", list.join(", "))
+            }
+            DnsPolicy::System => "system resolver (split mode, not protected)".to_string(),
+        }
     }
 }
 
@@ -226,6 +275,29 @@ mod tests {
         }
     }
 
+    #[derive(Default)]
+    struct FakeResolver {
+        servers: Option<Vec<std::net::IpAddr>>,
+        fail: bool,
+    }
+
+    impl Resolver for FakeResolver {
+        fn install(&mut self, servers: &[std::net::IpAddr]) -> Result<(), String> {
+            if self.fail {
+                return Err("simulated resolver failure".into());
+            }
+            self.servers = Some(servers.to_vec());
+            Ok(())
+        }
+        fn restore(&mut self) -> Result<(), String> {
+            self.servers = None;
+            Ok(())
+        }
+        fn installed(&self) -> bool {
+            self.servers.is_some()
+        }
+    }
+
     struct FakeInterfaces(bool);
     impl Interfaces for FakeInterfaces {
         fn is_up(&self, _: &str) -> bool {
@@ -242,8 +314,68 @@ mod tests {
         .expect("valid test configuration")
     }
 
-    fn engine(fw: FakeFirewall, up: bool) -> Engine<FakeFirewall, FakeInterfaces> {
-        Engine::new(config(), fw, FakeInterfaces(up))
+    fn engine(fw: FakeFirewall, up: bool) -> Engine<FakeFirewall, FakeInterfaces, FakeResolver> {
+        Engine::new(config(), fw, FakeInterfaces(up), FakeResolver::default())
+    }
+
+    #[test]
+    fn connect_restricts_dns_and_installs_the_resolver_file() {
+        let mut e = engine(FakeFirewall::default(), false);
+        let r = e.handle(Command::Connect, true);
+        assert_eq!(r.outcome, Outcome::Ok);
+        let rules = e.firewall.installed.clone().expect("rules");
+        assert!(
+            rules.contains("ip daddr 10.77.0.1 oifname \"septuvo0\" udp dport { 53, 853 } accept")
+        );
+        assert!(rules.contains("udp dport { 53, 853 } drop"));
+        assert_eq!(e.resolver.servers, Some(vec!["10.77.0.1".parse().unwrap()]));
+        assert_eq!(r.field("resolver_file"), Some("septuvo"));
+        assert_eq!(
+            r.field("dns_policy"),
+            Some("only through the tunnel to 10.77.0.1")
+        );
+        let r = e.handle(Command::Disconnect, true);
+        assert_eq!(r.outcome, Outcome::Ok);
+        assert_eq!(e.resolver.servers, None);
+        assert_eq!(r.field("resolver_file"), Some("system"));
+    }
+
+    #[test]
+    fn resolver_failure_keeps_the_kill_switch_on() {
+        let mut e = engine(FakeFirewall::default(), false);
+        e.resolver.fail = true;
+        let r = e.handle(Command::Connect, true);
+        assert!(matches!(r.outcome, Outcome::Err { ref code, .. } if code == "resolver"));
+        assert!(e.firewall.installed.is_some(), "still failing closed");
+        assert_eq!(
+            e.handle(Command::Status, false).field("state"),
+            Some("blocking")
+        );
+    }
+
+    #[test]
+    fn system_dns_in_split_mode_leaves_the_resolver_file_alone() {
+        let config = septuvo_config::parse_device(
+            "version = 1\n[server]\nendpoints = [\"203.0.113.7:51820\"]\n\
+             [routing]\nmode = \"split\"\ntunnel = [\"192.168.50.0/24\"]\n\
+             [dns]\nmode = \"system\"\n",
+        )
+        .expect("valid");
+        let mut e = Engine::new(
+            config,
+            FakeFirewall::default(),
+            FakeInterfaces(false),
+            FakeResolver::default(),
+        );
+        assert_eq!(e.handle(Command::Connect, true).outcome, Outcome::Ok);
+        assert_eq!(e.resolver.servers, None);
+        assert!(
+            !e.firewall
+                .installed
+                .clone()
+                .unwrap()
+                .contains("dport { 53, 853 } drop")
+        );
     }
 
     #[test]

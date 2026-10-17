@@ -53,7 +53,13 @@ device_config = "/etc/septuvo/septuvo.toml"   # required; see config.md
 | --- | --- |
 | `septuvo status [--runtime-dir DIR]` | Shows the four checks (D-020): adapter, server identity, traffic, DNS, plus the service state and the kill switch. **Server identity is always "failed"** (no peer authentication before G1), so the result is always "Not connected" (exit 3) |
 | `septuvo connect [--runtime-dir DIR]` | Installs the N1 kill switch for the configured policy. Protected traffic is blocked, because no VPN path exists; the server endpoints stay reachable |
-| `septuvo disconnect [--runtime-dir DIR]` | A deliberate disconnect: removes the Septuvo rules. This is the only way they are removed (Q2) |
+| `septuvo disconnect [--runtime-dir DIR]` | A deliberate disconnect: removes the Septuvo rules **and restores the original resolver file**. This is the only way they are removed (Q2) |
+
+**DNS (N2-03).** With tunnel DNS (`[dns] resolvers`, see [config.md](config.md)), connect also:
+- allows DNS only to those resolvers, only through the tunnel, plus the listed LAN exceptions directly. All other DNS on UDP/TCP 53, DNS over TLS and DNS over QUIC is dropped, in full-tunnel and split mode alike;
+- writes the lab namespace's resolver file, `/etc/netns/NAME/resolv.conf` (what `ip netns exec NAME` shows as `/etc/resolv.conf`), with the tunnel resolvers. The original is kept once as `/etc/netns/.septuvo-NAME.resolv.conf.backup`: outside the namespace directory, because `ip netns exec` mounts every file in it. A second connect, or a connect after a crash, never overwrites that backup.
+
+Status reports `dns_policy` and `resolver_file`. The DNS stage itself stays "unknown": a lookup through a real tunnel needs the Septuvo Protocol. The host's `/etc/resolv.conf` is never touched before G1. DNS over HTTPS cannot be blocked by port: see [lab.md](lab.md#dns-over-https-cannot-be-blocked-by-port-stated-not-hidden).
 
 **If the service stops or crashes,** the rules stay in place (fail closed). After a restart it reports them as `blocking-left-from-earlier-run` and leaves them alone.
 
@@ -86,7 +92,6 @@ CI runs it on every pull request.
 
 ## Not in this task
 
-- DNS enforcement: N2-03.
 - Server administration: N2-04.
 - A tunnel, peer authentication or anything else that needs the Septuvo Protocol: after G1.
 - Running as a system service with an installer: later milestones.

@@ -96,3 +96,7 @@ jobs:
 
       - name: Run the service lab
         run: sudo tests/lab/namespaces/daemon.sh target/debug/septuvod target/debug/septuvo
+
+      # N2-03: DNS lockdown and the resolver file (IPv6 required).
+      - name: Run the DNS lab (IPv6 required)
+        run: sudo tests/lab/namespaces/dns.sh --require-ipv6 target/debug/septuvod target/debug/septuvo

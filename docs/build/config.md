@@ -57,7 +57,7 @@ Every file Septuvo accepts is valid [TOML](https://toml.io/en/v1.0.0), so standa
 | `routing.tunnel` / `direct` / `block` | no | Prefix lists, for example `"192.168.1.30/32"`. Host bits must be zero. Same rules as the N1 policy model: most specific prefix wins, duplicates are rejected, and a `direct` rule for `0.0.0.0/0` or `::/0` is rejected because it would switch protection off |
 | `[dns]` | yes | Must be present |
 | `dns.mode` | no | `"tunnel"` (the default) or `"system"`. `"system"` is refused in full-tunnel mode, because it would send DNS outside the tunnel |
-| `dns.resolvers` | yes, in tunnel mode | 1 to 4 resolver addresses. Each must be routed **through the tunnel** by `[routing]`; otherwise the file is rejected. Loopback resolvers are refused. In tunnel mode, all other DNS is blocked (N2-03) |
+| `dns.resolvers` | yes, in tunnel mode | 1 to 4 resolver addresses. Each must be routed **through the tunnel** by `[routing]`; otherwise the file is rejected. Loopback resolvers are refused. In tunnel mode, all other DNS (UDP/TCP 53, DNS over TLS, DNS over QUIC) is blocked, in full-tunnel and split mode alike, and the resolver file points at these resolvers while connected ([daemon.md](daemon.md)). DNS over HTTPS cannot be blocked by port ([lab.md](lab.md#dns-over-https-cannot-be-blocked-by-port-stated-not-hidden)) |
 | `dns.lan_exceptions` | no | Up to 8 local resolvers allowed to receive DNS directly. Each must also be covered by a `routing.direct` rule |
 | `tunnel.interface` | no | 1–15 characters from `A-Z a-z 0-9 _ - .`; default `septuvo0` |
 | `tunnel.mtu` | no | 1280–9000; default 1420 (wire-format.md §5.2) |
@@ -98,6 +98,5 @@ septuvo.toml: line 7, column 8: dns.mode: "system" DNS would send queries outsid
 ## Not in this task
 
 - Applying the configuration: the privileged service is N2-02.
-- DNS enforcement: N2-03.
 - Server device records: N2-04.
 - Anything that needs enrollment or the Septuvo Protocol (after G1).
