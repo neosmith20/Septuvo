@@ -1,0 +1,18 @@
+[package]
+name = "septuvo-config"
+description = "Septuvo configuration format, parser and validation (no networking, no cryptography)"
+version.workspace = true
+edition.workspace = true
+license = "PolyForm-Noncommercial-1.0.0"
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "septuvo-config"
+path = "src/bin/septuvo-config.rs"
+
+[dependencies]
+septuvo-policy = { path = "../septuvo-policy" }
+
+[lints]
+workspace = true

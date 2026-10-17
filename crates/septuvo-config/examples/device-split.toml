@@ -1,0 +1,15 @@
+# Septuvo device configuration: journey A, home network from anywhere (D-027).
+# Only the home network goes through the tunnel. Other traffic is NOT
+# protected by Septuvo.
+version = 1
+
+[server]
+endpoints = ["198.51.100.7:51820"]
+
+[routing]
+mode = "split"
+tunnel = ["192.168.50.0/24", "10.77.0.0/24", "2001:db8:50::/64"]
+
+[dns]
+# Home names resolved by the home resolver, through the tunnel.
+resolvers = ["192.168.50.1"]

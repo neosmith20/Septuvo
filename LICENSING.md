@@ -17,6 +17,7 @@
 | --- | --- | --- | --- |
 | `crates/septuvo-policy` | Apache-2.0 | Open reference implementation | Policy model and kill-switch generator; published under Apache-2.0 since N1-02 |
 | `crates/septuvo-cli` | Apache-2.0 | Open reference implementation | Reference command-line tool and status model; published under Apache-2.0 since N1-01 |
+| `crates/septuvo-config` | PolyForm Noncommercial 1.0.0 | Septuvo VPN and Server | Configuration format and validation (N2-01) |
 
 New Septuvo VPN or Septuvo Server application code goes into **new crates** classified as PolyForm Noncommercial in [`licensing.toml`](licensing.toml). Whether the two existing crates should instead move to PolyForm for future changes is owner question **L6** (section 8).
 

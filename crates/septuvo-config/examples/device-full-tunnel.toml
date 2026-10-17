@@ -1,0 +1,26 @@
+# Septuvo device configuration: journey B, untrusted Wi-Fi (D-027).
+# Everything goes through the tunnel; one printer/NAS on the local network
+# is reachable directly. Check with: septuvo-config check device FILE
+version = 1
+
+[server]
+# IP address and UDP port; host names are not accepted.
+endpoints = ["203.0.113.10:51820", "[2001:db8::10]:51820"]
+
+[routing]
+mode = "full-tunnel"
+direct = ["192.168.1.30/32", "2001:db8:1::30/128"]
+
+[dns]
+# DNS goes only to these resolvers, through the tunnel. All other DNS is blocked.
+resolvers = ["10.77.0.1", "fd77:77:77::1"]
+
+[tunnel]
+interface = "septuvo0"
+mtu = 1420
+
+[behavior]
+always_on = false
+
+[logging]
+retention_days = 7

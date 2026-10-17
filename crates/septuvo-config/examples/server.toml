@@ -1,0 +1,18 @@
+# Septuvo Server configuration. Before the G1 review no port is opened:
+# the listen address is only stored and checked.
+version = 1
+
+[listen]
+address = "::"
+port = 51820
+
+[network]
+# Picked at random per server (owner decision Q13); change if it clashes.
+ipv4_range = "10.77.0.0/24"
+ipv6_range = "fd77:77:77::/64"
+
+[storage]
+data_dir = "/var/lib/septuvo-server"
+
+[logging]
+retention_days = 7

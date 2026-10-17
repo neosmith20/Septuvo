@@ -13,8 +13,11 @@ sys.path.insert(0, str(SCRIPTS))
 import check_licensing as C  # noqa: E402
 
 FILES = ["LICENSE", "LICENSING.md", "NOTICE", "licensing.toml", "Cargo.toml",
-         "LICENSES/PolyForm-Noncommercial-1.0.0.md", "brand/NOTICE.md",
-         "crates/septuvo-policy/Cargo.toml", "crates/septuvo-cli/Cargo.toml"]
+         "LICENSES/PolyForm-Noncommercial-1.0.0.md", "brand/NOTICE.md"]
+# Every crate's licensing-relevant files, so the fixture follows the workspace.
+FILES += sorted(str(p.relative_to(REPO_ROOT))
+                for name in ("Cargo.toml", "LICENSE.md", "NOTICE")
+                for p in REPO_ROOT.glob(f"crates/*/{name}"))
 
 POLYFORM_CRATE = """[package]
 name = "septuvo-vpn-core"
@@ -57,7 +60,7 @@ class Fixture(unittest.TestCase):
             shutil.copy(self.root / C.POLYFORM_TEXT, crate / "LICENSE.md")
         if notice:
             (crate / "NOTICE").write_text("Required Notice: Copyright 2026 the Septuvo rights holder\n", encoding="utf-8")
-        self.edit("Cargo.toml", '"crates/septuvo-cli"]', '"crates/septuvo-cli", "crates/septuvo-vpn-core"]')
+        self.edit("Cargo.toml", 'members = [', 'members = ["crates/septuvo-vpn-core", ')
         with open(self.root / "licensing.toml", "a", encoding="utf-8") as f:
             f.write('\n[[crate]]\npath = "crates/septuvo-vpn-core"\nlicense = "PolyForm-Noncommercial-1.0.0"\ncomponent = "vpn"\n')
         with open(self.root / "LICENSING.md", "a", encoding="utf-8") as f:
@@ -82,10 +85,10 @@ class Checks(Fixture):
         self.assert_error("must not set `license`")
 
     def test_unclassified_new_crate_fails(self):
-        (self.root / "crates/septuvo-server").mkdir(parents=True)
-        (self.root / "crates/septuvo-server/Cargo.toml").write_text(
-            '[package]\nname = "septuvo-server"\nlicense = "Apache-2.0"\n', encoding="utf-8")
-        self.edit("Cargo.toml", '"crates/septuvo-cli"]', '"crates/septuvo-cli", "crates/septuvo-server"]')
+        (self.root / "crates/septuvo-unlisted").mkdir(parents=True)
+        (self.root / "crates/septuvo-unlisted/Cargo.toml").write_text(
+            '[package]\nname = "septuvo-unlisted"\nlicense = "Apache-2.0"\n', encoding="utf-8")
+        self.edit("Cargo.toml", 'members = [', 'members = ["crates/septuvo-unlisted", ')
         self.assert_error("not classified in licensing.toml")
 
     def test_inherited_or_mismatched_license_fails(self):

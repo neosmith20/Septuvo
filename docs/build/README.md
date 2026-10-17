@@ -1,15 +1,16 @@
 # Building and testing the Septuvo Rust workspace
 
-**State:** development preview from track N1 (non-crypto foundation, [D-029](../DECISIONS.md)). This code **cannot** connect, carry traffic, encrypt or protect anything. It has no SVP handshake, packet format, key handling or tunnel; those wait for gate G1.
+**State:** development preview from tracks N1 and N2 (non-crypto foundation, [D-029](../DECISIONS.md)). This code **cannot** connect, carry traffic, encrypt or protect anything. It has no SVP handshake, packet format, key handling or tunnel; those wait for gate G1.
 
 ## What is here
 
 | Path | What it is |
 | --- | --- |
-| [`Cargo.toml`](../../Cargo.toml) | Workspace: shared version, edition 2024, Apache-2.0 licence, `unsafe` code forbidden, Clippy pedantic lints |
+| [`Cargo.toml`](../../Cargo.toml) | Workspace: shared version, edition 2024, `unsafe` code forbidden, Clippy pedantic lints. Each crate declares its own licence ([LICENSING.md](../../LICENSING.md)) |
 | [`rust-toolchain.toml`](../../rust-toolchain.toml) | Pinned Rust release (1.99.0, the current stable on 2026-10-14) with `rustfmt` and `clippy` |
 | [`crates/septuvo-policy`](../../crates/septuvo-policy) | Route and LAN-exception policy model and the nftables kill-switch generator: pure logic, no operating-system calls (N1-02, N1-03) |
 | [`crates/septuvo-cli`](../../crates/septuvo-cli) | The `septuvo` command-line tool and the four-stage connection status model (D-020): `help`, `version`, `status`, `policy check FILE [--dst ADDRESS] [--path up\|down]` (N1-01, N1-04) |
+| [`crates/septuvo-config`](../../crates/septuvo-config) | Configuration format (strict TOML subset), parser and validation for device and server files, and the `septuvo-config check` tool: see [config.md](config.md). PolyForm Noncommercial (N2-01) |
 | [`.github/workflows/rust.yml`](../../.github/workflows/rust.yml) | CI: no-third-party-crate check, format, lint with warnings as errors, tests; plus the namespace kill-switch lab |
 | [`tests/lab/namespaces/`](../../tests/lab/namespaces) | Kill-switch, DNS and IPv6 leak tests in throw-away network namespaces: see [lab.md](lab.md) (N1-03) |
 
