@@ -33,3 +33,11 @@ version = "0.0.0"
 [[package]]
 name = "septuvo-policy"
 version = "0.0.0"
+
+[[package]]
+name = "septuvo-server"
+version = "0.0.0"
+dependencies = [
+ "septuvo-config",
+ "septuvo-policy",
+]

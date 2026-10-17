@@ -5,7 +5,7 @@
 
 [workspace]
 resolver = "3"
-members = ["crates/septuvo-policy", "crates/septuvo-cli", "crates/septuvo-config", "crates/septuvo-ipc", "crates/septuvo-daemon"]
+members = ["crates/septuvo-policy", "crates/septuvo-cli", "crates/septuvo-config", "crates/septuvo-ipc", "crates/septuvo-daemon", "crates/septuvo-server"]
 
 [workspace.package]
 version = "0.0.0"

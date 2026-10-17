@@ -45,6 +45,12 @@ license = "PolyForm-Noncommercial-1.0.0"
 component = "vpn"
 note = "Privileged Septuvo VPN service septuvod (N2-02)"
 
+[[crate]]
+path = "crates/septuvo-server"
+license = "PolyForm-Noncommercial-1.0.0"
+component = "server"
+note = "Septuvo Server administration: device records (N2-04)"
+
 [brand]
 path = "brand"
 notice = "brand/NOTICE.md"
