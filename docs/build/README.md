@@ -9,8 +9,10 @@
 | [`Cargo.toml`](../../Cargo.toml) | Workspace: shared version, edition 2024, `unsafe` code forbidden, Clippy pedantic lints. Each crate declares its own licence ([LICENSING.md](../../LICENSING.md)) |
 | [`rust-toolchain.toml`](../../rust-toolchain.toml) | Pinned Rust release (1.99.0, the current stable on 2026-10-14) with `rustfmt` and `clippy` |
 | [`crates/septuvo-policy`](../../crates/septuvo-policy) | Route and LAN-exception policy model and the nftables kill-switch generator: pure logic, no operating-system calls (N1-02, N1-03) |
-| [`crates/septuvo-cli`](../../crates/septuvo-cli) | The `septuvo` command-line tool and the four-stage connection status model (D-020): `help`, `version`, `status`, `policy check FILE [--dst ADDRESS] [--path up\|down]` (N1-01, N1-04) |
+| [`crates/septuvo-cli`](../../crates/septuvo-cli) | The `septuvo` command-line tool and the four-stage connection status model (D-020): `help`, `version`, `status`, `connect`, `disconnect` (asking `septuvod`), `policy check FILE [--dst ADDRESS] [--path up\|down]` (N1-01, N1-04, N2-02) |
 | [`crates/septuvo-config`](../../crates/septuvo-config) | Configuration format (strict TOML subset), parser and validation for device and server files, and the `septuvo-config check` tool: see [config.md](config.md). PolyForm Noncommercial (N2-01) |
+| [`crates/septuvo-ipc`](../../crates/septuvo-ipc) | The local control protocol between `septuvo` and `septuvod`. Apache-2.0 (N2-02) |
+| [`crates/septuvo-daemon`](../../crates/septuvo-daemon) | `septuvod`, the privileged service (lab only): see [daemon.md](daemon.md). PolyForm Noncommercial (N2-02) |
 | [`.github/workflows/rust.yml`](../../.github/workflows/rust.yml) | CI: no-third-party-crate check, format, lint with warnings as errors, tests; plus the namespace kill-switch lab |
 | [`tests/lab/namespaces/`](../../tests/lab/namespaces) | Kill-switch, DNS and IPv6 leak tests in throw-away network namespaces: see [lab.md](lab.md) (N1-03) |
 

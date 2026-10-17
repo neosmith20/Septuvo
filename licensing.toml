@@ -33,6 +33,18 @@ license = "PolyForm-Noncommercial-1.0.0"
 component = "vpn"
 note = "Septuvo VPN and Server configuration format and validation (N2-01)"
 
+[[crate]]
+path = "crates/septuvo-ipc"
+license = "Apache-2.0"
+component = "open-reference"
+note = "Local control protocol used by the Apache-2.0 septuvo CLI (N2-02; classification approved in the N2 work order, PR #55)"
+
+[[crate]]
+path = "crates/septuvo-daemon"
+license = "PolyForm-Noncommercial-1.0.0"
+component = "vpn"
+note = "Privileged Septuvo VPN service septuvod (N2-02)"
+
 [brand]
 path = "brand"
 notice = "brand/NOTICE.md"

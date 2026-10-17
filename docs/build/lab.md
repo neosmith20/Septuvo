@@ -56,6 +56,10 @@ CI runs the same thing on every pull request (job **lab (kill switch in network 
 | Agent workspace, Ubuntu 24.04.5, nftables 1.0.9, iproute2 6.1.0, kernel **without IPv6** | 2026-10-15 | 37 passed, 0 failed, 10 skipped: every IPv6 case, **not run** |
 | GitHub-hosted runner `ubuntu-24.04` with IPv6 | from the N1-03 pull request on | See the **lab** job of each CI run |
 
+## The service lab (N2-02)
+
+`tests/lab/namespaces/daemon.sh` tests the privileged service `septuvod` and the `septuvo` command in their own namespaces. See [daemon.md](daemon.md#lab-test).
+
 ## Known limits
 
 - **Locally generated traffic only** (output hook). Forwarding or router setups are not covered.

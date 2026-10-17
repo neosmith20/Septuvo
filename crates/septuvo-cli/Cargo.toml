@@ -12,6 +12,7 @@ name = "septuvo"
 path = "src/main.rs"
 
 [dependencies]
+septuvo-ipc = { path = "../septuvo-ipc" }
 septuvo-policy = { path = "../septuvo-policy" }
 
 [lints]

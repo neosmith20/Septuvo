@@ -6,6 +6,7 @@ version = 4
 name = "septuvo-cli"
 version = "0.0.0"
 dependencies = [
+ "septuvo-ipc",
  "septuvo-policy",
 ]
 
@@ -15,6 +16,19 @@ version = "0.0.0"
 dependencies = [
  "septuvo-policy",
 ]
+
+[[package]]
+name = "septuvo-daemon"
+version = "0.0.0"
+dependencies = [
+ "septuvo-config",
+ "septuvo-ipc",
+ "septuvo-policy",
+]
+
+[[package]]
+name = "septuvo-ipc"
+version = "0.0.0"
 
 [[package]]
 name = "septuvo-policy"

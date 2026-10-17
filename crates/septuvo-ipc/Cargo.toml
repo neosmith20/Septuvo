@@ -1,0 +1,13 @@
+[package]
+name = "septuvo-ipc"
+description = "Septuvo local control protocol between the septuvo CLI and the septuvod service (no networking, no cryptography)"
+version.workspace = true
+edition.workspace = true
+license = "Apache-2.0"
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true
