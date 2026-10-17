@@ -112,7 +112,8 @@ fn fuzz_daemon_settings() {
             let Ok(s) = settings::parse(text) else {
                 return false;
             };
-            assert!(!s.lab_namespace.is_empty() && !s.lab_namespace.contains('/'));
+            assert_ne!(s.lab_namespace.len(), 0);
+        assert!(!s.lab_namespace.contains('/'));
             assert!(s.runtime_dir.is_absolute() && s.device_config.is_absolute());
             assert_ne!(
                 s.captive_helper_user.as_deref(),

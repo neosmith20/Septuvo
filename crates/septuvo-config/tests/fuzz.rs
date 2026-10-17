@@ -350,7 +350,7 @@ fn fuzz_device_schema() {
         );
         match first {
             Ok(c) => {
-                assert!(!c.endpoints.is_empty(), "at least one endpoint");
+                assert_ne!(c.endpoints.len(), 0, "at least one endpoint");
                 assert!(c.endpoints.iter().all(|e| e.port() != 0));
                 assert!(i64::from(c.log_retention_days) <= MAX_RETENTION_DAYS);
                 let _ = c.summary();

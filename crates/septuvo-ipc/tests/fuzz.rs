@@ -173,7 +173,7 @@ fn fuzz_ipc_builder() {
         );
         let parsed = parse_response(encoded.as_bytes()).expect("a built response always parses");
         if let Outcome::Err { code, .. } = &parsed.outcome {
-            assert!(!code.is_empty());
+            assert_ne!(code.len(), 0);
         }
         true
     });
