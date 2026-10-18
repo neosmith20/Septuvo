@@ -1,0 +1,13 @@
+[package]
+name = "septuvo-native-gate"
+description = "Native-code review gate: fails on non-Rust native code not in a reviewed allowlist (D-015; repository tooling, never shipped)"
+version.workspace = true
+edition.workspace = true
+license = "Apache-2.0"
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

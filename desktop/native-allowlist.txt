@@ -1,0 +1,134 @@
+# Native-code allowlist for the Septuvo VPN desktop app (D-005, D-015, N4-01).
+#
+# Septuvo-authored code is Rust (D-005); external components may be in any
+# language, but each is reviewed before adoption (D-015). Read by
+# crates/septuvo-native-gate (CI job "desktop"): every crate cargo builds for
+# x86_64-unknown-linux-gnu is inspected, and anything that could compile,
+# bundle, link or load non-Rust code fails the build unless an entry below
+# lists it with its reason. Today every entry is (a) an operating-system
+# library or (b) inert in this build: nothing is compiled from C/C++.
+# Crate-specific entries that stop matching fail too, so this list cannot
+# grow stale. Evidence: docs/reviews/rust-gui-evaluation.md and
+# docs/reviews/dependency-review-desktop.md. Changing this file is a
+# dependency decision (D-015): it needs the owner's approval.
+#
+# Format: <kind> <fields> -- <reason>
+#   build-tool <crate> <tool> unless-feature F | if-feature F | query-only
+#   link <crate> <library>        library named in the crate's sources
+#   binary <crate> <path>         binary file shipped inside the crate
+#   not-loaded <crate> <file>     library name mentioned but never loaded
+#   dlopen <file>                 OS library that may be loaded at run time
+#   needed <soname>               OS library a built binary may need
+#   (also: links <crate> <value>, command <crate> <program>; none are needed)
+
+# --- Native build tools present but inert -----------------------------------
+build-tool wayland-backend cc unless-feature log -- its build script compiles two C log shims only when feature `log` is on; it is off, so `cc` is never called
+build-tool wayland-sys pkg-config if-feature dlopen -- with `dlopen` on, its build script returns before probing or linking anything; libwayland is loaded at run time instead
+build-tool x11-dl pkg-config query-only -- its build script only asks pkg-config where the system's X11 libraries are installed (`libdir`), to load them at run time; it compiles nothing and links only libdl (below)
+
+# --- Libraries named for linking --------------------------------------------
+# The system C library on Linux (glibc: c, m, rt, pthread, dl, util). The same
+# libraries every Rust program on Linux uses, septuvod included.
+link libc c -- system C library (Linux and other Unix targets)
+link libc m -- system C library maths (part of glibc)
+link libc rt -- part of glibc on Linux
+link libc pthread -- part of glibc on Linux
+link libc dl -- part of glibc on Linux (dynamic loading)
+link libc util -- part of glibc on Linux
+link x11-dl dl -- `cargo:rustc-link-lib=dl` on Linux: glibc's dynamic loader, used to load the system's X11 libraries
+link x11-dl c -- `cargo:rustc-link-lib=c` only for FreeBSD/DragonFly targets; on Linux the build script emits only `dl`
+# Named only inside `cfg` blocks for other operating systems; never linked on Linux.
+link libc bsd -- cfg: Haiku/other Unix only
+link libc devstat -- cfg: FreeBSD only
+link libc execinfo -- cfg: BSD only
+link libc fdio -- cfg: Fuchsia only
+link libc gcc -- cfg: static/other targets only (not x86_64-unknown-linux-gnu)
+link libc gcc_eh -- cfg: static musl/other targets only
+link libc gnu -- cfg: Haiku only
+link libc iconv -- cfg: Apple only
+link libc kvm -- cfg: BSD only
+link libc lgrp -- cfg: illumos/Solaris only
+link libc libcmt -- cfg: Windows MSVC only
+link libc memstat -- cfg: FreeBSD only
+link libc msvcrt -- cfg: Windows only
+link libc network -- cfg: Haiku only
+link libc procstat -- cfg: FreeBSD only
+link libc root -- cfg: Haiku only
+link libc sendfile -- cfg: illumos/Solaris only
+link libc socket -- cfg: illumos/Solaris only
+link libc thread -- cfg: illumos/Solaris only
+link getrandom advapi32 -- cfg: Windows only (windows_legacy backend)
+link getrandom zircon -- cfg: Fuchsia only
+link find-msvc-tools advapi32 -- cfg: Windows only (a dependency of cc, which is inert above)
+link find-msvc-tools kernel32 -- cfg: Windows only
+link find-msvc-tools ole32 -- cfg: Windows only
+link find-msvc-tools oleaut32 -- cfg: Windows only
+link winit ApplicationServices -- cfg: macOS only (framework)
+link winit Carbon -- cfg: macOS only (framework)
+link winit CoreGraphics -- cfg: macOS only (framework)
+link winit CoreVideo -- cfg: macOS only (framework)
+link x11rb xcb -- cfg(not(feature = "dl-libxcb")); `dl-libxcb` is on, so libxcb is loaded at run time instead (below)
+
+# --- Files inside crates that are never used on Linux -----------------------
+binary libloading tests/nagisa32.dll -- Windows test fixtures in the crate's tests/ directory; never built, shipped or loaded
+binary libloading tests/nagisa64.dll -- Windows test fixtures in the crate's tests/ directory; never built, shipped or loaded
+not-loaded pkg-config libfoo.so -- a file-name string in pkg-config's own unit tests; it runs only at build time and loads nothing
+
+# --- OS libraries loaded at run time (display server, keyboard, graphics) ---
+dlopen libwayland-client.so -- Wayland display server client library (OS)
+dlopen libwayland-client.so.0 -- Wayland display server client library (OS)
+dlopen libwayland-cursor.so -- Wayland cursor themes (OS)
+dlopen libwayland-cursor.so.0 -- Wayland cursor themes (OS)
+dlopen libwayland-egl.so -- Wayland OpenGL surface glue (OS graphics stack)
+dlopen libwayland-egl.so.1 -- Wayland OpenGL surface glue (OS graphics stack)
+dlopen libwayland-server.so -- named by wayland-sys; only client functions are enabled (OS)
+dlopen libwayland-server.so.0 -- named by wayland-sys; only client functions are enabled (OS)
+dlopen libxkbcommon.so -- keyboard layouts (OS; Wayland sends keymaps in this format)
+dlopen libxkbcommon.so.0 -- keyboard layouts (OS)
+dlopen libxkbcommon-x11.so -- keyboard layouts under X11 (OS)
+dlopen libxkbcommon-x11.so.0 -- keyboard layouts under X11 (OS)
+dlopen libEGL.so -- OpenGL/EGL graphics driver (OS; Mesa or the GPU vendor)
+dlopen libEGL.so.1 -- OpenGL/EGL graphics driver (OS)
+dlopen libGL.so -- OpenGL graphics driver (OS)
+dlopen libGL.so.1 -- OpenGL graphics driver (OS)
+dlopen libxcb.so -- X11 display server protocol library (OS)
+dlopen libxcb.so.1 -- X11 display server protocol library (OS)
+dlopen libX11.so -- X11 display server client library (OS)
+dlopen libX11.so.6 -- X11 display server client library (OS)
+dlopen libX11-xcb.so -- X11 display server client library (OS)
+dlopen libX11-xcb.so.1 -- X11 display server client library (OS)
+dlopen libXcursor.so -- X11 cursors (OS)
+dlopen libXcursor.so.1 -- X11 cursors (OS)
+dlopen libXext.so -- X11 extensions (OS)
+dlopen libXext.so.6 -- X11 extensions (OS)
+dlopen libXfixes.so -- X11 extension (OS)
+dlopen libXfixes.so.3 -- X11 extension (OS)
+dlopen libXft.so -- X11 fonts; named by x11-dl, not used by the app (OS)
+dlopen libXft.so.2 -- X11 fonts; named by x11-dl, not used by the app (OS)
+dlopen libXi.so -- X11 input extension (OS)
+dlopen libXi.so.6 -- X11 input extension (OS)
+dlopen libXinerama.so -- X11 multi-monitor extension (OS)
+dlopen libXinerama.so.1 -- X11 multi-monitor extension (OS)
+dlopen libXmu.so -- X11 utilities; named by x11-dl (OS)
+dlopen libXmu.so.6 -- X11 utilities; named by x11-dl (OS)
+dlopen libXpresent.so -- X11 extension; named by x11-dl (OS)
+dlopen libXpresent.so.1.0.0 -- X11 extension; named by x11-dl (OS)
+dlopen libXrandr.so -- X11 display configuration extension (OS)
+dlopen libXrandr.so.2 -- X11 display configuration extension (OS)
+dlopen libXrandr.so.2.2.0 -- X11 display configuration extension (OS)
+dlopen libXrender.so -- X11 render extension (OS)
+dlopen libXrender.so.1 -- X11 render extension (OS)
+dlopen libXss.so -- X11 screensaver extension; named by x11-dl (OS)
+dlopen libXss.so.2 -- X11 screensaver extension; named by x11-dl (OS)
+dlopen libXt.so -- X11 toolkit intrinsics; named by x11-dl, not used by the app (OS)
+dlopen libXt.so.6 -- X11 toolkit intrinsics; named by x11-dl, not used by the app (OS)
+dlopen libXtst.so -- X11 test extension; named by x11-dl (OS)
+dlopen libXtst.so.6 -- X11 test extension; named by x11-dl (OS)
+dlopen libXxf86vm.so -- X11 video-mode extension (OS)
+dlopen libXxf86vm.so.1 -- X11 video-mode extension (OS)
+
+# --- What the built binaries may need at load time (ELF DT_NEEDED) ----------
+needed libc.so.6 -- system C library (every Rust program on Linux, septuvod included)
+needed libm.so.6 -- system C library maths (glibc)
+needed libgcc_s.so.1 -- GCC runtime for stack unwinding, part of the base OS (every Rust program on Linux)
+needed ld-linux-x86-64.so.2 -- the system's program loader

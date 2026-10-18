@@ -31,6 +31,10 @@ name = "septuvo-ipc"
 version = "0.0.0"
 
 [[package]]
+name = "septuvo-native-gate"
+version = "0.0.0"
+
+[[package]]
 name = "septuvo-policy"
 version = "0.0.0"
 
