@@ -56,14 +56,14 @@ Every file Septuvo accepts is valid [TOML](https://toml.io/en/v1.0.0), so standa
 | `routing.mode` | yes | `"full-tunnel"` (journey B) or `"split"` (journey A, D-027). In split mode, traffic outside the listed networks is **not** protected |
 | `routing.tunnel` / `direct` / `block` | no | Prefix lists, for example `"192.168.1.30/32"`. Host bits must be zero. Same rules as the N1 policy model: most specific prefix wins, duplicates are rejected, and a `direct` rule for `0.0.0.0/0` or `::/0` is rejected because it would switch protection off |
 | `[dns]` | yes | Must be present |
-| `dns.mode` | no | `"tunnel"` (the default) or `"system"`. `"system"` is refused in full-tunnel mode, because it would send DNS outside the tunnel |
+| `dns.mode` | no | `"tunnel"` (the default) or `"system"`. `"system"` is refused in full-tunnel mode, because it would send DNS outside the tunnel. **To be tightened (D-039, NP-D10):** `"system"` will also be refused in split mode until the protected domains are always sent through the tunnel |
 | `dns.resolvers` | yes, in tunnel mode | 1 to 4 resolver addresses. Each must be routed **through the tunnel** by `[routing]`; otherwise the file is rejected. Loopback resolvers are refused. In tunnel mode, all other DNS (UDP/TCP 53, DNS over TLS, DNS over QUIC) is blocked, in full-tunnel and split mode alike, and the resolver file points at these resolvers while connected ([daemon.md](daemon.md)). DNS over HTTPS cannot be blocked by port ([lab.md](lab.md#dns-over-https-cannot-be-blocked-by-port-stated-not-hidden)) |
 | `dns.lan_exceptions` | no | Up to 8 local resolvers allowed to receive DNS directly. Each must also be covered by a `routing.direct` rule |
 | `tunnel.interface` | no | 1–15 characters from `A-Z a-z 0-9 _ - .`; default `septuvo0` |
 | `tunnel.mtu` | no | 1280–9000; default 1420 (wire-format.md §5.2) |
-| `behavior.always_on` | no | Connect automatically; default `false` (Q4) |
+| `behavior.always_on` | no | **Retired by D-038 (2026-10-18), to be removed from the file format.** It conflated two things that are now separate global settings of the service: **Lockdown Mode** (blocking without a VPN) and **Connect Automatically at Startup**. Still accepted today; it has no effect. Default `false` |
 | `logging.retention_days` | no | 0–365; default 7 (Q10) |
-| `[kill_switch]` | — | **Refused.** The kill switch is always on and is lifted only by a deliberate disconnect (Q2) |
+| `[kill_switch]` | — | **Refused.** The kill switch is mandatory (D-038) and is lifted only by a deliberate disconnect (Q2), and not even then while Lockdown Mode is on (planned, N4-04) |
 
 ## Server file (`septuvo-server.toml`)
 
@@ -94,6 +94,10 @@ Errors name the position, the setting and the reason, for example:
 ```text
 septuvo.toml: line 7, column 8: dns.mode: "system" DNS would send queries outside the tunnel in full-tunnel mode
 ```
+
+## Changes required by the approved desktop UI (planned, not implemented)
+
+The owner's desktop decisions (D-037–D-042) need a profile store with several saved connections, global DNS settings with per-connection overrides (Settings → DNS Protection), and service settings for Lockdown Mode and Local Network Access. They are scheduled in the revised N4 work order; until then this file format is unchanged except as noted above. Details: [desktop-ui-reconciliation.md](../reviews/desktop-ui-reconciliation.md).
 
 ## Not in this task
 

@@ -53,16 +53,18 @@ Work order: [work-orders/N3.md](work-orders/N3.md).
 
 ## N4 — Septuvo VPN desktop application for Linux (parallel track, after G0, before G1)
 
-Work order: [work-orders/N4.md](work-orders/N4.md). An early, lab-only Linux slice of M7-01/M7-02; M7 itself is unchanged. **Septuvo-authored code is Rust (D-005).**
-- **N4-01:** dependency review, a CI gate that rejects any unreviewed non-Rust native code, and the application skeleton (egui/eframe with AccessKit, in a separate `desktop/` workspace), with prototype screenshots for the owner.
-- **N4-02:** status and monitoring window (shared status model, service-lost banner, responsive and accessible).
-- **N4-03:** tray icon (`ksni`) and desktop notifications; closing is not disconnecting (D-019).
-- **N4-04:** connect, disconnect and captive-portal controls through the control socket; permission guidance, no privilege prompts.
-- **N4-05:** configuration management: service-mediated `CONFIG-GET` / `CONFIG-APPLY`, validated twice, atomic and fail-closed.
-- **N4-06:** diagnostics: service `DIAGNOSE`, `septuvo diagnose`, app page, a local text report (no telemetry).
-- **N4-07:** a Rust installer replacing the shell scripts, desktop packaging, accessibility and responsiveness pass, user guide.
+Work order: [work-orders/N4.md](work-orders/N4.md), revision 2. An early, lab-only Linux slice of M7-01/M7-02, built **exactly to the owner-approved Simple and Advanced designs** ([docs/ui/desktop/](ui/desktop/DEFAULT-UI.md), D-037–D-042). Septuvo-authored code is Rust (D-005).
+- **N4-01:** dependency review, native-code gate, app shell and the Simple main window.
+- **N4-02:** Advanced main window, mode switching and the Home tiles (status indicators and the Local Network Access control).
+- **N4-03:** service: saved connections, selection and switching with protection kept throughout.
+- **N4-04:** service: Lockdown Mode (including boot) and Local Network Access.
+- **N4-05:** Connections, Add / Import, the configuration editor and the profile selector.
+- **N4-06:** shared Settings, tray and notifications.
+- **N4-07:** DNS Protection (Automatic and Standard DNS; DoH/DoT after the TLS decision).
+- **N4-08:** Help & Diagnostics.
+- **N4-09:** Rust installer, packaging, accessibility, visual fidelity and the user guide.
 
-**Acceptance:** CI green with the native-code gate, accessibility-tree UI tests and namespace lab cases for each task; never "connected" before G1; the main workspace stays free of third-party crates.
+**Acceptance:** CI green with the native-code gate, accessibility-tree UI tests and namespace lab cases for each task; screenshots beside the reference images; never a protected or connected state before G1; the main workspace stays free of third-party crates.
 
 ## M0 — repository baseline and owner sign-off (FIRST)
 

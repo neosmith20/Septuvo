@@ -55,9 +55,11 @@ The detailed version 1 threat model — trust boundaries, assets, adversaries, a
 
 **S-11 Control plane:** separation from data plane, authenticated scoped operations, explicit admin privileges, bounded policy cache lifetime, tenant partitioning and audit logging without sensitive payloads.
 
-**S-12 Updates and dependencies:** signed/verifiable builds, dependency review, SBOM, no malicious silent remote configuration changes, secure install/uninstall and recovery.
+**S-12 Updates and dependencies:** signed/verifiable builds, dependency review, SBOM, no malicious silent remote configuration changes, secure install/uninstall and recovery. A published GitHub release is not, by itself, a secure update mechanism: automatic installation requires signed, verified artifacts and stays disabled until then (D-042).
 
 **S-13 Diagnostics/privacy:** distinguish transport up, authenticated session, reachability and DNS; sensitive traffic/credentials never logged. Opt-in metrics only and disclosed retention.
+
+**Desktop decisions (2026-10-18).** The mandatory kill switch and Lockdown Mode (D-038), mandatory DNS leak prevention and configurable encrypted DNS (D-039), Local Network Access (D-040), window and switching behaviour (D-041) and update checking (D-042) refine S-08, S-12 and S-13. The items that need independent review are listed in [desktop-ui-reconciliation.md](reviews/desktop-ui-reconciliation.md) section 5.
 
 ## Security gates / evidence
 

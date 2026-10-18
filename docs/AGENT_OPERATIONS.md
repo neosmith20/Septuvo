@@ -6,7 +6,7 @@
 
 ## Start here, every time
 
-1. Read [AGENTS.md](../AGENTS.md), [STATUS.md](STATUS.md), [ROADMAP.md](ROADMAP.md), [TASK_CATALOG.md](TASK_CATALOG.md), [DECISIONS.md](DECISIONS.md), [SECURITY_MODEL.md](SECURITY_MODEL.md) and [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md). Read the architecture, test matrix and protocol checklist whenever relevant.
+1. Read [AGENTS.md](../AGENTS.md), [STATUS.md](STATUS.md), [ROADMAP.md](ROADMAP.md), [TASK_CATALOG.md](TASK_CATALOG.md), [DECISIONS.md](DECISIONS.md), [SECURITY_MODEL.md](SECURITY_MODEL.md) and [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md). Read the architecture, test matrix and protocol checklist whenever relevant. **For any desktop UI work, read both approved UI specifications and their reference images in `docs/ui/desktop/`** (D-037) and [desktop-ui-reconciliation.md](reviews/desktop-ui-reconciliation.md).
 2. Inspect the actual current repository, branch and HEAD. Compare the last handoff with the files and commits. A previous agent's report is *not* proof a task was finished.
 3. Identify **exactly one task ID** from the task catalog and confirm that all prerequisites and approvals exist, with links to recorded evidence.
 4. Prepare a work order containing all required fields. If the owner has not explicitly approved that work order, limit activity to read-only inspection and drafting the proposed work order.

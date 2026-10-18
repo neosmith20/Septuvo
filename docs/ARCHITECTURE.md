@@ -79,6 +79,8 @@ Start with isolated Linux-to-Linux development and official TUN facilities; **do
 
 UI must support resizing/scrolling on 1920x1080 and smaller windows, clear failures, safe background connection persistence, explicit disconnect/quit behavior, secure update handling and accessibility.
 
+**Desktop interfaces (D-037):** two owner-approved designs, Simple (default) and Advanced, are binding on Windows, Linux and macOS: [docs/ui/desktop/](ui/desktop/DEFAULT-UI.md). One app implementation serves both; the privileged service stays authoritative for every connection, kill-switch (D-038), DNS (D-039), local-network (D-040) and switching (D-041) decision, and the GUI ending never changes network state. Reconciliation with earlier decisions: [desktop-ui-reconciliation.md](reviews/desktop-ui-reconciliation.md).
+
 ## Observability, privacy and operations
 
 Local diagnostics report connectivity stage, route decision, DNS test, packet counters and cryptographic session status **without logging secrets or user traffic**. Telemetry must not be silently enabled. Key rotation, backups, recovery, service restart, upgrade and uninstall must preserve network protections and avoid corrupting host routes/firewalls.

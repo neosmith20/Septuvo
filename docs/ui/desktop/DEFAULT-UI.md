@@ -1,13 +1,13 @@
 # Septuvo VPN — Default (Simple) Desktop UI: Binding Owner Specification
 
 **Document ID:** `SEPTUVO-UI-DEFAULT-001`  
-**Document version:** `1.0 — owner-directed implementation specification`  
+**Document version:** `1.1 — reconciled with owner decisions D-037–D-042 (2026-10-18)`  
 **Prepared:** 2026-10-18  
 **Product:** Septuvo VPN desktop client, **Default / Simple interface**  
 **Canonical repository destination:** `docs/ui/desktop/DEFAULT-UI.md`  
 **Canonical image (provided separately by owner):** `docs/ui/desktop/Default_VPN_UI.png`  
-**Advanced UI image:** Owner will supply and approve separate functional specification; **NOT defined in this file**.  
-**Governance:** This file captures the owner's approved image, approved seven-area functionality, approved Connections operations, profile switching, X/tray behavior, and subsequently approved delegated choices for the configuration editor, diagnostics, settings, and import/export. The measured UI geometry and specific implementation constants below are **engineering specifications derived from that reference**, **not separately drawn/approved UI artwork**. Before final UI sign-off the owner compares working screenshots against the exact image.
+**Advanced UI:** owner-approved separately in [`ADVANCED-UI.md`](ADVANCED-UI.md) with `Advanced_VPN_UI.png`; **not defined in this file**.  
+**Governance:** This file captures the owner's approved image, approved seven-area functionality, approved Connections operations, profile switching, X/tray behavior, and subsequently approved delegated choices for the configuration editor, diagnostics, settings, and import/export. The measured UI geometry and specific implementation constants below are **engineering specifications derived from that reference**, **not separately drawn/approved UI artwork**. Before final UI sign-off the owner compares working screenshots against the exact image. **Version 1.1** applies the owner's final decisions of 2026-10-18 (kill switch, Lockdown Mode, DNS Protection, Local Network Access, window and close behaviour, cross-platform targets, updates, Rust rule); every change is listed in §11 and in [`desktop-ui-reconciliation.md`](../../reviews/desktop-ui-reconciliation.md). The main-window design is unchanged.
 
 > **HARD RULE FOR ALL AGENTS:** The owner-approved screenshot is the only default main-window visual design. DO NOT substitute another mockup, turn this into a list/sidebar dashboard, invent navigation, relocate controls, introduce additional tiles, redesign the globe/shield/status area, remove anything in the image, replace the logo, alter the layout, or implement assumed peer provisioning. This document is the behavior, sizing, copy, and accessibility contract—not permission to redesign. All changes require an explicit owner decision. No implementation or repository push is authorized merely because this specification exists.
 
@@ -19,7 +19,8 @@
 2. This file controls the **Default UI's specific approved behavior and main-window composition**.
 3. `Default_VPN_UI.png` controls the appearance and relative placement of the seven elements. Actual brand assets/tokens control faithful colors/logos; an attractive approximation is not acceptable.
 4. Repository security rules (`AGENTS.md`, `docs/DECISIONS.md`, security gates, policy specs) remain mandatory. **A UI document cannot waive G1, implement encryption, bypass authorization, change licensing, or claim security that is not verified.** If a requested design behavior clashes with those rules, stop and ask the owner—do not quietly choose a side.
-5. The Advanced UI's content is **not** specified here; **do not infer it from this file**. Interface Mode only switches to the separately approved advanced design when that mode is implemented.
+5. The Advanced UI is specified in [`ADVANCED-UI.md`](ADVANCED-UI.md), not here; **do not infer it from this file**. Interface Mode switches between the two approved designs.
+6. Recorded owner decisions **D-037 to D-042** (`docs/DECISIONS.md`) prevail over any earlier wording in this file.
 
 ### 0.2 Exact seven components on the approved main image
 
@@ -32,7 +33,7 @@ The numbers are for documentation only. Do **not** render numbered labels on the
 | 3 | **Add / Import**; subtitle **VPN Configuration** | Bottom **center** tile | New blank draft configuration or import existing Septuvo configuration/invitation once supported |
 | 4 | **Help & Diagnostics**; subtitle **Get Help or Run Tests** | Bottom **right** tile | Open troubleshooting and diagnostics window |
 | 5 | Large main **Connect / Disconnect** button plus status display/shield | Center | Act on selected/current profile and display truthful state |
-| 6 | **Settings** cog | Upper **right**, below title-bar controls | Open global settings; mode, close behavior, startup, connection, updates, About/Credits/version |
+| 6 | **Settings** cog | Upper **right**, below title-bar controls | Open the shared Settings (§6): startup, interface mode, close behavior, connection & security (incl. Lockdown Mode), DNS Protection, network (incl. Local Network Access), updates, About & Credits/version |
 | 7 | **— / □ / X** native-style caption controls | Top-right edge | Minimize / maximize-restore / owner-approved X disconnect-and-exit or send-to-tray |
 
 Header brand icon + **Septuvo VPN** wordmark, large shield, glow, earth/network visual, status heading, supporting lines, duration line, horizontal separator, and these three footer tiles are **part of the approved view**, not dispensable decoration.
@@ -40,7 +41,7 @@ Header brand icon + **Septuvo VPN** wordmark, large shield, glow, earth/network 
 ### 0.3 Application boundaries
 
 - Main client and other Septuvo-owned VPN/Server **source** stays Rust, per the owner's clarified requirement. External OS APIs, services, drivers and DLLs are allowed to be non-Rust; dependency, licensing and security review still applies. No assumption that a Rust wrapper automatically provides security.
-- This is the **desktop** Default UI. Primary target: Windows; same visual design intended for macOS/Linux with OS-appropriate window controls, menus and file dialogs, separately verified. No Android/iOS layout is authorized by this document.
+- This is the **desktop** Default UI. **It is the shared design target for Windows, Linux and macOS (D-037)**: consistent branding, layout, functionality and user experience on all three, with platform-appropriate native window controls, file dialogs, system tray or menu bar, service management and OS APIs. Platform differences never authorize a redesign. Build order follows D-014 (Linux first, N4). No Android/iOS layout is authorized by this document.
 - Septuvo Server remains CLI-first unless separately authorized; this file does not create a server administration GUI.
 - All active network configuration, credential handling, policy enforcement and service operations reside in the authoritative privileged background service, never in an elevated GUI. The GUI only communicates through the authorized service/API boundary.
 - **Current pre-G1 software cannot make a real SVP VPN connection.** It must clearly show development/unavailable status, never a fake green shield or a “Protected” result, until all necessary security checks genuinely pass.
@@ -275,7 +276,7 @@ Use OS-standard position/semantics (Windows as pictured). Hover, focus, maximize
 |---|---|
 | **— Minimize** | Standard minimize to taskbar/dock; **does not** disconnect the VPN, regardless of X preference. |
 | **□ Maximize / Restore** | Standard maximize to working area / restore previous window bounds; **not** exclusive full-screen kiosk and does not alter connection. |
-| **X — DEFAULT** (`Close Button Behavior = Exit and Disconnect`) | If the service is controlling **any active, connecting, switching, or kill-switch-only/wanted state**, **request deliberate disconnect** through service; after confirmed success, **exit app**. If already fully disconnected with no active policy session, simply exit. This is the **factory default**, not keep-running-in-background. No routine extra confirmation dialog. |
+| **X — DEFAULT** (`Close Button Behavior = Exit and Disconnect`) | If the service is controlling **any active, connecting, switching, or kill-switch-only/wanted state**, **request deliberate disconnect** through service; after confirmed success, **exit app**. If already fully disconnected with no active policy session, simply exit. This is the **factory default**, not keep-running-in-background. No routine extra confirmation dialog. **With Lockdown Mode on, blocking continues after the disconnect and after exit** (D-038). |
 | **X — when `Send to System Tray` selected** | Hide window into system tray, keep Septuvo app running and existing tunnel connected; if disconnected, keep it disconnected. Do not disconnect, change profile or show a shutdown warning. |
 
 **Safety exceptions:** If X's requested disconnect fails or service is unresponsive, **do not claim disconnection or silently exit leaving an apparently disconnected state**. Keep GUI open, show `Could not disconnect safely.` and a clear Help & Diagnostics route; keep the existing protective firewall state and allow retry. Never disable the kill switch merely to force window close.
@@ -287,6 +288,7 @@ Use OS-standard position/semantics (Windows as pictured). Hover, focus, maximize
 - `Exit Septuvo VPN` in tray **always means deliberate disconnect and full exit**, whether or not X is configured to send to tray. Use the same failure handling. The owner-approved X policy applies to **clicking X**, not overriding explicit `Exit`.
 - If the OS has no usable tray host, selecting `Send to System Tray` must show a warning/explanation and fall back to normal visible window behavior; **never hide an irrecoverable window** or silently disconnect. Do not advertise tray functionality where unsupported.
 - If Septuvo's background daemon exists after GUI exit, the X-close policy still requires the **tunnel to be disconnected**. No reliance on GUI process termination alone for disconnect.
+- **The GUI process ending for any other reason** (crash, forced kill, logout) is **not** a disconnect: the service keeps the connection and its protection exactly as they were, with no leak (D-041).
 
 ## 4. Secondary configuration windows and file behavior
 
@@ -319,13 +321,12 @@ Use OS-standard position/semantics (Windows as pictured). Hover, focus, maximize
 | **Networks Through VPN** | `routing.tunnel` | Valid IPv4/IPv6 CIDR prefixes for routed VPN networks; show example and validate with existing strict parser |
 | **Direct Network Access** | `routing.direct` | Approved direct CIDR exceptions; show warning where direct traffic bypasses VPN; no blanket open internet override |
 | **Blocked Networks** | `routing.block` | CIDRs blocked by policy, validated by backend |
-| **DNS Mode** | `dns.mode` | `VPN DNS` or `System DNS` only where routing policy permits; forbid System DNS with Full Tunnel per existing config spec |
-| **VPN DNS Servers** | `dns.resolvers` | 1–4 IP addresses routed through tunnel; validate routes and address types; no DNS leak allowed |
-| **Local DNS Exceptions** | `dns.lan_exceptions` | Up to 8 allowed local resolver IPs covered by direct routes; explicit warning about direct DNS |
+| **DNS** | `dns.*` (read-only here) | Shows which DNS settings apply to this connection (`Global DNS Settings` or `Custom DNS for This Connection`) with a link to **Settings → DNS Protection**. **All DNS configuration, including per-connection overrides, is edited only there** (D-039). No DNS fields in this editor |
 | **Interface Name** | `tunnel.interface` | Valid interface name 1–15 chars; if absent backend default `septuvo0` (platform may need separate implementation later) |
 | **MTU** | `tunnel.mtu` | Integer 1280–9000; backend default 1420; show useful help, not jargon in Basic mode |
-| **Always On** | `behavior.always_on` | Only where actual service supports semantics. Must not override user's deliberate disconnect on X; no unapproved background reconnect following exit |
 | **Log Retention (Days)** | `logging.retention_days` | 0–365, default 7; no private keys or secrets in logs |
+
+**Removed in 1.1:** the former **Always On** field (`behavior.always_on`). Blocking without a VPN is **Lockdown Mode** and automatic connection is **Connect Automatically at Startup**, both global Settings (§6, D-038), never a per-connection field.
 
 **Server identity/enrollment:** no editable cryptographic key/identity field before G1. Once verified enrollment exists, provide a separate approved flow; do not invent QR token structure, invitations or secret material here.
 
@@ -362,7 +363,7 @@ Use OS-standard position/semantics (Windows as pictured). Hover, focus, maximize
 **Window title:** `Help & Diagnostics`  
 **Size:** initial **740 × 600 logical px**, min 540 × 440, resizable/scrollable  
 **Primary action:** **`Run Diagnostics`** button, at least 44 px high  
-**Secondary actions:** `Ping VPN Server`, `Ping Public Host`, `Open Windows Network Settings` where supported, `Save Diagnostic Report`, `Show Technical Details` collapsed by default.
+**Secondary actions:** `Ping VPN Server`, `Ping Public Host`, `Open Network Settings` where supported (on Windows the label may read `Open Windows Network Settings`), `Save Diagnostic Report`, `Show Technical Details` collapsed by default.
 
 ### 5.1 Test set, exact labels, behavior, and honesty
 
@@ -384,7 +385,7 @@ Default behavior:
 - Result rows: label, icon AND textual status `Working`, `Problem`, `Not Available`, `Unknown`, or `Not Tested`; a one-sentence explanation and `What You Can Do` when actionable. Never display only a red/green dot.
 - `Show Technical Details` expands raw status values, endpoint IP/port (masked appropriately in saved report if sensitive), timings and errors; collapsed by default. This is **the only advanced layer inside this diagnostics window**, not an Advanced main UI redesign.
 - `Ping VPN Server` pings selected endpoint address where permitted; separate its result from an actual VPN handshake. `Ping Public Host` uses a documented public test target (e.g. Google) **only when requested**, respecting active kill-switch/routing rules and never creating an unauthorized network bypass. Report packet loss/timeout explicitly; if kill switch blocks public traffic, explain it may be expected.
-- `Open Windows Network Settings` opens the OS-supported network settings/troubleshooter where available. Do not depend on a legacy troubleshooter existing on every Windows version; on macOS/Linux use OS-appropriate Network Settings or omit that platform-only action with explanation.
+- `Open Network Settings` opens the OS-supported network settings/troubleshooter where available. Do not depend on a legacy troubleshooter existing on every Windows version; on macOS/Linux use OS-appropriate Network Settings or omit that platform-only action with explanation.
 - `Save Diagnostic Report` invokes native Save As to a text file (`.txt`) with timestamp, software version, selected (nonsecret) settings as appropriate, seven labeled test outcomes and actionable errors. Preview/redact before save: **no private keys, enrollment secrets, tokens, unneeded personal user names or home paths**. No telemetry, silent upload, or external service calls.
 - If no profile selected, Internet/DNS/service checks still work; VPN-specific tests say `No VPN Configuration Selected` rather than failing mysteriously.
 - Service lost while diagnostics open must change display on next refresh; previous `Working` statuses cannot be presented as current proof.
@@ -401,50 +402,83 @@ Default behavior:
 
 Do not show stack traces as first-level UX; technical details available on request. Error names and help text must be proofread and correctly capitalized.
 
-## 6. Settings specification — all approved/delegated entries
+## 6. Settings specification — shared by both interface modes
 
-**Window:** `Settings`; initial **700 × 640 logical px**, min 520 × 480; scrollable; header `Settings`, top-right dialog Close. Section order EXACTLY below; no new Settings categories without owner approval. Each row min **56 px**, label + 1-line explanation, control on right (or below on narrow dialogs), section gap 20 px. Settings generally persist **when explicitly changed**; no unannounced connection resets.
+**Window:** `Settings`; initial **700 × 640 logical px**, min 520 × 480; scrollable; header `Settings`, top-right dialog Close. In Advanced mode the same Settings open from the **Settings** tab (ADVANCED-UI §8). **One Settings structure for both modes (D-037):** section order EXACTLY below; Advanced mode may show additional rows marked *Advanced mode*, never different behaviour. No other categories without owner approval. Each row min **56 px**, label + 1-line explanation, control on right (or below on narrow dialogs), section gap 20 px. Settings generally persist **when explicitly changed**; no unannounced connection resets.
 
 ### 6.1 General
 
 | Exact label | Widget / options | Default | Behavior |
 |---|---|---|---|
-| **Interface Mode** | Two-choice selector: `Simple` / `Advanced` | **Simple** | Simple = owner's `Default_VPN_UI.png`. Advanced = separately approved Advanced UI. Switching saves choice immediately and **must never disconnect/reconnect tunnel**. Do not invent a third mode. |
-| **Close Button Behavior** | Two-choice selector: `Exit and Disconnect` / `Send to System Tray` | **Exit and Disconnect** | Controls X specifically, per §3.7. Store across launches. If tray unsupported, tell user and refuse hiding; don't silently strand window. |
-| **Start Septuvo with Windows** | Off / On toggle | **Off** | Launch GUI after user signs in when supported. Not the same as automatically connecting. On macOS/Linux adapt text to OS product name. Do not request privilege simply for GUI startup. |
-| **Connect Automatically at Startup** | Off / On toggle | **Off** | When enabled and a complete previously selected profile exists, ask service to connect on supported startup path, with protection/permissions enforced. Explicit user disconnect and Exit-and-Disconnect must not be undone immediately. This is distinct from daemon `always_on` safety policy; don't conflate without design verification. |
+| **Start Septuvo with Windows** (Linux/macOS: **Start Septuvo at Login**) | Off / On toggle | **Off** | Launch the GUI after the user signs in when supported. **Not** the same as connecting automatically. Do not request privilege simply for GUI startup. |
+| **Connect Automatically at Startup** | Off / On toggle | **Off** | When enabled and a complete previously selected profile exists, ask the service to connect on the supported startup path, with protection/permissions enforced. Explicit user disconnect and Exit-and-Disconnect must not be undone immediately. **Distinct from Lockdown Mode** (§6.3, D-038). |
 
-### 6.2 Connection & Security
+The last selected connection is always remembered (§3.1); there is no setting for it.
+
+### 6.2 Interface
 
 | Exact label | Widget / options | Default | Behavior |
 |---|---|---|---|
-| **Reconnect Automatically** | Off / On toggle | **On** | For **unexpected** loss of a previously explicitly established connection, retry safely subject to security model; never auto-reconnect after deliberate Disconnect, X Exit-and-Disconnect, or user refusal. Clearly report reconnection/failed state. |
-| **Kill Switch** | **Read-only current status** with a short explanation | **Enforced** while protected/connecting, per backend | Current backend disallows a kill-switch-off configuration and removes rules only on deliberate disconnect. **Do not invent an Off toggle** or undermine Q2. Show verified status, not a fake switch. Any future disable option requires separate security and owner approval. |
+| **Interface Mode** | Two-choice selector: `Simple` / `Advanced` | **Simple** | Simple = owner's `Default_VPN_UI.png`. Advanced = `Advanced_VPN_UI.png` (ADVANCED-UI.md). Switching saves choice immediately and **must never disconnect/reconnect tunnel**. Do not invent a third mode. |
+| **Close Button Behavior** | Two-choice selector: `Exit and Disconnect` / `Send to System Tray` (macOS: `Send to Menu Bar`) | **Exit and Disconnect** | Controls X specifically, per §3.7 and D-041. Store across launches. If tray unsupported, tell user and refuse hiding; don't silently strand window. |
+| **Show Notifications** | Off / On toggle | **On** | Desktop notifications for connection changes, failures and available updates. Never the only place an error is reported. |
+
+### 6.3 Connection & Security
+
+| Exact label | Widget / options | Default | Behavior |
+|---|---|---|---|
+| **Reconnect Automatically** | Off / On toggle | **On** | For **unexpected** loss of a previously explicitly established connection, retry safely subject to security model; never auto-reconnect after deliberate Disconnect, X Exit-and-Disconnect, or user refusal. Clearly report reconnection/failed state. Protection stays in place while retrying (D-038). |
+| **Kill Switch** | **Read-only current status** with a short explanation (`Always on while you are connected.`) | **Enforced** while connecting, connected, reconnecting or switching | **Mandatory; cannot be disabled (D-038).** Shows the service's verified status (`On`, `Off` when no connection is active and Lockdown Mode is off, `Unknown`, `Failed`). **There is no Off toggle**, now or later. |
+| **Lockdown Mode** | Off / On toggle | **Off** | When On, blocks ordinary internet access whenever the VPN is not connected, **including after a deliberate disconnect, after Septuvo exits, across service restarts and from computer start-up**, until turned Off (D-038). Turning it On shows: `You will have no internet access without a VPN connection. You can turn this off here at any time.` Not automatic connection (§6.1). Applied and confirmed by the service. |
 | **Encryption Algorithm** | `Automatic (Recommended)` displayed (read-only until G1 design and approved options exist) | **Automatic (Recommended)** | Owner wanted option to select algorithm if supported. **Do not fabricate AES/ChaCha/ML-KEM menu choices or weaker downgrade** before G1. Only show selectable vetted suites after review, negotiation design and owner sign-off. ML-KEM is a KEM, not an interchangeable data-encryption algorithm. |
+| *Advanced mode:* **Connection Timeout**, **Retry Behavior** | Defined with the connection engine (M5) | — | Not shown until the connection engine exists; never shown as working controls before then. |
 
-Connection-specific DNS, MTU, LAN access, allow/block routing and per-profile security details belong under **Connections → Edit → Advanced Configuration**. Don't duplicate different toggles across Settings and editor, causing inconsistent truth.
+### 6.4 DNS Protection
 
-### 6.3 Updates
+**All detailed DNS configuration lives here and only here (D-039).** DNS leak prevention itself is **mandatory** during protected connections and has **no On/Off control**. The page opens with a short status line (`DNS leak protection is always on while you are connected.`) and the simple choice; everything technical is under **Advanced DNS Settings**, collapsed by default.
 
 | Exact label | Widget / options | Default | Behavior |
 |---|---|---|---|
-| **Automatically Check for Updates** | Off / On toggle | **On** | When distribution/update support is released, check official signed/authenticated release metadata on app launch and at most every **24 hours**; do not treat arbitrary URLs/unverified GitHub releases as safe to install. |
+| **DNS Mode** | `Automatic (Recommended)` / `Standard DNS` / `DNS over HTTPS (DoH)` / `DNS over TLS (DoT)` | **Automatic (Recommended)** | Automatic = the resolvers provided with the connection (and later by its server), always through the tunnel. Standard DNS = resolvers the user lists, reached **only through the tunnel**. **DoH and DoT are shown as `Not available yet` and cannot be selected until implemented** (TLS client decision); never presented as working. |
+| **Primary DNS Server** / **Secondary DNS Server** | Address fields (Standard DNS); URL or host + address (DoH/DoT, when available) | Empty | Validated by the service; every resolver must be routed through the tunnel. No loopback or local-network resolver unless listed as a local DNS exception below. |
+| *Advanced DNS Settings:* **Bootstrap DNS** | Address fields | Empty | For DoH/DoT names only: the resolver's IP addresses, or a resolver reached **through the tunnel**. Never the local network's DNS. |
+| *Advanced DNS Settings:* **Certificate Validation** | Read-only `Always On` | **Always On** | Encrypted DNS verifies the resolver's certificate and name. **No bypass, no "continue anyway".** |
+| *Advanced DNS Settings:* **Fallback Behavior** | `Block DNS (Recommended)` / `Use Standard DNS Through the VPN` | **Block DNS** | What happens when the chosen resolver fails. **Never** falls back to the local network's or the system's DNS, and never outside the tunnel. |
+| *Advanced DNS Settings:* **Local DNS Exceptions** | Up to 8 addresses | Empty | Local resolvers allowed to receive DNS directly; each must also be a direct-route exception of the connection (`dns.lan_exceptions`). Explicit warning that such queries leave the tunnel. |
+| *Advanced DNS Settings:* **Per-Connection Overrides** | List of saved connections, each `Use Global DNS Settings` (default) or `Custom` | **Use Global DNS Settings** | A connection may override the global DNS settings with its own (the former editor fields). The connection editor only shows which settings apply. |
+| **Test DNS Settings** | Action button | — | The service checks the configured resolvers through the current policy and reports `Working`, `Problem` or `Not Tested` per resolver, without changing anything. |
+
+Do not confuse encrypted DNS transport with leak prevention: standard DNS inside the authenticated tunnel is protected without DoH/DoT. Any setting that would send DNS outside the permitted routing policy is refused by the service, with the reason shown.
+
+### 6.5 Network
+
+| Exact label | Widget / options | Default | Behavior |
+|---|---|---|---|
+| **Local Network Access** | Two-choice selector: `Allowed` / `Not Allowed` | **Not Allowed** | **The same setting as the Advanced Home tile** (ADVANCED-UI §11.3, D-040). Allowed = devices on the directly attached local network can be reached by address while connected; the service computes and restricts these exceptions. Local discovery stays blocked. Applied and confirmed by the service; the shown value is the service's. |
+
+Routing (Full Tunnel or Split Tunnel), direct and blocked networks, MTU and other per-connection values are edited in **Connections → Edit → Advanced Configuration** (§4.2), never duplicated here. Profile switching while connected is automatic (§7, D-041); there is no setting for it.
+
+### 6.6 Updates
+
+| Exact label | Widget / options | Default | Behavior |
+|---|---|---|---|
+| **Automatically Check for Updates** | Off / On toggle | **The user's answer at first-run setup (asked once, On preselected)** | Check official **GitHub release** metadata on app launch and at most every **24 hours**. **No check contacts GitHub before the user has answered** (D-042, Q9). Shown as `Not available yet` until the update checker exists. |
 | **Notify When an Update Is Available** | Off / On toggle | **On** | Nonintrusive notification with version and official release notes; no forced reconnection or changes to data. |
 | **Check for Updates** | Manual action button | Available when update service exists | Users can always manually check. Show `Up to Date`, `Update Available`, or meaningful failure. No pretend successes before updater exists. |
-| **Automatic Installation** | Off / On option **reserved/disabled until signed-update mechanism approved** | **Off** | The owner wants easy release updates. GitHub publishing **does not automatically push safe updates** to users. Only enable installation after release signing, verified artifacts, rollback, admin permissions and restart/disconnect policy are separately approved. Never silently interrupt an active protected tunnel. |
+| **Automatic Installation** | Off / On option **reserved/disabled until signed-update mechanism approved** | **Off** | GitHub publishing **does not automatically push safe updates** to users (D-042). Only enable installation after release signing, verified artifacts, rollback, admin permissions and restart/disconnect policy are separately approved (S-12, G3). Never silently interrupt an active protected tunnel. |
 
-No background telemetry or analytics. Updater network check is a narrow explicitly explained function. Release channels, signatures, installer elevation, automatic update protocol and package verification are separate future approved work; don't invent them as part of N4.
+No background telemetry or analytics. The update check is a narrow, explicitly explained function. Release channels, signatures, installer elevation, automatic update protocol and package verification are separate future approved work; they are not part of N4.
 
-### 6.4 About & Credits
+### 6.7 About & Credits
 
 - Section heading **About & Credits**; display official Septuvo VPN name, tagline `Security Without Compromise.`, project/source links from verified configuration, contributors/attributions and license notices required by bundled libraries, with no fabricated ownership or certification claims.
 - **Actual application version at the absolute bottom** of Settings/About, in subtle muted Inter text (e.g. `Version X.Y.Z` **derived from build metadata**, never hardcode arbitrary 1.0.0); include channel `Development Preview` when applicable.
 - Show official support/website only if valid approved URLs exist; do not invent a privacy policy, server fleet, app store links or support inbox.
 - Settings bottom separator and About content must be scroll/reflow accessible at minimum dimensions; never overlap Save/close controls.
 
-### 6.5 Setting persistence / correctness
+### 6.8 Setting persistence / correctness
 
-- Persist Interface Mode and Close Button Behavior across restarts with per-user app preferences. Global application preferences are distinct from individual connection config and from root-owned service config.
+- Persist Interface Mode and Close Button Behavior across restarts with per-user app preferences. Global application preferences are distinct from individual connection config and from root-owned service config. **Lockdown Mode, Local Network Access and DNS Protection settings are service settings**: stored and enforced by the privileged service, changed through the authenticated control path, and shown as the service reports them.
 - Display current actual service status rather than persisting `Protected = true` across restarts.
 - If settings write fails, report it and retain prior behavior; never show toggled control as saved when it isn't.
 - No privilege request in the unprivileged app merely to change GUI preferences; service-controlled values require the authenticated control path and actionable permission explanation.
@@ -465,6 +499,7 @@ No background telemetry or analytics. Updater network check is a narrow explicit
 | Attempt failed | **Connection Failed** | Short **verified** reason and `Open Help & Diagnostics for more information.` | **Connect** (retry) | Error indicator, no checked shield |
 | Service unreachable | **Service Unavailable** | `Septuvo cannot communicate with its background service.` | Disabled, diagnostic route | Error, no stale last-known protected state |
 | Firewall blocks traffic / no verified tunnel | **Traffic Protected by Kill Switch** ONLY when blocking actually verified | `Internet access is restricted while the VPN is unavailable.` | Connect/Retry only when safe | Warning (not green connected state); avoid claiming tunnel protected |
+| Not connected, **Lockdown Mode** blocking verified | **Internet Blocked** | `Lockdown Mode is on. Internet access is blocked until you connect.` | **Connect** (when eligible) | Warning, no green check; Settings route to Lockdown Mode (D-038) |
 | No saved profiles | **No Connections** | `Add or import a VPN configuration to get started.` | Disabled **Connect** | Neutral, no imaginary Home VPN |
 | Incomplete draft selected | **Setup Required** | `Complete this configuration before connecting.` | Disabled **Connect** | Warning, route to Connections → Edit |
 | Current pre-G1 test/lab software | **VPN Not Yet Available** | `This development build does not establish an encrypted VPN tunnel.` | Disabled or lab-only control explicitly labeled for developer testing | Neutral/warning; **never** the artwork's “Protected” claim |
@@ -481,12 +516,13 @@ Use the exact existing **positions** of icon, heading, copy, timer, and button f
 | Select a DIFFERENT profile **while connected** | **Automatic safe switch**: disconnect active → retain appropriate fail-closed protection → connect new → report success/failure. No extra Connect click. |
 | Select the same active profile | Do nothing; do not restart tunnel or reset timer |
 | Click Connect | Validate selected complete profile and authorization; initiate connection; show Connecting; on success show Protected ONLY after all proofs pass |
-| Click Disconnect | Send deliberate disconnect; confirm service result; show Disconnected; no automatic reconnect caused by `Reconnect Automatically` |
-| Click X with default behavior | Deliberate Disconnect (if needed) then **exit**; failure keeps UI open with error and protection intact |
+| Click Disconnect | Send deliberate disconnect; confirm service result; show Disconnected (or **Internet Blocked** with Lockdown Mode on); no automatic reconnect caused by `Reconnect Automatically` |
+| Click X with default behavior | Deliberate Disconnect (if needed) then **exit**; failure keeps UI open with error and protection intact; Lockdown Mode, if on, keeps blocking after exit |
 | Click X with tray option | Hide main window to tray; **no disconnect**, no new connection |
 | Minimize or Maximize | Change window visibility/size only; **no** network action |
 | Switch Simple ↔ Advanced | Change presentation only; **no** network action and no timer reset |
 | Open/close any secondary window | Never changes connection state by itself |
+| GUI crashes or is killed | **Nothing changes in the service** (connection, kill switch, Lockdown Mode); the next GUI start shows the service's real state (D-041) |
 | Save or import a profile | No surprise immediate connection; user chooses or switches explicitly after profile has valid enrollment |
 | Update becomes available | Inform user; **do not** restart/disconnect automatically merely to install it |
 
@@ -538,7 +574,7 @@ All agents must demonstrate these verifiable acceptance cases; a green build or 
 8. **Editor:** blank draft allowed; existing values prefilled; basic form does not show advanced fields unless expanded; strict validation; bad changes preserve prior config/protection.
 9. **File pickers:** native Open for Import and native Save As for Export; cancel changes nothing; duplicate-name and overwrite handling; no export of private secrets.
 10. **Diagnostics:** Run Diagnostics plain-language outcomes, all seven checks, optional technical details, public-ping caveat, redact/preview Save Diagnostic Report, no upload.
-11. **Settings:** all exact entries/sections/defaults match §6; Simple initially; mode switch never disconnects; Settings persists across app restart.
+11. **Settings:** all seven sections, entries and defaults match §6; Simple initially; mode switch never disconnects; Kill Switch read-only; Lockdown Mode off by default and enforced by the service; DoH/DoT and update checks shown as not available until implemented; Settings persists across app restart.
 12. **X/tray:** default X / Alt+F4 actually disconnect + exits; opted-in X hides + keeps connected; minimize just minimizes; explicit tray Exit disconnects; failures never silently leave unintended connection.
 13. **Truthful states:** service outage, partial handshake, DNS failure, fail-closed block never display `Protected`; screenshot's green sample only after authoritative checks.
 14. **Security and licensing:** no pre-G1 crypto, credentials leak, unaudited dependency, unexpected network or system permission actions; don't claim a functional VPN in a lab-only preview.
@@ -550,7 +586,7 @@ Agents should record screenshots/test evidence per work-order policy, report dev
 
 The following are **genuine future technical/security dependencies**, not permission for an agent to make arbitrary UI choices:
 
-1. **Advanced UI:** separate owner-approved visual and functional spec required. Do not invent its layout from general VPN trends.
+1. **Advanced UI:** owner-approved in `ADVANCED-UI.md` with `Advanced_VPN_UI.png`. Do not invent anything beyond it.
 2. **Artwork extraction:** owner screenshot exists but layered production assets for its globe/ring may not; request an approved source/faithful rendering plan if necessary; no unrelated stock art.
 3. **SVP enrollment/invitations/QR/trusted key distribution:** not defined before G1; don't invent and do not treat exported backup as device invitation.
 4. **Cryptographic algorithms:** owner requested a future selection capability, but actual vetted suites cannot be decided until the protocol review. Disabled/default-only until approval.
@@ -561,4 +597,16 @@ The following are **genuine future technical/security dependencies**, not permis
 9. **Platform integration:** Windows main-window behavior specified; macOS/Linux must preserve design intent and use native OS controls, with specific platform adaptation approved as needed.
 10. **When in doubt:** a missing backend feature is NOT permission to add a new control, change approved screen layout, fabricate network status or ship unsafe temporary behavior. Raise a concise owner question referencing this section.
 
-**Owner change-control reminder:** No assets, docs, implementation, PR, branch write, release, or GitHub push is authorized by this document alone. The owner will place this Markdown file and `Default_VPN_UI.png` in the repository only after deciding to publish the design requirements. Agents MUST obtain normal work-order authority before acting.
+**Owner change-control reminder:** No assets, docs, implementation, PR, branch write, release, or GitHub push is authorized by this document alone. The owner placed this file and `Default_VPN_UI.png` in the repository on 2026-10-18 (PR #70). Agents MUST obtain normal work-order authority (the N4 work order) before acting.
+
+## 11. Changes in version 1.1 (owner decisions of 2026-10-18)
+
+| Where | Change | Decision |
+|---|---|---|
+| §0.1, §0.3 | Advanced UI now approved separately; decisions D-037–D-042 prevail; both designs are the shared target for Windows, Linux and macOS | D-037 |
+| §3.7, §7.1, §7.2 | X default disconnects and exits; GUI crash/kill changes nothing; Lockdown Mode keeps blocking after disconnect and exit; new **Internet Blocked** state | D-038, D-041 |
+| §4.2 | DNS fields removed from the editor (shown read-only with a link to Settings → DNS Protection); **Always On** field removed | D-038, D-039 |
+| §6 | One shared Settings structure: General, Interface, Connection & Security, DNS Protection, Network, Updates, About & Credits. Added **Lockdown Mode**, **Show Notifications**, the **DNS Protection** page and **Local Network Access**; Kill Switch confirmed read-only with no future Off toggle; update-check default follows first-run consent; macOS/Linux labels for startup and tray | D-037–D-042 |
+| §9.3, §10 | Acceptance and escalation lists updated accordingly | — |
+
+The approved main-window image, its seven components and their layout are unchanged.

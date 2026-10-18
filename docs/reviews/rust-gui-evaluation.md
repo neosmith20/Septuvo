@@ -2,7 +2,7 @@
 
 **Prepared 2026-10-17** after the owner rejected GTK 4 + libadwaita (a C application framework with Rust bindings) for the Septuvo VPN desktop app.
 
-> **Context update, 2026-10-18.** The owner has since clarified D-005: it requires **all Septuvo-authored VPN and Server code to be Rust**, and does **not** restrict the language of external components Septuvo calls or interacts with (each is still reviewed). The rule text this evaluation was written against ("no bindings around a C/C++ framework, no bundled non-Rust engine") is therefore no longer D-005. The evaluation and its result stand on their merits: egui/eframe is the N4 toolkit (N4-D1), and the GTK rejection stands as the owner's N4 toolkit decision. The native-code findings below are what N4-01's review and gate list.
+> **Context update, 2026-10-18.** The owner has since clarified D-005: it requires **all Septuvo-authored VPN and Server code to be Rust**, and does **not** restrict the language of external components Septuvo calls or interacts with (each is still reviewed). The rule text this evaluation was written against ("no bindings around a C/C++ framework, no bundled non-Rust engine") is therefore no longer D-005. Later the same day the owner also said GTK is acceptable if it is the best fit. The evaluation and its result stand on their merits: egui/eframe is the N4 toolkit (N4-D1), because the approved desktop designs are custom-drawn and shared across Windows, Linux and macOS ([desktop-ui-reconciliation.md](desktop-ui-reconciliation.md) section 4). The native-code findings below are what N4-01's review and gate list.
 
 - **The criteria used here:** a toolkit written in Rust, using the operating system's own APIs, services, drivers and graphical interfaces.
 - **Excluded here:** Rust bindings around a C/C++ application framework, or a bundled non-Rust application engine.
@@ -33,7 +33,7 @@ For each candidate, a minimal project was created with exact versions and realis
 | Slint 1.18.1 (software renderer) | 332 | None | Display server, keyboard, **fontconfig** | Yes (AccessKit); also a built-in tray | **Rejected.** The UI is written in Slint's own markup language (`.slint`), so Septuvo's UI code would not be Rust. Its licence choices (GPL-3.0, royalty-free with attribution, commercial) do not fit D-033 |
 | Xilem / Masonry 0.4.0 | 257 | None | Display server, keyboard, Vulkan/GL (vello needs a GPU), **fontconfig** | Yes (AccessKit) | Not now: alpha, frequent breaking changes, few widgets. Watch it |
 | Floem 0.2.0 | — | — | — | — | Not now: no release since 2024-11 |
-| GTK 4 / libadwaita (gtk-rs), Relm4 | — | GTK, GLib, Pango and Cairo are C | — | — | **Rejected by the owner** (C application framework) |
+| GTK 4 / libadwaita (gtk-rs), Relm4 | — | GTK, GLib, Pango and Cairo are C | — | — | Rejected by the owner on 2026-10-17; **permitted since 2026-10-18**, not chosen (theme-driven, cannot match the custom designs consistently across platforms) |
 | Freya (Skia), Tauri / Dioxus desktop (web view) | — | Bundle a C++ engine (Skia, WebKit) | — | — | **Not chosen** (bundled non-Rust engine) |
 
 **Desktop services**, for the tray, notifications and file saving: `ksni` 0.3.6, `notify-rust` 4.18.1 (with its `zbus` backend) and `ashpd` 0.13.13 (the xdg desktop portal).

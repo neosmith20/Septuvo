@@ -24,6 +24,10 @@ These tests are **requirements**, not performed results. No test has passed mere
 - Distinguish /0 from paired /1 IPv4 routes; test LAN exceptions independent of VPN underlay exceptions.
 - Run DHCP, DNS, DoH/DoT where relevant, IPv6 RA, interface roam, sleep/wake, reconnect and service crash with leak detection.
 - Disconnected tunnel blocks protected traffic, without disabling authorized local exceptions.
+- Lockdown Mode (D-038): blocking after deliberate disconnect, app exit, service restart and from boot; only the NP-K2 exceptions pass; turning it off and uninstall remove it.
+- Local Network Access (D-040): only the directly attached subnets open, within the size caps; hostile DHCP/RA prefixes, overlaps with tunnel routes and discovery traffic stay blocked; recomputed on network change.
+- Profile switching while connected (D-041): no packet leaves outside the policy between the old and the new session.
+- DNS (D-039): no DNS outside the permitted policy in any mode or fallback; encrypted DNS validates certificates with no bypass (once implemented).
 - Remote home-network and local direct NAS/Jellyfin access: ensure intended paths and no accidental route leakage.
 - Gateway has destination authorization separate from successful authentication.
 
@@ -31,7 +35,8 @@ These tests are **requirements**, not performed results. No test has passed mere
 
 - Fresh signed install, enroll, reject, revoke, disconnect, update and uninstall with route/firewall cleanup.
 - GUI on 1920x1080 and smaller resizable windows: layout scroll, no inaccessible controls.
-- Close/minimize to tray preserves intended tunnel state; explicit disconnect works and is not silently triggered by closing UI.
+- Window and tray (D-041): minimize never disconnects; X with Exit and Disconnect disconnects (confirmed) then exits; X with Send to System Tray hides and keeps the connection; a crashed or killed GUI changes nothing in the service; tray Exit always disconnects.
+- Both approved interface modes (D-037) on Windows, Linux and macOS; switching modes never touches the connection; screenshots compared with the reference images.
 - Test statuses separately: interface ready, peer authenticated, data reachable, DNS resolved.
 - Informative failures for wrong endpoint, blocked UDP, invalid identity, policy reject, DNS failure, network conflict.
 - Windows, Linux, macOS, Android, iOS only marked supported when actual OS-integrated tests pass; document platform exceptions.

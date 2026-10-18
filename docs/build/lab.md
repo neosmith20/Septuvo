@@ -102,7 +102,7 @@ sudo tests/lab/namespaces/dns.sh [--require-ipv6] target/debug/septuvod target/d
 - **Routes are lab plumbing**, set by the harness. Septuvo's own route and DNS configuration (for example systemd-resolved, and home-domain DNS in split mode, NP-D2) comes with the real client in M5.
 - **Not covered here:**
   - captive-portal mode (Q1): covered separately by `captive.sh` (N3-02, see [captive-portal.md](captive-portal.md));
-  - boot-time always-on (Q4);
+  - boot-time Lockdown Mode (D-038; planned in N4-04);
   - sleep/wake;
   - roaming between real interfaces;
   - updates.

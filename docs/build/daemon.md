@@ -138,6 +138,17 @@ sudo tests/lab/namespaces/watch.sh target/debug/septuvod target/debug/septuvo
 
 **Captive-portal lab (N3-02):** `sudo tests/lab/namespaces/captive.sh [--require-ipv6] target/debug/septuvod target/debug/septuvo`, cases CP00–CP53. What it proves: [captive-portal.md](captive-portal.md#tests).
 
+## Planned changes from the approved desktop UI (not implemented)
+
+The owner's desktop decisions (D-037–D-042) need, in the service:
+- several saved connections and switching between them with the kill switch kept throughout;
+- **Lockdown Mode**: blocking after a deliberate disconnect, across restarts and from boot. Today a deliberate disconnect always removes the rules;
+- **Local Network Access** exceptions for the directly attached network;
+- DNS settings and verified status fields for the desktop app's tiles;
+- `DIAGNOSE` and pings on request.
+
+They are scheduled in the revised N4 work order. Nothing in this document claims them before they exist. Details: [desktop-ui-reconciliation.md](../reviews/desktop-ui-reconciliation.md).
+
 ## Not in this task
 
 - Server administration: N2-04.

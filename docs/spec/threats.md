@@ -114,7 +114,7 @@ Every requirement in [SECURITY_MODEL.md](../SECURITY_MODEL.md) mapped to the adv
 | R-07 | A malicious enrolled device (ADV-07) could reach the whole home network or other devices | Lateral movement in the home | Per-device allowed destinations at the gateway; device-to-device traffic off by default (Q6) |
 | R-08 | Agents and the owner share one GitHub account (D-023) | A supply-chain mistake could reach releases | Release signing keys never available to agents or CI jobs agents can edit; decided before G3 |
 | R-09 | Captive portals (hotel login pages) need traffic outside the tunnel | Users may switch protection off entirely to log in | A deliberate, limited captive-portal mode (Q1) instead of a full bypass |
-| R-10 | Traffic before the service starts at boot, or during an update, can leak | Short unprotected windows | Optional always-on mode with boot-time blocking (Q4); updates keep rules in place |
+| R-10 | Traffic before the service starts at boot, or during an update, can leak | Short unprotected windows | Optional **Lockdown Mode** with boot-time blocking (Q4 as amended by D-038; NP-K3); updates keep rules in place |
 
 ## 8. Non-goals (version 1)
 
