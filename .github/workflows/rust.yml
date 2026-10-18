@@ -105,6 +105,10 @@ jobs:
       - name: Run the captive-portal lab (IPv6 required)
         run: sudo tests/lab/namespaces/captive.sh --require-ipv6 target/debug/septuvod target/debug/septuvo
 
+      # N3-04: the live status view follows every change and shows a lost service at once.
+      - name: Run the live status view lab
+        run: sudo tests/lab/namespaces/watch.sh target/debug/septuvod target/debug/septuvo
+
   # N3-01: installer and systemd service. A staged install (no root), then a
   # real install, use and uninstall on this disposable runner only.
   install:

@@ -9,9 +9,9 @@
 //! validates and explains a policy file. The tool itself never changes the
 //! system.
 
-use septuvo_cli::{policy_cmd, service};
+use septuvo_cli::{policy_cmd, service, watch};
 use septuvo_ipc::Command;
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -39,6 +39,10 @@ Usage:
                                        --network-dns also lets the helper
                                        (only) use the network's own DNS for
                                        this window. Ends by itself.
+  septuvo watch [--interval S] [--count N] [--runtime-dir DIR]
+                                       Show the status live, refreshed every
+                                       S seconds (1-60, default 2) until
+                                       Ctrl-C, or N refreshes; read-only
   septuvo policy check FILE [--dst ADDRESS] [--path up|down]
                                        Validate a policy file and explain
                                        what happens to traffic
@@ -122,6 +126,17 @@ fn run(args: &[String], out: &mut impl Write, err: &mut impl Write) -> io::Resul
             out.write_all(reply.text.as_bytes())?;
             Ok(if reply.ok { EXIT_OK } else { EXIT_INVALID })
         }
+        [cmd, rest @ ..] if cmd == "watch" => {
+            let Some(opts) = watch_args(rest) else {
+                writeln!(
+                    err,
+                    "septuvo: usage: septuvo watch [--interval 1-60] [--count N] [--runtime-dir DIR]"
+                )?;
+                return Ok(EXIT_USAGE);
+            };
+            run_watch(&opts, out)?;
+            Ok(EXIT_OK)
+        }
         [cmd, sub, file, rest @ ..] if cmd == "policy" && sub == "check" => {
             let opts = match policy_cmd::parse_args(rest) {
                 Ok(o) => o,
@@ -199,6 +214,72 @@ fn captive_args(rest: &[String]) -> Option<(u8, bool, PathBuf)> {
         network_dns,
         dir.unwrap_or_else(|| PathBuf::from(septuvo_ipc::DEFAULT_RUNTIME_DIR)),
     ))
+}
+
+/// Options of `septuvo watch`.
+#[derive(Debug, PartialEq, Eq)]
+struct WatchOptions {
+    interval: u64,
+    count: Option<u64>,
+    runtime_dir: PathBuf,
+    style: watch::Style,
+}
+
+/// `[--interval S] [--count N] [--runtime-dir DIR]`, each at most once.
+fn watch_args(rest: &[String]) -> Option<WatchOptions> {
+    let mut interval = None;
+    let mut count = None;
+    let mut dir = None;
+    let mut it = rest.iter();
+    while let Some(flag) = it.next() {
+        let value = it.next()?;
+        let number = || {
+            (value.len() <= 7
+                && value.bytes().all(|b| b.is_ascii_digit())
+                && !value.starts_with('0'))
+            .then(|| value.parse::<u64>().ok())
+            .flatten()
+        };
+        match flag.as_str() {
+            "--interval" if interval.is_none() => {
+                interval = Some(number().filter(|n| watch::INTERVAL_RANGE.contains(n))?);
+            }
+            "--count" if count.is_none() => count = Some(number()?),
+            "--runtime-dir" if dir.is_none() && Path::new(value).is_absolute() => {
+                dir = Some(PathBuf::from(value));
+            }
+            _ => return None,
+        }
+    }
+    let terminal =
+        io::stdout().is_terminal() && std::env::var("TERM").map_or(true, |t| t != "dumb");
+    Some(WatchOptions {
+        interval: interval.unwrap_or(watch::DEFAULT_INTERVAL),
+        count,
+        runtime_dir: dir.unwrap_or_else(|| PathBuf::from(septuvo_ipc::DEFAULT_RUNTIME_DIR)),
+        style: watch::Style {
+            in_place: terminal,
+            color: terminal && std::env::var_os("NO_COLOR").is_none(),
+        },
+    })
+}
+
+/// Refreshes until stopped (Ctrl-C) or `count` frames were shown. Every
+/// frame comes from a fresh answer: nothing is carried over.
+fn run_watch(opts: &WatchOptions, out: &mut impl Write) -> io::Result<()> {
+    let started = std::time::Instant::now();
+    let mut refresh: u64 = 0;
+    loop {
+        refresh += 1;
+        let snap = watch::snapshot(&opts.runtime_dir);
+        let elapsed = started.elapsed().as_secs();
+        out.write_all(watch::frame(&snap, refresh, elapsed, opts.interval, opts.style).as_bytes())?;
+        out.flush()?;
+        if opts.count.is_some_and(|n| refresh >= n) {
+            return Ok(());
+        }
+        std::thread::sleep(std::time::Duration::from_secs(opts.interval));
+    }
 }
 
 fn main() -> ExitCode {
@@ -329,6 +410,62 @@ mod tests {
         ]);
         assert_eq!(code, EXIT_INVALID);
         assert!(out.contains("No Septuvo service is running"));
+    }
+
+    #[test]
+    fn watch_arguments_are_strict() {
+        let s = |v: &[&str]| v.iter().map(ToString::to_string).collect::<Vec<_>>();
+        let o = watch_args(&s(&[
+            "--interval",
+            "1",
+            "--count",
+            "3",
+            "--runtime-dir",
+            "/tmp/x",
+        ]))
+        .unwrap();
+        assert_eq!(
+            (o.interval, o.count, o.runtime_dir),
+            (1, Some(3), PathBuf::from("/tmp/x"))
+        );
+        let d = watch_args(&s(&[])).unwrap();
+        assert_eq!((d.interval, d.count), (watch::DEFAULT_INTERVAL, None));
+        for bad in [
+            &["--interval", "0"][..],
+            &["--interval", "61"],
+            &["--interval", "01"],
+            &["--interval", "-1"],
+            &["--interval", "1.5"],
+            &["--count", "0"],
+            &["--count", "99999999"],
+            &["--interval"],
+            &["--interval", "2", "--interval", "3"],
+            &["--runtime-dir", "relative"],
+            &["--forever", "1"],
+        ] {
+            assert_eq!(watch_args(&s(bad)), None, "{bad:?}");
+            let mut args = vec!["watch"];
+            args.extend_from_slice(bad);
+            assert_eq!(call(&args).0, EXIT_USAGE, "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn watch_without_a_service_shows_service_lost_every_refresh() {
+        let (code, out, _) = call(&[
+            "watch",
+            "--interval",
+            "1",
+            "--count",
+            "2",
+            "--runtime-dir",
+            "/nonexistent-septuvo-watch",
+        ]);
+        assert_eq!(code, EXIT_OK);
+        assert_eq!(out.matches("SERVICE LOST").count(), 2);
+        assert_eq!(out.matches("refresh ").count(), 2);
+        assert!(!out.contains("Status: Connected"));
+        assert!(!out.contains('\x1b'), "not a terminal: plain text");
     }
 
     #[test]
