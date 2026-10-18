@@ -29,12 +29,12 @@ Only the exact task and files named in an authorized work order (or, for routine
 - No unapproved dependency additions, privilege escalation, kernel/driver installations, public port openings, real router/VPS alterations, external traffic generation, data deletion, telemetry, remote SaaS dependencies or device enrollment.
 - No release tags, binary publishing, claiming external audits, changing repo visibility, DNS purchases or trademark claims without explicit owner approval.
 - No unrelated rewrites, opportunistic features or speculative performance shortcuts. **One authorized work order (a task or a milestone) or one routine fix per pull request, finished one task at a time.**
-- Do not claim literal 100% Rust across mobile/OS runtime if native OS frameworks, system drivers or glue are needed. Keep all **Septuvo-owned security-critical logic in Rust** and inventory external code/native interfaces.
+- **Septuvo VPN and Septuvo Server are 100% Rust, without exceptions (D-005):** every client, UI, service, server-administration tool, installer and bundled application-level dependency. Using the operating system's own APIs, services, drivers and graphical interfaces is allowed; Rust bindings around a C/C++ application framework (GTK, Qt, …) or any bundled non-Rust engine (Skia, WebKit, …) are not. **SVP:** Rust preferred, including cryptography; a non-Rust cryptographic component only through D-005's reviewed, narrowly bounded, owner-approved route. **Never introduce a language or framework exception yourself:** if a platform seems to make Rust-only impossible, STOP and report the precise limitation and options ([rust-inventory.md](docs/spec/rust-inventory.md)).
 - Treat remote packets, configuration, peer identity, management APIs and control-plane data as hostile input.
 
 ## Engineering practices
 
-- First-party cryptographic orchestration, session state, packet processing, policy and service code must be Rust. Prefer audited and maintained dependencies, pin versions, record licenses, and require approval for security-sensitive dependencies.
+- All Septuvo-owned code is Rust (D-005). Dependencies of Septuvo VPN and Server must be Rust crates that compile no C/C++ and bundle no non-Rust engine; audit the full tree (transitive crates, FFI, build scripts, native libraries) before adding any. Prefer audited and maintained dependencies, pin versions, record licenses, and require approval for every new dependency.
 - Separate privileged daemon and unprivileged UI. Prefer OS-native VPN APIs. No unnecessary custom drivers.
 - An interface being “up” is **not** proof of peer authentication, encrypted reachability, DNS or internet access. Display and test those independently.
 - Default network posture is fail closed; do not equate private RFC1918 addresses with trusted LANs.

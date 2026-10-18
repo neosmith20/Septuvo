@@ -73,7 +73,9 @@ Explain “interface initialized”, “handshake authenticated”, “path chec
 
 ## Client platforms and Rust policy
 
-Start with isolated Linux-to-Linux development and official TUN facilities; **do not create a kernel driver in the first phase**. Later adapt OS-native VPN APIs on Windows, macOS, Android and iOS, with a single Rust security/session core. A fully Rust-authored UI is a goal; platform service glue and third-party OS components must be disclosed, not disguised as Rust code.
+Start with isolated Linux-to-Linux development and official TUN facilities; **do not create a kernel driver in the first phase**. Later adapt OS-native VPN APIs on Windows, macOS, Android and iOS, with a single Rust security/session core.
+
+**Language (D-005): Septuvo VPN and Septuvo Server are 100% Rust, without exceptions** — clients, user interfaces, services, server administration, installers and every bundled application-level dependency. The operating system's own APIs, services, drivers and graphical interfaces (kernel, C library, display server, keyboard layouts, graphics drivers, D-Bus desktop services) are used, not replaced; Rust bindings around C/C++ application frameworks and bundled non-Rust engines are excluded. The desktop UI is a Rust-native toolkit ([rust-gui-evaluation.md](reviews/rust-gui-evaluation.md)). **SVP** is Rust-first, with a non-Rust cryptographic component possible only through D-005's reviewed, bounded, owner-approved route. Current inventory and the open platform questions: [spec/rust-inventory.md](spec/rust-inventory.md).
 
 UI must support resizing/scrolling on 1920x1080 and smaller windows, clear failures, safe background connection persistence, explicit disconnect/quit behavior, secure update handling and accessibility.
 
