@@ -2,11 +2,11 @@
 
 **Status:** planning record. **Nothing here is a support claim.** A platform becomes supported only when the OS-integrated tests in [TEST_MATRIX.md](../TEST_MATRIX.md) pass on it (T2, T3) and the owner approves. Entries say **Known** (an established, documented OS facility), **Verify** (believed, but must be checked on real systems) or **Unknown**.
 **Order (D-014):** Linux lab first, then Windows → macOS → Android → iOS.
-**Rust policy (D-005):** all Septuvo-owned security logic is Rust. Each platform's required non-Rust glue and third-party OS components are listed here as the start of the D-005 inventory.
+**Rust policy (D-005, revised 2026-10-17):** Septuvo VPN and Server are **100% Rust, without exceptions**. The non-Rust "glue" noted below for some platforms was an M1 assumption; it is **not permitted**. Each case is now an open question in [rust-inventory.md](rust-inventory.md), to be resolved in Rust (or brought to the owner) before that platform's work order.
 
 ## 1. Summary
 
-| Platform | Role in version 1 | Tunnel interface | Kill-switch mechanism | Non-Rust glue needed | Overall |
+| Platform | Role in version 1 | Tunnel interface | Kill-switch mechanism | Non-Rust glue assumed in M1 (**not permitted** under D-005; open questions in [rust-inventory.md](rust-inventory.md)) | Overall |
 | --- | --- | --- | --- | --- | --- |
 | Linux x86_64 (Ubuntu Server 24.04, D-026) | **Server and first client** | TUN (`/dev/net/tun`) — Known | nftables rules — Known; proof in N1-03 | None expected | Feasible; lab target |
 | Linux ARM64 (for example a Raspberry Pi home server) | Server, if the owner wants it (Q11) | As above — Known | As above — Known | None expected | Unknown until built and tested |
@@ -31,32 +31,32 @@
 - **Interfaces:** Windows has no built-in layer 3 TUN for third-party VPNs. An existing **signed** driver is needed; Septuvo writes no drivers in the first phase (ARCHITECTURE.md). Candidate: Wintun, a third-party component, licence and distribution terms to be reviewed under D-015.
 - **Kill switch and DNS:** Windows Filtering Platform filters; DNS through interface settings or the Name Resolution Policy Table. Leak behaviour across sleep, network change and service crash: **Verify**.
 - **Key storage:** DPAPI (software) or TPM through CNG. Post-quantum keys in the TPM are **Unknown**, so expect KS-2 wrapping.
-- **Glue and inventory:** Windows API bindings from Rust; third-party driver binary; code signing for the service and installer (S-12).
+- **Glue and inventory:** Windows API bindings from Rust; code signing for the service and installer (S-12). Bundling a third-party C driver is an **open owner decision** under D-005 ([rust-inventory.md](rust-inventory.md)).
 
 ### 2.3 macOS
 
 - **Interfaces:** Network Extension framework, packet tunnel provider. Needs an Apple developer account, the Network Extension entitlement, and distribution as a system extension or through the Mac App Store.
 - **Kill switch:** OS options that force all traffic into the tunnel exist. VPN vendors have reported cases where connections opened before the tunnel can bypass it. Septuvo must **test**, not assume, NP-E1 and NP-E2 here.
 - **Key storage:** Keychain (software). Secure Enclave holds only P-256 keys, so post-quantum and X25519 identities need KS-2 wrapping.
-- **Glue:** a Swift or Objective-C extension wrapper calling the Rust core through a C ABI; listed in the D-005 inventory.
+- **Glue (M1 assumption, not permitted under D-005):** a Swift or Objective-C wrapper. Open question: define the provider class from Rust ([rust-inventory.md](rust-inventory.md)).
 
 ### 2.4 Android
 
 - **Interfaces:** `VpnService` gives a TUN-like file descriptor to the app.
 - **Kill switch:** the system "Always-on VPN" and "Block connections without VPN" settings are set by the user. The app can explain them but may not be able to force them (**Verify**).
 - **Key storage:** Android Keystore and StrongBox, with algorithm support that varies by device and OS version. Post-quantum keys: **Unknown** (expect KS-2 wrapping).
-- **Glue:** a Kotlin/Java `VpnService` and UI wrapper; Rust core through the NDK/JNI.
+- **Glue (M1 assumption, not permitted under D-005):** a Kotlin/Java `VpnService` wrapper. Open question: provide the class without Java/Kotlin source ([rust-inventory.md](rust-inventory.md)); the UI can use `NativeActivity`.
 
 ### 2.5 iOS and iPadOS
 
 - **Interfaces:** Network Extension packet tunnel provider, as on macOS, with a strict memory limit for the extension process (exact current limit: **Verify**). The Rust core must fit within it.
 - **Kill switch:** as macOS (**Verify**).
 - **Key storage:** Keychain; Secure Enclave limited to P-256, so KS-2 wrapping.
-- **Glue:** Swift wrapper; App Store review and distribution rules apply.
+- **Glue (M1 assumption, not permitted under D-005):** a Swift wrapper. Open question as macOS; App Store review and distribution rules apply.
 
 ## 3. Cross-platform facts and exclusions
 
-- **"100% Rust" is not claimed.** Each mobile and Apple platform needs a small native wrapper, and Windows needs a third-party driver; all are inventoried here (D-005).
+- **Rust-only is required (D-005).** Where a platform appears to need non-Rust code (Android, Apple, Windows driver), the precise limitation and Rust-only options are in [rust-inventory.md](rust-inventory.md); no exception exists until the owner decides one.
 - **Hardware-backed identity keys are not claimed** on any platform until verified; see KS-2 in [identity-and-privacy.md](identity-and-privacy.md).
 - **No custom kernel drivers** in the first phase (ARCHITECTURE.md).
 - **Per-application split tunnelling** is not version 1, even where the OS offers it.

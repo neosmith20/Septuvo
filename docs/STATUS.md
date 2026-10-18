@@ -14,7 +14,7 @@ Rules that hold for every category:
 
 - No agent or bot merges a pull request, passes a gate or makes a category C decision. The owner merges every pull request.
 - A pull request **delivers** a task when the task ID is the scope of one of its commit subjects, for example `feat(N1-03): ...`. Mentions elsewhere, such as "next: N1-03", never count.
-- Milestones cannot advance past an unpassed gate: M1, M2, N1, N2 and N3 need G0; M3–M5 need G1; M6–M8 need G2; M9 needs G3. No cryptographic or protocol implementation before G1.
+- Milestones cannot advance past an unpassed gate: M1, M2, N1, N2, N3 and N4 need G0; M3–M5 need G1; M6–M8 need G2; M9 needs G3. No cryptographic or protocol implementation before G1.
 - **Ledger upkeep is automatic.** [`scripts/sync_status.py`](../scripts/sync_status.py) reads owner-merged pull requests and updates this file. Agents run it and include the result in a pull request, and CI reports any drift on every pull request. A ledger that lags behind GitHub never blocks already-authorized work: merged pull requests are the authority.
 - **CI verifies every record** ([`scripts/verify_ledger.py`](../scripts/verify_ledger.py)): the owner merged the linked pull request into `main` and it delivers the task; an authorization was written or merged by the owner; a gate has the exact owner comment. Records that cannot be verified fail the check, and so does any network error.
 - Earlier records based on exact comments (`APPROVED WORK ORDER`, `ACCEPTED`, D-025) stay valid. Rows H-001–H-004, M0-01 and M0-01.1 predate D-025 and are kept verbatim.
@@ -104,7 +104,19 @@ Dates are `YYYY-MM-DD` UTC: the authorization date for READY rows, the merge dat
 | N3-01 | ACCEPTED | N2-04 | 2026-10-17 | [Work order N3, merged in PR #61](https://github.com/neosmith20/Septuvo/pull/61) | [PR #62](https://github.com/neosmith20/Septuvo/pull/62) |
 | N3-02 | ACCEPTED | N3-01 | 2026-10-17 | [Work order N3, merged in PR #61](https://github.com/neosmith20/Septuvo/pull/61) | [PR #63](https://github.com/neosmith20/Septuvo/pull/63) |
 | N3-03 | ACCEPTED | N3-02 | 2026-10-17 | [Work order N3, merged in PR #61](https://github.com/neosmith20/Septuvo/pull/61) | [PR #64](https://github.com/neosmith20/Septuvo/pull/64) |
-| N3-04 | READY | N3-03 | 2026-10-17 | [Work order N3, merged in PR #61](https://github.com/neosmith20/Septuvo/pull/61) | — |
+| N3-04 | ACCEPTED | N3-03 | 2026-10-18 | [Work order N3, merged in PR #61](https://github.com/neosmith20/Septuvo/pull/61) | [PR #66](https://github.com/neosmith20/Septuvo/pull/66) |
+
+## Track N4 (non-crypto, after G0, before G1)
+
+| Task ID | State | Predecessor | Owner decision date (UTC) | Work-order approval | Completion evidence |
+| --- | --- | --- | --- | --- | --- |
+| N4-01 | NOT STARTED | N3-04 | — | — | — |
+| N4-02 | NOT STARTED | N4-01 | — | — | — |
+| N4-03 | NOT STARTED | N4-02 | — | — | — |
+| N4-04 | NOT STARTED | N4-03 | — | — | — |
+| N4-05 | NOT STARTED | N4-04 | — | — | — |
+| N4-06 | NOT STARTED | N4-05 | — | — | — |
+| N4-07 | NOT STARTED | N4-06 | — | — | — |
 
 ## Dotted subtasks (owner authorized separately)
 

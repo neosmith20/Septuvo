@@ -299,7 +299,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 
 - **Entry / prerequisites:** M6-04 accepted; individual OS work orders required.
 - **Approved output locations:** `apps/desktop/`, `crates/platform/`, `docs/build/platform-matrix.md`.
-- **Exact work:** Build minimal Rust-first UI/service boundary; integrate Linux then Windows/macOS only by separately owner-approved subtask, using OS VPN APIs and declared native glue.
+- **Exact work:** Build the Rust-only (D-005) UI/service boundary; integrate Linux then Windows/macOS only by separately owner-approved subtask, using OS VPN APIs; resolve the open platform questions in `docs/spec/rust-inventory.md` first.
 - **Acceptance evidence:** Per-OS TUN, privilege, DNS/firewall, install and restart tests pass independently; no platform marked supported without evidence.
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M7-02 until this pull request is merged; then continue without a new authorization (D-034).
 
@@ -323,7 +323,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 
 - **Entry / prerequisites:** M7-03 accepted; mobile API feasibility and code inventory reviewed.
 - **Approved output locations:** `apps/mobile/`, `crates/platform/`, `docs/build/platform-matrix.md`.
-- **Exact work:** Reuse Rust security engine; use OS-required VPN extension/service bindings; record any Swift/Kotlin/native glue and OS single-VPN/background limitations.
+- **Exact work:** Reuse Rust security engine; use OS VPN extension/service APIs from Rust only (D-005: no Swift/Kotlin/Java glue — resolve the open questions in `docs/spec/rust-inventory.md` or stop for the owner); record OS single-VPN/background limitations.
 - **Acceptance evidence:** Real device per platform authenticates and carries encrypted IPv4/IPv6; cryptographic code stays Rust; platform exclusions and exceptions documented.
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M7-05 until this pull request is merged; then continue without a new authorization (D-034).
 
@@ -531,6 +531,66 @@ Work allowed by D-029, defined in [work-orders/N3.md](work-orders/N3.md). Same b
 - **Acceptance evidence:** Rendering tests for every state including service lost; namespace lab case following live changes.
 - **Stop point:** Submit the scoped evidence and PR for owner review. N3 is then complete; nothing beyond it starts without a new work order.
 
+
+## Track N4 — Septuvo VPN desktop application for Linux (parallel, after G0, before G1)
+
+Work allowed by D-029, defined in [work-orders/N4.md](work-orders/N4.md). Same boundary as N2 and N3: **never** an SVP handshake, packet encryption or wire encoding, key generation or management, usable invitations, functional protocol transport or any cryptography crate in Septuvo's code; the service stays lab-only. **100% Rust (D-005):** no non-Rust code or dependency; third-party Rust crates only in the separate `desktop/` workspace, only as approved in N4-01's review and enforced by the Rust-only gate. One owner authorization covers the track (D-031); after each merge the agent continues to the next card (D-034).
+
+### N4-01 — Dependency review, Rust-only gate, application skeleton and CI
+
+- **Entry / prerequisites:** N3-04 complete (N3 accepted) and the N4 work order merged.
+- **Approved output locations:** `docs/reviews/dependency-review-desktop.md`, `desktop/`, the Rust-only gate tool in `crates/`, `licensing.toml`, `LICENSING.md`, `.github/workflows/desktop.yml`, `docs/build/desktop.md`, `docs/spec/rust-inventory.md`.
+- **Exact work:** Dependency review (versions at least two weeks old, licences, per-crate native findings); a CI gate failing on any crate that compiles C/C++, bundles a non-Rust engine or links a non-OS library; separate `desktop/` workspace (PolyForm) with an egui/eframe window (AccessKit), brand icon and theme, About with the development-preview notice; plain-Rust view model; refuses root; prototype screenshots for the owner's approval of the look.
+- **Acceptance evidence:** Review recorded; the gate passes and fails on a deliberately added C-compiling crate; CI builds with `--locked`, fmt/clippy, view-model tests, accessibility-tree UI tests (`egui_kittest`), headless start-up; main `Cargo.lock` still free of third-party crates; owner approves the visual direction.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin N4-02 until this pull request is merged; then continue without a new authorization (D-034).
+
+### N4-02 — Status and monitoring
+
+- **Entry / prerequisites:** N4-01 complete within the approved N4 work order.
+- **Approved output locations:** `desktop/`, `crates/septuvo-cli/` (shared helpers), `docs/build/desktop.md`, `tests/lab/namespaces/`.
+- **Exact work:** Status page over the status socket: four checks with help, service state, kill switch, DNS, resolver file, captive countdown, service-lost banner; "Connected" only when all four pass; adaptive 360 px-to-wide layout; text, not colour alone; AccessKit names and roles.
+- **Acceptance evidence:** View-model tests for every state; accessibility-tree UI tests; namespace lab case with the app following each change.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin N4-03 until this pull request is merged; then continue without a new authorization (D-034).
+
+### N4-03 — Tray integration and notifications
+
+- **Entry / prerequisites:** N4-02 complete within the approved N4 work order.
+- **Approved output locations:** `desktop/`, `docs/build/desktop.md`.
+- **Exact work:** StatusNotifierItem tray (`ksni`): icon and tooltip by state (no protected/connected icon before G1), menu, desktop notifications (`notify-rust`, zbus); closing the window keeps the tray (D-019); falls back to a window without a tray host.
+- **Acceptance evidence:** State-to-icon/menu unit tests; CI test on a private D-Bus session with a test tray host and notification server.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin N4-04 until this pull request is merged; then continue without a new authorization (D-034).
+
+### N4-04 — Connection controls and permissions
+
+- **Entry / prerequisites:** N4-03 complete within the approved N4 work order.
+- **Approved output locations:** `desktop/`, `docs/build/desktop.md`, `tests/lab/namespaces/`.
+- **Exact work:** Connect, disconnect (with confirmation) and captive-portal window (explicit network-DNS option) through the control socket; disabled controls with join-the-group guidance for non-members; no privilege prompts; plain-text errors.
+- **Acceptance evidence:** View-model tests; lab case for a member and a non-member.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin N4-05 until this pull request is merged; then continue without a new authorization (D-034).
+
+### N4-05 — Configuration management
+
+- **Entry / prerequisites:** N4-04 complete within the approved N4 work order.
+- **Approved output locations:** `crates/septuvo-ipc/`, `crates/septuvo-daemon/`, `crates/septuvo-config/`, `desktop/`, `tests/lab/namespaces/`, `fuzz/`, `docs/build/`.
+- **Exact work:** Service commands `CONFIG-GET` (status socket) and `CONFIG-APPLY` (control socket, length-prefixed, at most 64 KiB): validate, back up, write atomically, replace the kill switch atomically when connected; failure keeps the old file and rules. App settings page with inline validation, a diff and a plain summary before applying.
+- **Acceptance evidence:** IPC tests and new fuzz targets (standard library and cargo-fuzz); engine tests for apply, reject, rollback; lab case: apply while connected with no leak window, a bad configuration changes nothing.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin N4-06 until this pull request is merged; then continue without a new authorization (D-034).
+
+### N4-06 — Diagnostics
+
+- **Entry / prerequisites:** N4-05 complete within the approved N4 work order.
+- **Approved output locations:** `crates/septuvo-ipc/`, `crates/septuvo-daemon/`, `crates/septuvo-cli/`, `desktop/`, `tests/lab/namespaces/`, `fuzz/`, `docs/build/`.
+- **Exact work:** Read-only service `DIAGNOSE`; client checks (reachability, group membership, sockets, versions); findings with "what this means / what to do"; `septuvo diagnose` and an app page; a local text report the user saves (xdg portal file chooser, `ashpd`); nothing sent anywhere.
+- **Acceptance evidence:** Unit tests per finding; fuzzing of the new response; lab case with deliberate faults.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin N4-07 until this pull request is merged; then continue without a new authorization (D-034).
+
+### N4-07 — Rust installer, packaging, accessibility and the user guide
+
+- **Entry / prerequisites:** N4-06 complete within the approved N4 work order.
+- **Approved output locations:** a Rust installer (new crate), `packaging/linux/`, `tests/lab/install/`, `desktop/`, `licensing.toml`, `LICENSING.md`, `docs/build/install.md`, `docs/build/desktop.md`, `docs/user/linux-desktop.md`, `docs/spec/rust-inventory.md`.
+- **Exact work:** `septuvo-setup install|uninstall` in Rust replacing `install.sh`/`uninstall.sh` (removed), with the optional desktop install (`.desktop` entry, brand icons, tray autostart off by default) and complete uninstall; keyboard-only operation, screen-reader labels, contrast, text scaling; responsiveness (no blocked UI); user guide with CI screenshots.
+- **Acceptance evidence:** Install test passes against the Rust installer; `rust-inventory.md` shows no shipped non-Rust code; accessibility checklist with evidence; guide reviewed by the owner.
+- **Stop point:** Submit the scoped evidence and PR for owner review. After it is merged N4 is complete; nothing further starts without a new work order.
 ## Task catalog invariants
 
 1. Each of the **43 base tasks** has a unique ID and a prerequisite, bounded output, actions, acceptance evidence and a stop point. Conditional dotted subtasks and owner-directed H work are separately recorded/approved in [STATUS.md](STATUS.md) and do not change the 43-base-task count; nor do track N1, N2 and N3 cards.
