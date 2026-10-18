@@ -53,8 +53,8 @@ Work order: [work-orders/N3.md](work-orders/N3.md).
 
 ## N4 — Septuvo VPN desktop application for Linux (parallel track, after G0, before G1)
 
-Work order: [work-orders/N4.md](work-orders/N4.md). An early, lab-only Linux slice of M7-01/M7-02; M7 itself is unchanged. **100% Rust (D-005).**
-- **N4-01:** dependency review, a CI gate that rejects any non-Rust dependency, and the application skeleton (egui/eframe with AccessKit, in a separate `desktop/` workspace), with prototype screenshots for the owner.
+Work order: [work-orders/N4.md](work-orders/N4.md). An early, lab-only Linux slice of M7-01/M7-02; M7 itself is unchanged. **Septuvo-authored code is Rust (D-005).**
+- **N4-01:** dependency review, a CI gate that rejects any unreviewed non-Rust native code, and the application skeleton (egui/eframe with AccessKit, in a separate `desktop/` workspace), with prototype screenshots for the owner.
 - **N4-02:** status and monitoring window (shared status model, service-lost banner, responsive and accessible).
 - **N4-03:** tray icon (`ksni`) and desktop notifications; closing is not disconnecting (D-019).
 - **N4-04:** connect, disconnect and captive-portal controls through the control socket; permission guidance, no privilege prompts.
@@ -62,7 +62,7 @@ Work order: [work-orders/N4.md](work-orders/N4.md). An early, lab-only Linux sli
 - **N4-06:** diagnostics: service `DIAGNOSE`, `septuvo diagnose`, app page, a local text report (no telemetry).
 - **N4-07:** a Rust installer replacing the shell scripts, desktop packaging, accessibility and responsiveness pass, user guide.
 
-**Acceptance:** CI green with the Rust-only gate, accessibility-tree UI tests and namespace lab cases for each task; never "connected" before G1; the main workspace stays free of third-party crates.
+**Acceptance:** CI green with the native-code gate, accessibility-tree UI tests and namespace lab cases for each task; never "connected" before G1; the main workspace stays free of third-party crates.
 
 ## M0 — repository baseline and owner sign-off (FIRST)
 
@@ -132,13 +132,13 @@ Work order: [work-orders/N4.md](work-orders/N4.md). An early, lab-only Linux sli
 
 ## M7 — consumer apps and operating-system integrations
 
-- **M7-01:** Rust-only (D-005) desktop application and OS integrations as **separate owner-approved platform subtasks** for Linux, Windows and macOS, with platform-specific privilege, firewall and DNS tests. No blanket cross-platform completion.
+- **M7-01:** Rust (D-005) desktop application and OS integrations as **separate owner-approved platform subtasks** for Linux, Windows and macOS, with platform-specific privilege, firewall and DNS tests. No blanket cross-platform completion.
 - **M7-02:** Secure edit/disconnect/reconnect flow, network change handling, status accuracy and UI close-to-tray/background behavior.
 - **M7-03:** Minimum viewport/resizing/accessibility tests plus signed packages, updates and uninstall recovery.
 - **M7-04:** Android/iOS VPN service integrations from shared Rust security core; document any unavoidable native language/OS framework glue and mobile VPN coexistence limits.
 - **M7-05:** Test battery, roaming, app lifecycle, connection migration and failure diagnostics on physical devices.
 
-**Acceptance:** a platform is listed as supported **only** after its complete T2/T3 tests pass. Septuvo VPN and Server must be 100% Rust (D-005), shown by an audited dependency inventory per platform.
+**Acceptance:** a platform is listed as supported **only** after its complete T2/T3 tests pass. All Septuvo-authored VPN and Server code must be Rust (D-005), with every external native component reviewed and listed in a dependency inventory per platform.
 
 ## M8 — independent release security work (G3)
 

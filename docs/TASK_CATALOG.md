@@ -299,7 +299,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 
 - **Entry / prerequisites:** M6-04 accepted; individual OS work orders required.
 - **Approved output locations:** `apps/desktop/`, `crates/platform/`, `docs/build/platform-matrix.md`.
-- **Exact work:** Build the Rust-only (D-005) UI/service boundary; integrate Linux then Windows/macOS only by separately owner-approved subtask, using OS VPN APIs; resolve the open platform questions in `docs/spec/rust-inventory.md` first.
+- **Exact work:** Build the UI/service boundary in Rust (D-005: Septuvo-authored code is Rust; external components reviewed); integrate Linux then Windows/macOS only by separately owner-approved subtask, using OS VPN APIs; resolve the open platform questions in `docs/spec/rust-inventory.md` first.
 - **Acceptance evidence:** Per-OS TUN, privilege, DNS/firewall, install and restart tests pass independently; no platform marked supported without evidence.
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M7-02 until this pull request is merged; then continue without a new authorization (D-034).
 
@@ -323,7 +323,7 @@ Use the one mandatory [WORK_ORDER_TEMPLATE.md](WORK_ORDER_TEMPLATE.md) handoff f
 
 - **Entry / prerequisites:** M7-03 accepted; mobile API feasibility and code inventory reviewed.
 - **Approved output locations:** `apps/mobile/`, `crates/platform/`, `docs/build/platform-matrix.md`.
-- **Exact work:** Reuse Rust security engine; use OS VPN extension/service APIs from Rust only (D-005: no Swift/Kotlin/Java glue — resolve the open questions in `docs/spec/rust-inventory.md` or stop for the owner); record OS single-VPN/background limitations.
+- **Exact work:** Reuse Rust security engine; use OS VPN extension/service APIs from Rust (D-005: no Septuvo-authored Swift/Kotlin/Java glue — resolve the open questions in `docs/spec/rust-inventory.md` or stop for the owner); record OS single-VPN/background limitations.
 - **Acceptance evidence:** Real device per platform authenticates and carries encrypted IPv4/IPv6; cryptographic code stays Rust; platform exclusions and exceptions documented.
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin M7-05 until this pull request is merged; then continue without a new authorization (D-034).
 
@@ -534,13 +534,13 @@ Work allowed by D-029, defined in [work-orders/N3.md](work-orders/N3.md). Same b
 
 ## Track N4 — Septuvo VPN desktop application for Linux (parallel, after G0, before G1)
 
-Work allowed by D-029, defined in [work-orders/N4.md](work-orders/N4.md). Same boundary as N2 and N3: **never** an SVP handshake, packet encryption or wire encoding, key generation or management, usable invitations, functional protocol transport or any cryptography crate in Septuvo's code; the service stays lab-only. **100% Rust (D-005):** no non-Rust code or dependency; third-party Rust crates only in the separate `desktop/` workspace, only as approved in N4-01's review and enforced by the Rust-only gate. One owner authorization covers the track (D-031); after each merge the agent continues to the next card (D-034).
+Work allowed by D-029, defined in [work-orders/N4.md](work-orders/N4.md). Same boundary as N2 and N3: **never** an SVP handshake, packet encryption or wire encoding, key generation or management, usable invitations, functional protocol transport or any cryptography crate in Septuvo's code; the service stays lab-only. **Septuvo-authored code is Rust (D-005):** third-party crates only in the separate `desktop/` workspace, only as approved in N4-01's review; every non-Rust native component they bring is listed and justified, enforced by the native-code gate. One owner authorization covers the track (D-031); after each merge the agent continues to the next card (D-034).
 
-### N4-01 — Dependency review, Rust-only gate, application skeleton and CI
+### N4-01 — Dependency review, native-code gate, application skeleton and CI
 
 - **Entry / prerequisites:** N3-04 complete (N3 accepted) and the N4 work order merged.
-- **Approved output locations:** `docs/reviews/dependency-review-desktop.md`, `desktop/`, the Rust-only gate tool in `crates/`, `licensing.toml`, `LICENSING.md`, `.github/workflows/desktop.yml`, `docs/build/desktop.md`, `docs/spec/rust-inventory.md`.
-- **Exact work:** Dependency review (versions at least two weeks old, licences, per-crate native findings); a CI gate failing on any crate that compiles C/C++, bundles a non-Rust engine or links a non-OS library; separate `desktop/` workspace (PolyForm) with an egui/eframe window (AccessKit), brand icon and theme, About with the development-preview notice; plain-Rust view model; refuses root; prototype screenshots for the owner's approval of the look.
+- **Approved output locations:** `docs/reviews/dependency-review-desktop.md`, `desktop/`, the native-code gate tool in `crates/`, `licensing.toml`, `LICENSING.md`, `.github/workflows/desktop.yml`, `docs/build/desktop.md`, `docs/spec/rust-inventory.md`.
+- **Exact work:** Dependency review (versions at least two weeks old, licences, per-crate native findings); a CI gate failing on any non-Rust native code (compiled C/C++, bundled binaries, linked or loaded libraries) not listed in the reviewed allowlist; separate `desktop/` workspace (PolyForm) with an egui/eframe window (AccessKit), brand icon and theme, About with the development-preview notice; plain-Rust view model; refuses root; prototype screenshots for the owner's approval of the look.
 - **Acceptance evidence:** Review recorded; the gate passes and fails on a deliberately added C-compiling crate; CI builds with `--locked`, fmt/clippy, view-model tests, accessibility-tree UI tests (`egui_kittest`), headless start-up; main `Cargo.lock` still free of third-party crates; owner approves the visual direction.
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin N4-02 until this pull request is merged; then continue without a new authorization (D-034).
 
@@ -589,7 +589,7 @@ Work allowed by D-029, defined in [work-orders/N4.md](work-orders/N4.md). Same b
 - **Entry / prerequisites:** N4-06 complete within the approved N4 work order.
 - **Approved output locations:** a Rust installer (new crate), `packaging/linux/`, `tests/lab/install/`, `desktop/`, `licensing.toml`, `LICENSING.md`, `docs/build/install.md`, `docs/build/desktop.md`, `docs/user/linux-desktop.md`, `docs/spec/rust-inventory.md`.
 - **Exact work:** `septuvo-setup install|uninstall` in Rust replacing `install.sh`/`uninstall.sh` (removed), with the optional desktop install (`.desktop` entry, brand icons, tray autostart off by default) and complete uninstall; keyboard-only operation, screen-reader labels, contrast, text scaling; responsiveness (no blocked UI); user guide with CI screenshots.
-- **Acceptance evidence:** Install test passes against the Rust installer; `rust-inventory.md` shows no shipped non-Rust code; accessibility checklist with evidence; guide reviewed by the owner.
+- **Acceptance evidence:** Install test passes against the Rust installer; `rust-inventory.md` shows no shipped Septuvo-authored non-Rust code; accessibility checklist with evidence; guide reviewed by the owner.
 - **Stop point:** Submit the scoped evidence and PR for owner review. After it is merged N4 is complete; nothing further starts without a new work order.
 ## Task catalog invariants
 

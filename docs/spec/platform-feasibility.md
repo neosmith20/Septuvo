@@ -2,15 +2,15 @@
 
 **Status:** planning record. **Nothing here is a support claim.** A platform becomes supported only when the OS-integrated tests in [TEST_MATRIX.md](../TEST_MATRIX.md) pass on it (T2, T3) and the owner approves. Entries say **Known** (an established, documented OS facility), **Verify** (believed, but must be checked on real systems) or **Unknown**.
 **Order (D-014):** Linux lab first, then Windows → macOS → Android → iOS.
-**Rust policy (D-005, revised 2026-10-17):** Septuvo VPN and Server are **100% Rust, without exceptions**. The non-Rust "glue" noted below for some platforms was an M1 assumption; it is **not permitted**. Each case is now an open question in [rust-inventory.md](rust-inventory.md), to be resolved in Rust (or brought to the owner) before that platform's work order.
+**Rust policy (D-005, revised 2026-10-18):** all **Septuvo-authored** VPN and Server code is Rust; external components Septuvo calls or interacts with may be written in any language, after review (D-015, D-033). The Septuvo-written non-Rust "glue" noted below for some platforms was an M1 assumption; it is **not permitted**. Each case is an open question in [rust-inventory.md](rust-inventory.md), to be resolved before that platform's work order.
 
 ## 1. Summary
 
-| Platform | Role in version 1 | Tunnel interface | Kill-switch mechanism | Non-Rust glue assumed in M1 (**not permitted** under D-005; open questions in [rust-inventory.md](rust-inventory.md)) | Overall |
+| Platform | Role in version 1 | Tunnel interface | Kill-switch mechanism | Septuvo-written non-Rust glue assumed in M1 (**not permitted** under D-005; open questions in [rust-inventory.md](rust-inventory.md)) | Overall |
 | --- | --- | --- | --- | --- | --- |
 | Linux x86_64 (Ubuntu Server 24.04, D-026) | **Server and first client** | TUN (`/dev/net/tun`) — Known | nftables rules — Known; proof in N1-03 | None expected | Feasible; lab target |
 | Linux ARM64 (for example a Raspberry Pi home server) | Server, if the owner wants it (Q11) | As above — Known | As above — Known | None expected | Unknown until built and tested |
-| Windows 10/11 | Client, after Linux | Needs a signed TUN driver, not written by Septuvo (for example Wintun) — Verify licence and inventory | Windows Filtering Platform — Known facility; leak behaviour Verify | Possibly none beyond OS API bindings; a third-party driver binary | Unknown |
+| Windows 10/11 | Client, after Linux | An existing signed driver through its DLL (Wintun first candidate) or Microsoft's VPN plug-in platform; each needs review and owner approval (D-036) | Windows Filtering Platform — Known facility; leak behaviour Verify | Possibly none beyond OS API bindings; a third-party driver binary | Unknown |
 | macOS | Client | Network Extension packet tunnel provider — Known | OS "include all networks" style settings — Verify; known edge cases with connections that existed before the tunnel | Swift or Objective-C extension wrapper around the Rust core; Apple developer account and Network Extension entitlement | Unknown |
 | Android | Client | `VpnService` — Known | System "Always-on VPN" + "Block connections without VPN" — Known facility; app-level control Verify | Kotlin/Java service wrapper; Rust via the NDK | Unknown |
 | iOS / iPadOS | Client | Network Extension packet tunnel provider — Known | As macOS — Verify | Swift wrapper; strict memory limit for the extension (exact limit Verify) | Unknown |
@@ -28,35 +28,35 @@
 
 ### 2.2 Windows
 
-- **Interfaces:** Windows has no built-in layer 3 TUN for third-party VPNs. An existing **signed** driver is needed; Septuvo writes no drivers in the first phase (ARCHITECTURE.md). Candidate: Wintun, a third-party component, licence and distribution terms to be reviewed under D-015.
+- **Interfaces:** Windows has no built-in layer 3 TUN for third-party VPNs. An existing **signed** driver is needed; Septuvo writes no drivers in the first phase (ARCHITECTURE.md). Under D-036 an existing signed third-party driver, used through its own DLL inside Septuvo's process, is acceptable in principle; Septuvo's calling code is Rust. None is approved without review and the owner's explicit approval. First candidate: Wintun; alternative: Microsoft's VPN plug-in platform (`Windows.Networking.Vpn`). See [windows-tunnel-evaluation.md](../reviews/windows-tunnel-evaluation.md).
 - **Kill switch and DNS:** Windows Filtering Platform filters; DNS through interface settings or the Name Resolution Policy Table. Leak behaviour across sleep, network change and service crash: **Verify**.
 - **Key storage:** DPAPI (software) or TPM through CNG. Post-quantum keys in the TPM are **Unknown**, so expect KS-2 wrapping.
-- **Glue and inventory:** Windows API bindings from Rust; code signing for the service and installer (S-12). Bundling a third-party C driver is an **open owner decision** under D-005 ([rust-inventory.md](rust-inventory.md)).
+- **Glue and inventory:** Windows API bindings from Rust; code signing for the service and installer (S-12). Which tunnel option to use is open; the rule is D-036. Septuvo's no-`unsafe` rule versus Windows API calls also needs an owner decision before Windows work.
 
 ### 2.3 macOS
 
 - **Interfaces:** Network Extension framework, packet tunnel provider. Needs an Apple developer account, the Network Extension entitlement, and distribution as a system extension or through the Mac App Store.
 - **Kill switch:** OS options that force all traffic into the tunnel exist. VPN vendors have reported cases where connections opened before the tunnel can bypass it. Septuvo must **test**, not assume, NP-E1 and NP-E2 here.
 - **Key storage:** Keychain (software). Secure Enclave holds only P-256 keys, so post-quantum and X25519 identities need KS-2 wrapping.
-- **Glue (M1 assumption, not permitted under D-005):** a Swift or Objective-C wrapper. Open question: define the provider class from Rust ([rust-inventory.md](rust-inventory.md)).
+- **Glue (M1 assumption; a Septuvo-written wrapper is not permitted under D-005):** a Swift or Objective-C wrapper. Open question: define the provider class from Rust ([rust-inventory.md](rust-inventory.md)).
 
 ### 2.4 Android
 
 - **Interfaces:** `VpnService` gives a TUN-like file descriptor to the app.
 - **Kill switch:** the system "Always-on VPN" and "Block connections without VPN" settings are set by the user. The app can explain them but may not be able to force them (**Verify**).
 - **Key storage:** Android Keystore and StrongBox, with algorithm support that varies by device and OS version. Post-quantum keys: **Unknown** (expect KS-2 wrapping).
-- **Glue (M1 assumption, not permitted under D-005):** a Kotlin/Java `VpnService` wrapper. Open question: provide the class without Java/Kotlin source ([rust-inventory.md](rust-inventory.md)); the UI can use `NativeActivity`.
+- **Glue (M1 assumption; a Septuvo-written wrapper is not permitted under D-005):** a Kotlin/Java `VpnService` wrapper. Open question: provide the class without Java/Kotlin source ([rust-inventory.md](rust-inventory.md)); the UI can use `NativeActivity`.
 
 ### 2.5 iOS and iPadOS
 
 - **Interfaces:** Network Extension packet tunnel provider, as on macOS, with a strict memory limit for the extension process (exact current limit: **Verify**). The Rust core must fit within it.
 - **Kill switch:** as macOS (**Verify**).
 - **Key storage:** Keychain; Secure Enclave limited to P-256, so KS-2 wrapping.
-- **Glue (M1 assumption, not permitted under D-005):** a Swift wrapper. Open question as macOS; App Store review and distribution rules apply.
+- **Glue (M1 assumption; a Septuvo-written wrapper is not permitted under D-005):** a Swift wrapper. Open question as macOS; App Store review and distribution rules apply.
 
 ## 3. Cross-platform facts and exclusions
 
-- **Rust-only is required (D-005).** Where a platform appears to need non-Rust code (Android, Apple, Windows driver), the precise limitation and Rust-only options are in [rust-inventory.md](rust-inventory.md); no exception exists until the owner decides one.
+- **Septuvo-authored code is Rust (D-005).** Where a platform appears to need Septuvo-written non-Rust code (Android, Apple), the precise limitation and options are in [rust-inventory.md](rust-inventory.md); no exception exists until the owner decides one. External components in other languages (for example a Windows driver and its DLL) are allowed after review.
 - **Hardware-backed identity keys are not claimed** on any platform until verified; see KS-2 in [identity-and-privacy.md](identity-and-privacy.md).
 - **No custom kernel drivers** in the first phase (ARCHITECTURE.md).
 - **Per-application split tunnelling** is not version 1, even where the OS offers it.

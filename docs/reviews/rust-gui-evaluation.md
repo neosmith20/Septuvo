@@ -1,8 +1,11 @@
-# Rust-native GUI evaluation for the Septuvo VPN desktop app (N4, D-005)
+# Rust-native GUI evaluation for the Septuvo VPN desktop app (N4)
 
-**Prepared 2026-10-17** after the owner rejected GTK 4 + libadwaita (a C application framework with Rust bindings) and set the rule recorded in D-005: **Septuvo VPN and Septuvo Server are 100% Rust, with no exceptions**.
-- **What is allowed:** using the operating system's own APIs, services, drivers and graphical interfaces.
-- **What is not:** Rust bindings around a C/C++ application framework, or a bundled non-Rust application engine.
+**Prepared 2026-10-17** after the owner rejected GTK 4 + libadwaita (a C application framework with Rust bindings) for the Septuvo VPN desktop app.
+
+> **Context update, 2026-10-18.** The owner has since clarified D-005: it requires **all Septuvo-authored VPN and Server code to be Rust**, and does **not** restrict the language of external components Septuvo calls or interacts with (each is still reviewed). The rule text this evaluation was written against ("no bindings around a C/C++ framework, no bundled non-Rust engine") is therefore no longer D-005. The evaluation and its result stand on their merits: egui/eframe is the N4 toolkit (N4-D1), and the GTK rejection stands as the owner's N4 toolkit decision. The native-code findings below are what N4-01's review and gate list.
+
+- **The criteria used here:** a toolkit written in Rust, using the operating system's own APIs, services, drivers and graphical interfaces.
+- **Excluded here:** Rust bindings around a C/C++ application framework, or a bundled non-Rust application engine.
 
 This record is the evidence behind N4-D1. The owner's merge of the N4 work order adopts its recommendation.
 
@@ -31,7 +34,7 @@ For each candidate, a minimal project was created with exact versions and realis
 | Xilem / Masonry 0.4.0 | 257 | None | Display server, keyboard, Vulkan/GL (vello needs a GPU), **fontconfig** | Yes (AccessKit) | Not now: alpha, frequent breaking changes, few widgets. Watch it |
 | Floem 0.2.0 | — | — | — | — | Not now: no release since 2024-11 |
 | GTK 4 / libadwaita (gtk-rs), Relm4 | — | GTK, GLib, Pango and Cairo are C | — | — | **Rejected by the owner** (C application framework) |
-| Freya (Skia), Tauri / Dioxus desktop (web view) | — | Bundle a C++ engine (Skia, WebKit) | — | — | **Rejected** (bundled non-Rust engine) |
+| Freya (Skia), Tauri / Dioxus desktop (web view) | — | Bundle a C++ engine (Skia, WebKit) | — | — | **Not chosen** (bundled non-Rust engine) |
 
 **Desktop services**, for the tray, notifications and file saving: `ksni` 0.3.6, `notify-rust` 4.18.1 (with its `zbus` backend) and `ashpd` 0.13.13 (the xdg desktop portal).
 - **Compiled C:** none, across 81 Linux crates.
@@ -52,7 +55,7 @@ For each candidate, a minimal project was created with exact versions and realis
 | `libc` | The system C library. **Every Rust program on Linux links it**, `septuvod` included: it is how Rust's standard library reaches the kernel |
 | `link:` entries for Windows and macOS frameworks | Behind `cfg` for other operating systems; not compiled on Linux |
 
-## Classification (D-005)
+## Classification
 
 - **Operating-system interfaces (allowed):**
   - the kernel and the system C library;
@@ -62,7 +65,7 @@ For each candidate, a minimal project was created with exact versions and realis
   - desktop services reached over D-Bus (tray host, notifications, portals, the AT-SPI accessibility bus).
 
   These are loaded from the user's system, are not bundled, are not Septuvo code, and are what every native desktop application on Linux uses.
-- **Optional non-Rust application dependencies (not allowed):** **none** in the recommended stack. GTK/libadwaita, Qt, Skia, WebKit, Chromium and SDL would all fall here, and all are excluded.
+- **Optional non-Rust application dependencies (excluded by this evaluation's criteria):** **none** in the recommended stack. GTK/libadwaita, Qt, Skia, WebKit, Chromium and SDL would all fall here, and all are excluded.
 
 ## Why egui / eframe
 
