@@ -2,6 +2,10 @@
 //! schema (`septuvo.toml`) and the server schema (`septuvo-server.toml`).
 //! Longer runs: `SEPTUVO_FUZZ_SECONDS=60 cargo test -p septuvo-config --test fuzz -- --nocapture`.
 
+// The check functions are public so the cargo-fuzz targets (fuzz/) can call
+// them; they panic on purpose when a property fails.
+#![allow(clippy::must_use_candidate, clippy::missing_panics_doc)]
+
 #[path = "../../septuvo-policy/tests/support/fuzzer.rs"]
 mod fuzzer;
 
@@ -173,54 +177,12 @@ fn fuzz_toml_subset() {
         ],
         dict: DICT,
     };
-    run("fuzz_toml_subset", &corpus, structured_toml, |data| {
-        let first = toml::parse_bytes(data);
-        assert_eq!(first, toml::parse_bytes(data), "deterministic");
-        match first {
-            Ok(doc) => {
-                assert!(data.len() <= toml::MAX_INPUT_BYTES);
-                assert!(doc.tables.len() <= toml::MAX_TABLES);
-                for t in std::iter::once(&doc.root).chain(&doc.tables) {
-                    assert!(t.entries.len() <= toml::MAX_KEYS_PER_TABLE);
-                    assert!(t.name.chars().count() <= toml::MAX_NAME_CHARS);
-                    for e in &t.entries {
-                        assert!(e.key.chars().count() <= toml::MAX_NAME_CHARS);
-                        match &e.value {
-                            Value::String(v) => {
-                                assert!(v.chars().count() <= toml::MAX_STRING_CHARS);
-                            }
-                            Value::Array(items) => {
-                                assert!(items.len() <= toml::MAX_ARRAY_ITEMS);
-                                for (v, _) in items {
-                                    assert!(v.chars().count() <= toml::MAX_STRING_CHARS);
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-                // Round trip: written back and parsed again, the same document.
-                let text = write_toml(&doc);
-                if text.lines().all(|l| l.chars().count() <= MAX_LINE_CHARS)
-                    && text.len() <= toml::MAX_INPUT_BYTES
-                {
-                    let again = toml::parse(&text)
-                        .unwrap_or_else(|e| panic!("re-parse failed: {e}\n{text}"));
-                    assert_eq!(shape(&again), shape(&doc), "round trip");
-                }
-                true
-            }
-            Err(e) => {
-                let lines = data.split(|&b| b == b'\n').count();
-                assert!(
-                    e.span.line >= 1 && e.span.line <= lines.max(1),
-                    "error line in range"
-                );
-                assert!(e.to_string().len() <= 200, "bounded error message");
-                false
-            }
-        }
-    });
+    run(
+        "fuzz_toml_subset",
+        &corpus,
+        structured_toml,
+        check_toml_subset,
+    );
 }
 
 /// The kill switch the service would build from a device configuration.
@@ -338,39 +300,12 @@ fn fuzz_device_schema() {
         seeds: &[DEVICE_FULL, DEVICE_SPLIT],
         dict: DICT,
     };
-    run("fuzz_device_schema", &corpus, structured_device, |data| {
-        let Ok(text) = std::str::from_utf8(data) else {
-            return false;
-        };
-        let first = parse_device(text);
-        assert_eq!(
-            format!("{first:?}"),
-            format!("{:?}", parse_device(text)),
-            "deterministic"
-        );
-        match first {
-            Ok(c) => {
-                assert_ne!(c.endpoints.len(), 0, "at least one endpoint");
-                assert!(c.endpoints.iter().all(|e| e.port() != 0));
-                assert!(i64::from(c.log_retention_days) <= MAX_RETENTION_DAYS);
-                let _ = c.summary();
-                // A configuration the validator accepts must also render: the
-                // kill switch never fails at connect time for a valid file.
-                let ks = kill_switch(&c);
-                if let Err(e) = nft::render(&c.policy, &ks) {
-                    panic!(
-                        "accepted configuration does not render: {e} (interface {:?})",
-                        c.tunnel.interface
-                    );
-                }
-                true
-            }
-            Err(e) => {
-                assert!(e.to_string().len() <= 4096, "bounded error report");
-                false
-            }
-        }
-    });
+    run(
+        "fuzz_device_schema",
+        &corpus,
+        structured_device,
+        check_device_schema,
+    );
 }
 
 fn structured_server(rng: &mut Rng) -> Vec<u8> {
@@ -411,23 +346,116 @@ fn fuzz_server_schema() {
         seeds: &[SERVER],
         dict: DICT,
     };
-    run("fuzz_server_schema", &corpus, structured_server, |data| {
-        let Ok(text) = std::str::from_utf8(data) else {
-            return false;
-        };
-        match parse_server(text) {
-            Ok(c) => {
-                assert!(i64::from(c.log_retention_days) <= MAX_RETENTION_DAYS);
-                assert_eq!(c.ipv4_range.family(), septuvo_policy::Family::V4);
-                assert_eq!(c.ipv6_range.family(), septuvo_policy::Family::V6);
-                assert!(c.data_dir.is_absolute());
-                let _ = c.summary();
-                true
+    run(
+        "fuzz_server_schema",
+        &corpus,
+        structured_server,
+        check_server_schema,
+    );
+}
+
+/// Property check for `fuzz_toml_subset` (also called by the cargo-fuzz target).
+pub fn check_toml_subset(data: &[u8]) -> bool {
+    let first = toml::parse_bytes(data);
+    assert_eq!(first, toml::parse_bytes(data), "deterministic");
+    match first {
+        Ok(doc) => {
+            assert!(data.len() <= toml::MAX_INPUT_BYTES);
+            assert!(doc.tables.len() <= toml::MAX_TABLES);
+            for t in std::iter::once(&doc.root).chain(&doc.tables) {
+                assert!(t.entries.len() <= toml::MAX_KEYS_PER_TABLE);
+                assert!(t.name.chars().count() <= toml::MAX_NAME_CHARS);
+                for e in &t.entries {
+                    assert!(e.key.chars().count() <= toml::MAX_NAME_CHARS);
+                    match &e.value {
+                        Value::String(v) => {
+                            assert!(v.chars().count() <= toml::MAX_STRING_CHARS);
+                        }
+                        Value::Array(items) => {
+                            assert!(items.len() <= toml::MAX_ARRAY_ITEMS);
+                            for (v, _) in items {
+                                assert!(v.chars().count() <= toml::MAX_STRING_CHARS);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
             }
-            Err(e) => {
-                assert!(e.to_string().len() <= 4096, "bounded error report");
-                false
+            // Round trip: written back and parsed again, the same document.
+            let text = write_toml(&doc);
+            if text.lines().all(|l| l.chars().count() <= MAX_LINE_CHARS)
+                && text.len() <= toml::MAX_INPUT_BYTES
+            {
+                let again =
+                    toml::parse(&text).unwrap_or_else(|e| panic!("re-parse failed: {e}\n{text}"));
+                assert_eq!(shape(&again), shape(&doc), "round trip");
             }
+            true
         }
-    });
+        Err(e) => {
+            let lines = data.split(|&b| b == b'\n').count();
+            assert!(
+                e.span.line >= 1 && e.span.line <= lines.max(1),
+                "error line in range"
+            );
+            assert!(e.to_string().len() <= 200, "bounded error message");
+            false
+        }
+    }
+}
+
+/// Property check for `fuzz_device_schema` (also called by the cargo-fuzz target).
+pub fn check_device_schema(data: &[u8]) -> bool {
+    let Ok(text) = std::str::from_utf8(data) else {
+        return false;
+    };
+    let first = parse_device(text);
+    assert_eq!(
+        format!("{first:?}"),
+        format!("{:?}", parse_device(text)),
+        "deterministic"
+    );
+    match first {
+        Ok(c) => {
+            assert_ne!(c.endpoints.len(), 0, "at least one endpoint");
+            assert!(c.endpoints.iter().all(|e| e.port() != 0));
+            assert!(i64::from(c.log_retention_days) <= MAX_RETENTION_DAYS);
+            let _ = c.summary();
+            // A configuration the validator accepts must also render: the
+            // kill switch never fails at connect time for a valid file.
+            let ks = kill_switch(&c);
+            if let Err(e) = nft::render(&c.policy, &ks) {
+                panic!(
+                    "accepted configuration does not render: {e} (interface {:?})",
+                    c.tunnel.interface
+                );
+            }
+            true
+        }
+        Err(e) => {
+            assert!(e.to_string().len() <= 4096, "bounded error report");
+            false
+        }
+    }
+}
+
+/// Property check for `fuzz_server_schema` (also called by the cargo-fuzz target).
+pub fn check_server_schema(data: &[u8]) -> bool {
+    let Ok(text) = std::str::from_utf8(data) else {
+        return false;
+    };
+    match parse_server(text) {
+        Ok(c) => {
+            assert!(i64::from(c.log_retention_days) <= MAX_RETENTION_DAYS);
+            assert_eq!(c.ipv4_range.family(), septuvo_policy::Family::V4);
+            assert_eq!(c.ipv6_range.family(), septuvo_policy::Family::V6);
+            assert!(c.data_dir.is_absolute());
+            let _ = c.summary();
+            true
+        }
+        Err(e) => {
+            assert!(e.to_string().len() <= 4096, "bounded error report");
+            false
+        }
+    }
 }

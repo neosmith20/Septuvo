@@ -5,6 +5,8 @@
 
 [workspace]
 resolver = "3"
+# fuzz/ is a separate workspace (cargo-fuzz, development only; D-035).
+exclude = ["fuzz"]
 members = ["crates/septuvo-policy", "crates/septuvo-cli", "crates/septuvo-config", "crates/septuvo-ipc", "crates/septuvo-daemon", "crates/septuvo-server"]
 
 [workspace.package]

@@ -1,0 +1,11 @@
+Septuvo coverage-guided fuzz targets (fuzz/)
+
+Licensed under the PolyForm Noncommercial License 1.0.0 (see LICENSE.md).
+Development only: never built into or shipped with Septuvo.
+
+Required Notice: Copyright 2026 the Septuvo rights holder (GitHub: neosmith20). Commercial use requires a separate written license agreement.
+
+Third-party code used only when fuzzing (not shipped), pinned in fuzz/Cargo.lock:
+- libfuzzer-sys (MIT OR Apache-2.0), which bundles LLVM libFuzzer (NCSA /
+  Apache-2.0 with LLVM exception), and its own dependencies.
+See docs/reviews/dependency-review-cargo-fuzz.md.
