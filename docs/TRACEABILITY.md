@@ -104,7 +104,7 @@ Every S requirement has at least one adversary, component, test ID and gate: **n
 | Easy end-user installation, no builds | D-008 | C-REL | M6-02..04, M7 | T3-PKG-01; novice usability tests |
 | Enterprise/provider capability | D-009 | C-CP, C-GW | M9 | T5-TEN-01, T5-CP-01; real idle/active concurrency benchmarks |
 | Measured performance goals | D-018 | C-PKT | M4-04, M9-05 | T4-PERF-01; no unmeasured claims |
-| Septuvo VPN and Server 100% Rust; OS interfaces inventoried | D-005, D-015 | all | M1-04, N4-01, M3-01, M7-01/04 | [spec/rust-inventory.md](spec/rust-inventory.md); [rust-gui-evaluation.md](reviews/rust-gui-evaluation.md); per-tree dependency audit |
+| All Septuvo-authored VPN and Server code in Rust; external native components reviewed and inventoried | D-005, D-015, D-036 | all | M1-04, N4-01, M3-01, M7-01/04 | [spec/rust-inventory.md](spec/rust-inventory.md); [rust-gui-evaluation.md](reviews/rust-gui-evaluation.md); per-tree dependency audit |
 | Platform order and honest support claims | D-014 | all | M1-04, M7 | [spec/platform-feasibility.md](spec/platform-feasibility.md); T2/T3 per OS |
 | Desktop UI close behavior | D-019 | C-APP, C-NODE | M6-03, M7-02/03 | T3-UI-01 |
 | Four-stage connection status | D-020 | C-APP, C-NODE | N1-04, M6-03 | T3-ST-01 |
@@ -119,7 +119,7 @@ Every S requirement has at least one adversary, component, test ID and gate: **n
 - **Hard stop:** no G4 means no “million users” or provider capacity claims.
 - **Optional future feature:** Layer 2 bridging is explicitly *not* part of SVP v1.
 - **Optional infrastructure:** coordination service or relay, never a hard dependency for supported standalone operation.
-- **Unresolved platform facts:** under D-005 (2026-10-17) Septuvo VPN and Server are 100% Rust without exceptions. Android (`VpnService` class), Apple (Network Extension principal class) and Windows (no built-in TUN; driver rule D-036, options in [reviews/windows-tunnel-evaluation.md](reviews/windows-tunnel-evaluation.md)) have open questions recorded in [spec/rust-inventory.md](spec/rust-inventory.md), to be resolved before each platform's work order.
+- **Unresolved platform facts:** under D-005 (2026-10-18) all Septuvo-authored VPN and Server code is Rust; external components may be in any language after review. Android (`VpnService` class) and Apple (Network Extension principal class) need a Septuvo class the OS loads by name; Windows needs an existing driver (D-036, options in [reviews/windows-tunnel-evaluation.md](reviews/windows-tunnel-evaluation.md)). Recorded in [spec/rust-inventory.md](spec/rust-inventory.md), to be resolved before each platform's work order.
 
 ## Evidence review rubric
 
