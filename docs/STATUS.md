@@ -137,6 +137,7 @@ Use separate `H-001`, `H-002` etc. IDs for routine work outside the 43 base task
 | H-015 | ACCEPTED | 2026-10-16 | Routine (D-031) | [PR #55](https://github.com/neosmith20/Septuvo/pull/55) |
 | H-016 | ACCEPTED | 2026-10-17 | Routine (D-031) | [PR #60](https://github.com/neosmith20/Septuvo/pull/60) |
 | H-017 | ACCEPTED | 2026-10-17 | Routine (D-031) | [PR #61](https://github.com/neosmith20/Septuvo/pull/61) |
+| H-018 | ACCEPTED | 2026-10-18 | Routine (D-031) | [PR #65](https://github.com/neosmith20/Septuvo/pull/65) |
 
 ## Allowed task states
 
