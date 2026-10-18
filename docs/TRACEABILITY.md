@@ -119,7 +119,7 @@ Every S requirement has at least one adversary, component, test ID and gate: **n
 - **Hard stop:** no G4 means no “million users” or provider capacity claims.
 - **Optional future feature:** Layer 2 bridging is explicitly *not* part of SVP v1.
 - **Optional infrastructure:** coordination service or relay, never a hard dependency for supported standalone operation.
-- **Unresolved platform facts:** under D-005 (2026-10-17) Septuvo VPN and Server are 100% Rust without exceptions. Android (`VpnService` class), Apple (Network Extension principal class) and Windows (no built-in TUN) have open questions recorded in [spec/rust-inventory.md](spec/rust-inventory.md), to be resolved before each platform's work order.
+- **Unresolved platform facts:** under D-005 (2026-10-17) Septuvo VPN and Server are 100% Rust without exceptions. Android (`VpnService` class), Apple (Network Extension principal class) and Windows (no built-in TUN; driver rule D-036, options in [reviews/windows-tunnel-evaluation.md](reviews/windows-tunnel-evaluation.md)) have open questions recorded in [spec/rust-inventory.md](spec/rust-inventory.md), to be resolved before each platform's work order.
 
 ## Evidence review rubric
 

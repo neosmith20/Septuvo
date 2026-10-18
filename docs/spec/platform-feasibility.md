@@ -10,7 +10,7 @@
 | --- | --- | --- | --- | --- | --- |
 | Linux x86_64 (Ubuntu Server 24.04, D-026) | **Server and first client** | TUN (`/dev/net/tun`) — Known | nftables rules — Known; proof in N1-03 | None expected | Feasible; lab target |
 | Linux ARM64 (for example a Raspberry Pi home server) | Server, if the owner wants it (Q11) | As above — Known | As above — Known | None expected | Unknown until built and tested |
-| Windows 10/11 | Client, after Linux | Needs a signed TUN driver, not written by Septuvo (for example Wintun) — Verify licence and inventory | Windows Filtering Platform — Known facility; leak behaviour Verify | Possibly none beyond OS API bindings; a third-party driver binary | Unknown |
+| Windows 10/11 | Client, after Linux | Microsoft's VPN plug-in platform (OS-provided interface) or an owner-approved signed driver (D-036); Wintun's in-process DLL does not meet D-005 | Windows Filtering Platform — Known facility; leak behaviour Verify | Possibly none beyond OS API bindings; a third-party driver binary | Unknown |
 | macOS | Client | Network Extension packet tunnel provider — Known | OS "include all networks" style settings — Verify; known edge cases with connections that existed before the tunnel | Swift or Objective-C extension wrapper around the Rust core; Apple developer account and Network Extension entitlement | Unknown |
 | Android | Client | `VpnService` — Known | System "Always-on VPN" + "Block connections without VPN" — Known facility; app-level control Verify | Kotlin/Java service wrapper; Rust via the NDK | Unknown |
 | iOS / iPadOS | Client | Network Extension packet tunnel provider — Known | As macOS — Verify | Swift wrapper; strict memory limit for the extension (exact limit Verify) | Unknown |
@@ -28,10 +28,10 @@
 
 ### 2.2 Windows
 
-- **Interfaces:** Windows has no built-in layer 3 TUN for third-party VPNs. An existing **signed** driver is needed; Septuvo writes no drivers in the first phase (ARCHITECTURE.md). Candidate: Wintun, a third-party component, licence and distribution terms to be reviewed under D-015.
+- **Interfaces:** Windows has no built-in layer 3 TUN for third-party VPNs. An existing **signed** driver is needed; Septuvo writes no drivers in the first phase (ARCHITECTURE.md). Under D-036 a signed third-party driver is acceptable in principle, but not non-Rust code in Septuvo's processes, and none without explicit owner approval. Wintun needs its C DLL in-process, so it does not qualify as is. First candidate: Microsoft's VPN plug-in platform (`Windows.Networking.Vpn`), which needs no third-party driver. See [windows-tunnel-evaluation.md](../reviews/windows-tunnel-evaluation.md).
 - **Kill switch and DNS:** Windows Filtering Platform filters; DNS through interface settings or the Name Resolution Policy Table. Leak behaviour across sleep, network change and service crash: **Verify**.
 - **Key storage:** DPAPI (software) or TPM through CNG. Post-quantum keys in the TPM are **Unknown**, so expect KS-2 wrapping.
-- **Glue and inventory:** Windows API bindings from Rust; code signing for the service and installer (S-12). Bundling a third-party C driver is an **open owner decision** under D-005 ([rust-inventory.md](rust-inventory.md)).
+- **Glue and inventory:** Windows API bindings from Rust; code signing for the service and installer (S-12). Which tunnel option to use is open; the rule is D-036. Septuvo's no-`unsafe` rule versus Windows API calls also needs an owner decision before Windows work.
 
 ### 2.3 macOS
 
