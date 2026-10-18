@@ -126,6 +126,8 @@ The sign-in must then happen **in a program running as the helper account**, for
    3. **Optionally, narrower destinations:** open only the DoH resolver's addresses, then only the addresses the helper resolved for the portal and its redirects. This closes the remaining "any web server" gap, but needs the helper and the service to cooperate on every redirect. **Evaluate it before committing.**
 3. **Phase 3:** usability on real networks (desktop launcher, notifications when a portal is detected), and the G2 lab on real Wi-Fi.
 
+**Desktop app (2026-10-18).** Neither approved desktop design (D-037) has a captive-portal control, so none is added: captive-portal mode stays a command-line feature until the owner decides otherwise. The TLS client decision in phase 2 is the same one that DNS over HTTPS/TLS (D-039) and update checks (D-042) need ([desktop-ui-reconciliation.md](../reviews/desktop-ui-reconciliation.md), open decision 1).
+
 ## Tests
 
 - **Renderer** (`septuvo-policy`):

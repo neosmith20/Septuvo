@@ -81,7 +81,13 @@ Every S requirement has at least one adversary, component, test ID and gate: **n
 | T3-ST-01 | T3 | Four independent status stages; "adapter up" never shown as connected (D-020) | N1-04 (model), M6-03 (UI) | NOT RUN |
 | T3-LOG-01 | T3 | Logs and diagnostics contain no secrets, payloads or DNS names (PR-2…5) | M6-03 | NOT RUN |
 | T3-OFF-01 | T3 | Offline self-hosted install and enrollment; no external network calls (LO-1, LO-2) | M6 | NOT RUN |
-| T3-UI-01 | T3 | Closing the app keeps the tunnel; explicit disconnect works (D-019) | M6-03, M7 | NOT RUN |
+| T3-UI-01 | T3 | Window and tray behaviour: minimize keeps the connection; X (Exit and Disconnect) disconnects then exits; X (Send to System Tray) keeps it; GUI crash changes nothing (D-041) | N4-01/N4-06 (Linux), M7 | NOT RUN |
+| T3-UI-02 | T3 | Both approved interface modes match their reference images; switching modes never touches the connection (D-037) | N4-01, N4-02, N4-08, M7 | NOT RUN |
+| T3-UI-03 | T3 | Kill Switch and DNS Protection tiles show only verified states; Local Network Access tile shows the service's value (D-038–D-040) | N4-02, N4-04 | NOT RUN |
+| T2-LD-01 | T2 | Lockdown Mode: blocking after disconnect, app exit, service restart and from boot; only NP-K2 exceptions (D-038) | N4-04 (lab), M5 | NOT RUN |
+| T2-LAN-01 | T2 | Local Network Access: only directly attached subnets within caps; hostile DHCP/RA prefixes and overlaps blocked (D-040, NP-L1–L7) | N4-04 (lab), M5 | NOT RUN |
+| T2-SW-01 | T2 | Profile switch while connected leaves no gap (D-041, NP-E2) | N4-03 (lab), M5 | NOT RUN |
+| T2-DNS-02 | T2 | No DNS outside the permitted policy in any DNS mode or fallback; encrypted DNS validates certificates (D-039, NP-D7–D10) | N4-06 (settings), later DoH/DoT work order | NOT RUN |
 | T3-PKG-01 | T3 | Signed install, update and uninstall with complete cleanup | M6-02, M7 | NOT RUN |
 | T3-REL-01 | T3 | Signed builds, provenance and SBOM | M8-03 | NOT RUN |
 | T4-PERF-01 | T4 | Reproducible throughput, latency and resource benchmarks | M4-04, M9-05 | NOT RUN |
@@ -106,7 +112,12 @@ Every S requirement has at least one adversary, component, test ID and gate: **n
 | Measured performance goals | D-018 | C-PKT | M4-04, M9-05 | T4-PERF-01; no unmeasured claims |
 | All Septuvo-authored VPN and Server code in Rust; external native components reviewed and inventoried | D-005, D-015, D-036 | all | M1-04, N4-01, M3-01, M7-01/04 | [spec/rust-inventory.md](spec/rust-inventory.md); [rust-gui-evaluation.md](reviews/rust-gui-evaluation.md); per-tree dependency audit |
 | Platform order and honest support claims | D-014 | all | M1-04, M7 | [spec/platform-feasibility.md](spec/platform-feasibility.md); T2/T3 per OS |
-| Desktop UI close behavior | D-019 | C-APP, C-NODE | M6-03, M7-02/03 | T3-UI-01 |
+| Desktop interfaces: Simple and Advanced, shared on Windows, Linux, macOS | D-037 | C-APP | N4 (Linux), M7 | T3-UI-02; [ui/desktop](ui/desktop/DEFAULT-UI.md) |
+| Mandatory kill switch; Lockdown Mode | D-038 | C-APP, C-NODE, C-OSNET | N4-04, M5 | T2-LD-01, T3-UI-03 |
+| Mandatory DNS leak prevention; configurable secure DNS | D-039 | C-APP, C-NODE | N4-06; DoH/DoT after the TLS decision | T2-DNS-02, T3-UI-03 |
+| Local Network Access control | D-040 | C-APP, C-NODE, C-OSNET | N4-04, M5 | T2-LAN-01, T3-UI-03 |
+| Window, tray and profile switching | D-041 (supersedes D-019) | C-APP, C-NODE | N4-01, N4-03, N4-06, M7 | T3-UI-01, T2-SW-01 |
+| Update checking; signed installation later | D-042 | C-APP, C-REL | After the TLS decision; G3 | T3-PKG-01 |
 | Four-stage connection status | D-020 | C-APP, C-NODE | N1-04, M6-03 | T3-ST-01 |
 | Non-crypto Rust foundation (track N1) | D-029, D-030 | C-POL, C-OSNET, C-APP | N1-01…N1-04 | T0-SC-01, T2-POL-01/02, T2-KS-01…04, T3-ST-01 |
 | Domain/trademark suitability | D-016 | — | Owner + counsel, outside protocol tasks | Formal clearance prior to commercialization |

@@ -111,7 +111,7 @@ An invitation is created by the administrator on the server (section 6) and hand
 | ID | Requirement |
 | --- | --- |
 | LO-1 | A device and its server work with no account, no Septuvo-run service and no internet connection to any third party. Enrollment works on a local network alone. |
-| LO-2 | Septuvo makes no network connections except to the user's own server(s), unless the user turns on something that needs one (for example update checks, Q9). |
+| LO-2 | Septuvo makes no network connections except to the user's own server(s), unless the user turns on or starts something that needs one: update checks (Q9 as amended by D-042: asked once at first-run setup, On preselected, nothing contacted before the answer), or a diagnostic ping of a public host that the user starts. The public IP address shown in Advanced mode comes only from the user's own server, never from a third-party lookup. |
 | LO-3 | Security checks do not depend on accurate client clocks (ASM-05). |
 
 ## 9. Owner questions (this document)
@@ -122,5 +122,5 @@ Full explanations, options and trade-offs: [M1-owner-questions.md](../reviews/M1
 | --- | --- | --- |
 | Q7 | Invitation lifetime, and administrator confirmation (EN-7) | Default lifetime 24 hours, maximum 7 days, at most 5 failed attempts. Confirmation **on** by default. |
 | Q8 | Server identity backup | Offer an encrypted, offline export that the administrator starts manually; off unless used. Without it, a lost server means re-enrolling devices. |
-| Q9 | Update checks | Off by default; ask once during setup. No other network calls. |
+| Q9 | Update checks | Off by default; ask once during setup. No other network calls. **Amended 2026-10-18 (D-042):** asked once at first-run setup with On preselected; owner to confirm (desktop-ui-reconciliation.md, open decision 2). |
 | Q10 | Log retention | 7 days on devices and server, metadata only (PR-3, PR-4), configurable down to zero. |

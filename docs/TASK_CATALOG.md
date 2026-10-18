@@ -534,63 +534,80 @@ Work allowed by D-029, defined in [work-orders/N3.md](work-orders/N3.md). Same b
 
 ## Track N4 — Septuvo VPN desktop application for Linux (parallel, after G0, before G1)
 
-Work allowed by D-029, defined in [work-orders/N4.md](work-orders/N4.md). Same boundary as N2 and N3: **never** an SVP handshake, packet encryption or wire encoding, key generation or management, usable invitations, functional protocol transport or any cryptography crate in Septuvo's code; the service stays lab-only. **Septuvo-authored code is Rust (D-005):** third-party crates only in the separate `desktop/` workspace, only as approved in N4-01's review; every non-Rust native component they bring is listed and justified, enforced by the native-code gate. One owner authorization covers the track (D-031); after each merge the agent continues to the next card (D-034).
+Work allowed by D-029, defined in [work-orders/N4.md](work-orders/N4.md) (revision 2, 2026-10-18: built to the owner-approved designs in `docs/ui/desktop/`, D-037–D-042). Same boundary as N2 and N3: **never** an SVP handshake, packet encryption or wire encoding, key generation or management, usable invitations, functional protocol transport or any cryptography crate in Septuvo's code; the service stays lab-only. **Septuvo-authored code is Rust (D-005):** third-party crates only in the separate `desktop/` workspace, only as approved in N4-01's review; every non-Rust native component they bring is listed and justified, enforced by the native-code gate. One owner authorization covers the track (D-031); after each merge the agent continues to the next card (D-034).
 
-### N4-01 — Dependency review, native-code gate, application skeleton and CI
+### N4-01 — Dependency review, native-code gate, app shell and the Simple main window
 
-- **Entry / prerequisites:** N3-04 complete (N3 accepted) and the N4 work order merged.
+- **Entry / prerequisites:** N3-04 complete (N3 accepted) and N4 work order revision 2 merged.
 - **Approved output locations:** `docs/reviews/dependency-review-desktop.md`, `desktop/`, the native-code gate tool in `crates/`, `licensing.toml`, `LICENSING.md`, `.github/workflows/desktop.yml`, `docs/build/desktop.md`, `docs/spec/rust-inventory.md`.
-- **Exact work:** Dependency review (versions at least two weeks old, licences, per-crate native findings); a CI gate failing on any non-Rust native code (compiled C/C++, bundled binaries, linked or loaded libraries) not listed in the reviewed allowlist; separate `desktop/` workspace (PolyForm) with an egui/eframe window (AccessKit), brand icon and theme, About with the development-preview notice; plain-Rust view model; refuses root; prototype screenshots for the owner's approval of the look.
-- **Acceptance evidence:** Review recorded; the gate passes and fails on a deliberately added C-compiling crate; CI builds with `--locked`, fmt/clippy, view-model tests, accessibility-tree UI tests (`egui_kittest`), headless start-up; main `Cargo.lock` still free of third-party crates; owner approves the visual direction.
+- **Exact work:** Dependency review and native-code gate; app shell (refuses root, app preferences, sizes and breakpoints, minimize/maximize, X with Exit and Disconnect); the **Simple main window exactly as `Default_VPN_UI.png`** with every DEFAULT-UI §7.1 state from the view model (pre-G1: VPN Not Yet Available); live status over the status socket; secondary windows as labelled shells. Hero artwork after N4-D9.
+- **Acceptance evidence:** Gate passes and fails on a C-compiling crate; view-model and accessibility-tree tests; screenshots at 780×760 and 520×580 beside the reference image; headless start-up and root refusal in CI; X behaviour tested against the lab service; owner's visual sign-off.
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin N4-02 until this pull request is merged; then continue without a new authorization (D-034).
 
-### N4-02 — Status and monitoring
+### N4-02 — Advanced main window, mode switching and the Home tiles
 
-- **Entry / prerequisites:** N4-01 complete within the approved N4 work order.
-- **Approved output locations:** `desktop/`, `crates/septuvo-cli/` (shared helpers), `docs/build/desktop.md`, `tests/lab/namespaces/`.
-- **Exact work:** Status page over the status socket: four checks with help, service state, kill switch, DNS, resolver file, captive countdown, service-lost banner; "Connected" only when all four pass; adaptive 360 px-to-wide layout; text, not colour alone; AccessKit names and roles.
-- **Acceptance evidence:** View-model tests for every state; accessibility-tree UI tests; namespace lab case with the app following each change.
+- **Entry / prerequisites:** N4-01 complete within the approved N4 work order (revision 2).
+- **Approved output locations:** `desktop/`, `docs/build/desktop.md`.
+- **Exact work:** The **Advanced window exactly as `Advanced_VPN_UI.png`**: tabs, Home hero, connection card (name and address, neutral icon), IP card (`Not Connected` / `Not Available`), Kill Switch and DNS Protection tiles as verified, non-interactive status, Local Network Access tile showing the service value; Interface Mode switching with no network action.
+- **Acceptance evidence:** View-model tests for every Home state and tile value; UI test that switching modes sends no command except status; screenshots at 980×640 and 760×560 beside the reference image; owner's visual sign-off.
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin N4-03 until this pull request is merged; then continue without a new authorization (D-034).
 
-### N4-03 — Tray integration and notifications
+### N4-03 — Service: saved connections, selection and switching
 
-- **Entry / prerequisites:** N4-02 complete within the approved N4 work order.
-- **Approved output locations:** `desktop/`, `docs/build/desktop.md`.
-- **Exact work:** StatusNotifierItem tray (`ksni`): icon and tooltip by state (no protected/connected icon before G1), menu, desktop notifications (`notify-rust`, zbus); closing the window keeps the tray (D-019); falls back to a window without a tray host.
-- **Acceptance evidence:** State-to-icon/menu unit tests; CI test on a private D-Bus session with a test tray host and notification server.
+- **Entry / prerequisites:** N4-02 complete within the approved N4 work order (revision 2).
+- **Approved output locations:** `crates/septuvo-ipc/`, `crates/septuvo-daemon/`, `crates/septuvo-config/`, `crates/septuvo-cli/`, `tests/lab/namespaces/`, `fuzz/`, `docs/build/daemon.md`, `docs/build/config.md`.
+- **Exact work:** Service-owned store of complete connections with list/get/add/replace/rename/delete/select (framed bodies ≤ 64 KiB, fuzzed); switching while connected with the ruleset replaced in one nftables transaction (D-041); status fields for every approved state; retire `behavior.always_on`; refuse split-mode `dns.mode = "system"` (NP-D10); CLI `septuvo connection …`.
+- **Acceptance evidence:** IPC, engine and fuzz tests; lab case T2-SW-01 (no packet outside the policy during a switch); bad input changes nothing.
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin N4-04 until this pull request is merged; then continue without a new authorization (D-034).
 
-### N4-04 — Connection controls and permissions
+### N4-04 — Service: Lockdown Mode and Local Network Access
 
-- **Entry / prerequisites:** N4-03 complete within the approved N4 work order.
-- **Approved output locations:** `desktop/`, `docs/build/desktop.md`, `tests/lab/namespaces/`.
-- **Exact work:** Connect, disconnect (with confirmation) and captive-portal window (explicit network-DNS option) through the control socket; disabled controls with join-the-group guidance for non-members; no privilege prompts; plain-text errors.
-- **Acceptance evidence:** View-model tests; lab case for a member and a non-member.
+- **Entry / prerequisites:** N4-03 complete within the approved N4 work order (revision 2).
+- **Approved output locations:** `crates/septuvo-policy/`, `crates/septuvo-daemon/`, `crates/septuvo-ipc/`, `crates/septuvo-cli/`, `packaging/linux/`, `tests/lab/namespaces/`, `tests/lab/install/`, `docs/build/`, `desktop/`.
+- **Exact work:** Lockdown Mode (D-038, NP-K1–K5): default off, only NP-K2 exceptions, kept after disconnect and restarts, installed at boot before the network, removed by turning off, recovery command or uninstall. Local Network Access (D-040, NP-L1–L7): default Not Allowed, directly attached subnets with size caps and overlap rules, recomputed on change, discovery blocked. The Advanced tile becomes operable.
+- **Acceptance evidence:** Lab cases T2-LD-01 and T2-LAN-01 (hostile prefixes, overlaps, discovery, service kill and restart); boot ordering in the install test; uninstall removes everything; independent-review items listed in the PR.
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin N4-05 until this pull request is merged; then continue without a new authorization (D-034).
 
-### N4-05 — Configuration management
+### N4-05 — Connections, Add / Import, the configuration editor and the profile selector
 
-- **Entry / prerequisites:** N4-04 complete within the approved N4 work order.
-- **Approved output locations:** `crates/septuvo-ipc/`, `crates/septuvo-daemon/`, `crates/septuvo-config/`, `desktop/`, `tests/lab/namespaces/`, `fuzz/`, `docs/build/`.
-- **Exact work:** Service commands `CONFIG-GET` (status socket) and `CONFIG-APPLY` (control socket, length-prefixed, at most 64 KiB): validate, back up, write atomically, replace the kill switch atomically when connected; failure keeps the old file and rules. App settings page with inline validation, a diff and a plain summary before applying.
-- **Acceptance evidence:** IPC tests and new fuzz targets (standard library and cargo-fuzz); engine tests for apply, reject, rollback; lab case: apply while connected with no leak window, a bad configuration changes nothing.
+- **Entry / prerequisites:** N4-04 complete within the approved N4 work order (revision 2).
+- **Approved output locations:** `desktop/`, `docs/build/desktop.md`.
+- **Exact work:** Profile selector with automatic switching while connected; Connections manager with exactly Edit, Rename, Export, Duplicate, Delete; Add / Import; configuration editor (basic fields, collapsed Advanced Configuration, no DNS fields) with app-owned drafts; native Open and Save As through the portal; exports without secrets.
+- **Acceptance evidence:** View-model and accessibility-tree tests for DEFAULT-UI §9.3 items 4–9; lab case: import, select, connect, switch, delete.
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin N4-06 until this pull request is merged; then continue without a new authorization (D-034).
 
-### N4-06 — Diagnostics
+### N4-06 — Settings, tray and notifications
 
-- **Entry / prerequisites:** N4-05 complete within the approved N4 work order.
-- **Approved output locations:** `crates/septuvo-ipc/`, `crates/septuvo-daemon/`, `crates/septuvo-cli/`, `desktop/`, `tests/lab/namespaces/`, `fuzz/`, `docs/build/`.
-- **Exact work:** Read-only service `DIAGNOSE`; client checks (reachability, group membership, sockets, versions); findings with "what this means / what to do"; `septuvo diagnose` and an app page; a local text report the user saves (xdg portal file chooser, `ashpd`); nothing sent anywhere.
-- **Acceptance evidence:** Unit tests per finding; fuzzing of the new response; lab case with deliberate faults.
+- **Entry / prerequisites:** N4-05 complete within the approved N4 work order (revision 2).
+- **Approved output locations:** `desktop/`, `crates/septuvo-ipc/` (if needed), `packaging/linux/` (autostart entry), `docs/build/desktop.md`.
+- **Exact work:** The shared Settings (General, Interface, Connection & Security, DNS Protection shell, Network, Updates, About & Credits) as a window in Simple and a tab in Advanced; Kill Switch and Encryption Algorithm read-only; Lockdown Mode and Local Network Access wired to the service; update rows `Not available yet`; start at login; connect at startup; tray with the approved menu; Send to System Tray; tray Exit disconnects; notifications.
+- **Acceptance evidence:** UI tests for every row and default; persistence across restart; D-Bus tray and notification test; T3-UI-01 cases against the lab service.
 - **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin N4-07 until this pull request is merged; then continue without a new authorization (D-034).
 
-### N4-07 — Rust installer, packaging, accessibility and the user guide
+### N4-07 — DNS Protection
 
-- **Entry / prerequisites:** N4-06 complete within the approved N4 work order.
-- **Approved output locations:** a Rust installer (new crate), `packaging/linux/`, `tests/lab/install/`, `desktop/`, `licensing.toml`, `LICENSING.md`, `docs/build/install.md`, `docs/build/desktop.md`, `docs/user/linux-desktop.md`, `docs/spec/rust-inventory.md`.
-- **Exact work:** `septuvo-setup install|uninstall` in Rust replacing `install.sh`/`uninstall.sh` (removed), with the optional desktop install (`.desktop` entry, brand icons, tray autostart off by default) and complete uninstall; keyboard-only operation, screen-reader labels, contrast, text scaling; responsiveness (no blocked UI); user guide with CI screenshots.
-- **Acceptance evidence:** Install test passes against the Rust installer; `rust-inventory.md` shows no shipped Septuvo-authored non-Rust code; accessibility checklist with evidence; guide reviewed by the owner.
+- **Entry / prerequisites:** N4-06 complete within the approved N4 work order (revision 2).
+- **Approved output locations:** `crates/septuvo-config/`, `crates/septuvo-daemon/`, `crates/septuvo-ipc/`, `crates/septuvo-cli/`, `tests/lab/namespaces/`, `fuzz/`, `desktop/`, `docs/build/`.
+- **Exact work:** Service: global DNS settings with per-connection overrides, Automatic and Standard DNS through the tunnel, Local DNS Exceptions, Fallback Behavior (never the underlay), Test DNS Settings, verified DNS status. App: Settings → DNS Protection page (DoH/DoT, Bootstrap DNS, Certificate Validation `Not available yet`); editor shows which DNS applies; tile wording per ADVANCED-UI §11.2.
+- **Acceptance evidence:** Lab case T2-DNS-02 for every mode and fallback; config and IPC fuzzing; UI tests.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin N4-08 until this pull request is merged; then continue without a new authorization (D-034).
+
+### N4-08 — Help & Diagnostics
+
+- **Entry / prerequisites:** N4-07 complete within the approved N4 work order (revision 2).
+- **Approved output locations:** `crates/septuvo-ipc/`, `crates/septuvo-daemon/`, `crates/septuvo-cli/`, `desktop/`, `tests/lab/namespaces/`, `fuzz/`, `docs/build/`.
+- **Exact work:** Service `DIAGNOSE` and pings (server, public host) only on request inside the policy; `septuvo diagnose`; the Help & Diagnostics window / Diagnostics tab with the seven checks and exact labels of DEFAULT-UI §5, time-outs, cancel, technical details, network settings link, report with preview and redaction. Nothing sent anywhere.
+- **Acceptance evidence:** Unit tests for every finding; response fuzzing; lab case with deliberate faults.
+- **Stop point:** Submit the scoped evidence and PR for owner review. Do not begin N4-09 until this pull request is merged; then continue without a new authorization (D-034).
+
+### N4-09 — Rust installer, packaging, accessibility, visual fidelity and the user guide
+
+- **Entry / prerequisites:** N4-08 complete within the approved N4 work order (revision 2).
+- **Approved output locations:** Rust installer (replacing `packaging/linux/install.sh`, `uninstall.sh`), `packaging/linux/`, `tests/lab/install/`, `desktop/`, `docs/build/install.md`, `docs/build/desktop.md`, `docs/user/linux-desktop.md`, `docs/spec/rust-inventory.md`.
+- **Exact work:** `septuvo-setup install|uninstall` in Rust (desktop entry, icons, Lockdown boot unit, complete removal; shell scripts removed); accessibility pass; responsiveness pass at every DEFAULT-UI §9.3 size; visual-fidelity review of both modes; user guide with CI screenshots.
+- **Acceptance evidence:** Install test passes against the Rust installer; `rust-inventory.md` shows no Septuvo-authored non-Rust code; accessibility checklist and fidelity screenshots; owner reviews the guide.
 - **Stop point:** Submit the scoped evidence and PR for owner review. After it is merged N4 is complete; nothing further starts without a new work order.
+
 ## Task catalog invariants
 
 1. Each of the **43 base tasks** has a unique ID and a prerequisite, bounded output, actions, acceptance evidence and a stop point. Conditional dotted subtasks and owner-directed H work are separately recorded/approved in [STATUS.md](STATUS.md) and do not change the 43-base-task count; nor do track N1, N2 and N3 cards.

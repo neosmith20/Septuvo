@@ -117,6 +117,8 @@ Dates are `YYYY-MM-DD` UTC: the authorization date for READY rows, the merge dat
 | N4-05 | NOT STARTED | N4-04 | — | — | — |
 | N4-06 | NOT STARTED | N4-05 | — | — | — |
 | N4-07 | NOT STARTED | N4-06 | — | — | — |
+| N4-08 | NOT STARTED | N4-07 | — | — | — |
+| N4-09 | NOT STARTED | N4-08 | — | — | — |
 
 ## Dotted subtasks (owner authorized separately)
 

@@ -21,7 +21,7 @@ Example addresses below use the documentation ranges for public addresses (RFC 5
 | ID | Requirement |
 | --- | --- |
 | NP-E1 | **The firewall is the kill switch, not the routing table.** Routes steer traffic; firewall rules guarantee that protected traffic can only leave through the tunnel. Route tricks such as `0.0.0.0/1` + `128.0.0.0/1` are never counted as leak protection. |
-| NP-E2 | Kill-switch rules are installed **before** the first handshake and stay installed until the user explicitly disconnects (D-019; Q2). Reconnecting, roaming and rekeying never remove them. |
+| NP-E2 | Kill-switch rules are installed **before** the first handshake and stay installed until the user explicitly disconnects (D-041; Q2 as amended by D-038). Reconnecting, roaming, rekeying and **switching to another profile** never remove them. The kill switch cannot be turned off during a protected connection (D-038). |
 | NP-E3 | Rules cover **IPv4 and IPv6** equally. If the tunnel carries no IPv6, protected IPv6 is dropped, not sent directly. |
 | NP-E4 | Rules do not depend on the underlay's interface name, SSID, gateway address or subnet, so a network change cannot open a gap. |
 | NP-E5 | If the Septuvo service crashes, the kernel keeps enforcing the last rules (ASM-06). On restart the service checks and repairs them before anything else. |
@@ -40,6 +40,7 @@ Allowed outside the tunnel while the kill switch is active, on the underlay inte
 | NP-U3 | UDP to and from the Septuvo Server endpoint(s) only (address and port from enrollment) | The tunnel itself |
 | NP-U4 | Loopback | Local software; never leaves the device |
 | NP-U5 | Captive-portal mode, only when the user starts it (Q1) | Hotel and café login pages |
+| NP-U6 | Local Network Access, only when the user set it to **Allowed** (D-040; section 6A) | Devices on the directly attached local network |
 
 Anything else on the underlay is dropped unless a LAN exception allows it. DNS on the underlay is **not** an exception: the server endpoint is stored as an address at enrollment so no underlay DNS is needed (a DNS-name endpoint is **OPEN** for M2). Layer 2 traffic such as ARP is outside IP firewall scope and unaffected.
 
@@ -117,6 +118,32 @@ Each scenario states the packet path, the DNS path, where any exception comes fr
 | NP-D4 | The DNS status stage (D-020) is shown as working only after a real lookup through the tunnel resolver succeeds. |
 | NP-D5 | DNS answers from the underlay are never used for protected destinations. |
 | NP-D6 | Encrypted DNS chosen by apps (DNS over HTTPS) is ordinary traffic, protected by the tunnel in full-tunnel mode. Septuvo does not claim to control it in split mode. |
+| NP-D7 | **DNS leak prevention is mandatory and cannot be disabled** during a protected connection (D-039). No setting, mode or fallback may send DNS outside the permitted routing policy. |
+| NP-D8 | Septuvo's own **encrypted DNS transport** (DoH, DoT; D-039) is separate from leak prevention. Its resolvers are reached **only through the tunnel**; certificates and names are always validated, with no bypass; bootstrap uses IP addresses or a resolver reached through the tunnel, never the underlay's DNS. **Not implemented**; needs the TLS client decision. |
+| NP-D9 | When the chosen resolver fails, Septuvo either blocks DNS (default) or uses standard DNS **through the tunnel** if the user chose that. It never falls back to the underlay's or the system's DNS. |
+| NP-D10 | DNS settings are global with per-connection overrides, stored and enforced by the service. In split mode, the system's DNS may be used only for names outside the protected domains, and only once the protected domains are always sent through the tunnel (NP-D2); until then `dns.mode = "system"` must be refused (implementation change recorded in [desktop-ui-reconciliation.md](../reviews/desktop-ui-reconciliation.md), C10). |
+
+## 6A. Local Network Access (D-040)
+
+| ID | Requirement |
+| --- | --- |
+| NP-L1 | **Not Allowed by default.** A user setting (Advanced Home tile, Settings → Network), enforced by the service. |
+| NP-L2 | **Allowed** permits traffic only to the subnets **directly attached** to the current underlay interface, as computed by the service from the interface's own addresses and prefix lengths: never a configured list of "private ranges" (NP-E7). |
+| NP-L3 | **Size caps**, because the prefix comes from DHCP or router advertisements that an attacker can control: IPv4 prefixes shorter than /16 and IPv6 on-link prefixes shorter than /64 are not opened (IPv6 link-local `fe80::/10` on that interface is). The exact caps are confirmed by the independent review. |
+| NP-L4 | A local subnet that overlaps any tunnel prefix, blocked prefix or server endpoint is **not** opened: the tunnel wins (NP-S5). |
+| NP-L5 | Local discovery (mDNS, LLMNR, SSDP, broadcast) stays blocked even when Allowed (Q3). |
+| NP-L6 | The exceptions are recomputed on every network change and removed at once when the interface changes; no stale local subnet stays open (NP-E4). |
+| NP-L7 | Server-side authorization (NP-G1) is unchanged: Local Network Access only concerns the device's own local network. |
+
+## 6B. Lockdown Mode (D-038)
+
+| ID | Requirement |
+| --- | --- |
+| NP-K1 | **Off by default.** When on, ordinary internet access is blocked whenever no VPN connection is established, including after a deliberate disconnect, after the app exits, across service restarts and from boot. |
+| NP-K2 | While blocking, only these are allowed: loopback, DHCP and IPv6 neighbour discovery (NP-U1, NP-U2), the endpoints of saved complete connections (so the user can connect), Local Network Access if Allowed (NP-U6), and the captive-portal helper window when the user starts one (NP-U5). |
+| NP-K3 | **From boot:** the blocking rules are in place before any underlay interface is configured, so there is no window at start-up. |
+| NP-K4 | It ends only when the user turns it off, through the documented administrator recovery command, or on uninstall (which says so). A stopped or crashed service leaves the rules in place (NP-E5). |
+| NP-K5 | Lockdown Mode is not automatic connection; the two are separate settings. |
 
 ## 7. Gateway (Septuvo Server) rules
 
@@ -132,22 +159,25 @@ Each scenario states the packet path, the DNS path, where any exception comes fr
 
 | Event | Required behaviour |
 | --- | --- |
-| Tunnel drops or the server is unreachable | Kill switch stays; protected traffic dropped; status shows the failed stage; automatic reconnect |
+| Tunnel drops or the server is unreachable | Kill switch stays; protected traffic dropped; status shows the failed stage; automatic reconnect if **Reconnect Automatically** is on |
+| User selects another saved connection while connected | The kill switch stays throughout; the old session ends, the new one starts, and the ruleset changes in one atomic step; the result (or error) is shown (D-041) |
 | Server identity does not match | Connection refused; no fallback; clear error; kill switch stays |
 | DNS through the tunnel fails | DNS stage shows failure; no fallback to underlay DNS |
 | Network change (Wi-Fi ↔ mobile, new DHCP lease) | Rules stay; tunnel re-established; no gap (NP-E4) |
 | Sleep and wake | Rules stay; reconnect after wake; no traffic before the rules are verified |
 | Septuvo service crash | Kernel keeps the rules (NP-E5); service repairs on restart |
 | Update of Septuvo | Rules stay in place during the update; the new version takes over the existing rules |
-| User closes the app window | Tunnel and rules stay (D-019) |
-| User explicitly disconnects | Rules removed and normal networking restored, unless always-on is enabled (Q2, Q4) |
-| Boot before the service starts | Unprotected unless always-on is enabled, which blocks from boot (Q4) |
-| Uninstall | All Septuvo routes, rules and DNS changes removed; verified, not assumed |
+| User clicks X with the default **Exit and Disconnect** | A deliberate disconnect, then the app exits (D-041); with Lockdown Mode on, blocking continues |
+| User clicks X with **Send to System Tray** | The window hides; tunnel and rules stay (D-041) |
+| The app crashes, is killed or the user logs out | **Nothing changes in the service**: tunnel and rules stay exactly as they were (D-041) |
+| User explicitly disconnects | Rules removed and normal networking restored, **unless Lockdown Mode is on**, in which case blocking continues (Q2 as amended by D-038) |
+| Boot before the service starts | Unprotected unless Lockdown Mode is on, which blocks from boot (NP-K3; Q4 as amended by D-038) |
+| Uninstall | All Septuvo routes, rules (including Lockdown Mode) and DNS changes removed; verified, not assumed; the user is told Lockdown Mode ends |
 
 ## 9. How this is tested
 
 - **Policy decisions:** `crates/septuvo-policy` unit and table tests (N1-02).
-- **Firewall, route and DNS enforcement in Linux network namespaces:** N1-03, covering NP-E1 to NP-E6, NP-U1 to NP-U4, NP-6.1 to NP-6.3, NP-D1, NP-D2 and NP-D5.
+- **Firewall, route and DNS enforcement in Linux network namespaces:** N1-03, covering NP-E1 to NP-E6, NP-U1 to NP-U4, NP-6.1 to NP-6.3, NP-D1, NP-D2 and NP-D5; the revised N4 adds Lockdown Mode (NP-K1–NP-K5), Local Network Access (NP-L1–NP-L7), profile switching without a gap (NP-E2) and DNS settings (NP-D7, NP-D9, NP-D10).
 - **Real tunnel scenarios NP-S1 to NP-S5 and the section 8 failures:** M5 and the G2 lab.
 - **Other platforms:** M7.
 
@@ -164,9 +194,9 @@ Full explanations, options and trade-offs: [M1-owner-questions.md](../reviews/M1
 | Q | Question | Decision (as recommended) |
 | --- | --- | --- |
 | Q1 | Captive portals (hotel or café login pages) | A user-started, time-limited (at most 5 minutes) captive-portal mode that lets web traffic out directly with a clear warning, then re-blocks. No permanent bypass. |
-| Q2 | When the user explicitly disconnects, should blocking stay? | No: explicit disconnect restores normal networking. Any failure keeps blocking. |
+| Q2 | When the user explicitly disconnects, should blocking stay? | No: explicit disconnect restores normal networking. Any failure keeps blocking. **Amended 2026-10-18 (D-038):** blocking stays if the user turned Lockdown Mode on. |
 | Q3 | Local discovery (mDNS, `.local`, casting, printers) | Blocked by default in version 1; NAS reached by address or a configured name. Revisit later. |
-| Q4 | Always-on mode that blocks from boot | Offered as a setting, off by default (it can lock a new user out of the internet). |
+| Q4 | Always-on mode that blocks from boot | Offered as a setting, off by default (it can lock a new user out of the internet). **Amended 2026-10-18 (D-038):** this is **Lockdown Mode** (section 6B); automatic connection is a separate setting. |
 | Q5 | Overlapping home and local subnets | The tunnel wins while connected (NP-S5); address mapping considered later. |
 | Q6 | Traffic between the user's own enrolled devices | Off by default; the administrator can allow it. |
 | Q13 | Default tunnel address range | A random `/24` inside `10.0.0.0/8` and a random IPv6 ULA `/64` (RFC 4193), picked per server at setup to avoid collisions; configurable. |
