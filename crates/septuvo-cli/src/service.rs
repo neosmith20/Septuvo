@@ -39,6 +39,8 @@ pub fn details(response: &Response) -> String {
         ("state", "Service state"),
         ("kill_switch", "Kill switch"),
         ("interface", "Tunnel interface"),
+        ("dns_policy", "DNS policy"),
+        ("resolver_file", "Resolver file"),
         ("note", "Note"),
     ] {
         if let Some(value) = response.field(key) {
