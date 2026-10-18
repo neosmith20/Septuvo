@@ -100,7 +100,7 @@ class Base(unittest.TestCase):
 
 class Tracks(unittest.TestCase):
     def test_every_track_needs_g0(self):
-        for track in ("N1", "N2", "N3"):
+        for track in ("N1", "N2", "N3", "N4"):
             self.assertEqual(L.REQUIRED_GATE[track], "G0")
             self.assertEqual(L.milestone_of(track + "-01"), track)
 

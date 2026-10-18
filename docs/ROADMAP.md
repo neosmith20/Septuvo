@@ -51,6 +51,19 @@ Work order: [work-orders/N3.md](work-orders/N3.md).
 
 **Acceptance:** as N2, plus a verified install/uninstall cycle on a disposable runner and recorded fuzz runs.
 
+## N4 — Septuvo VPN desktop application for Linux (parallel track, after G0, before G1)
+
+Work order: [work-orders/N4.md](work-orders/N4.md). An early, lab-only Linux slice of M7-01/M7-02; M7 itself is unchanged.
+- **N4-01:** toolkit dependency review (GTK 4 + libadwaita via gtk-rs, `ksni` tray), application skeleton in a separate `desktop/` workspace, CI.
+- **N4-02:** status and monitoring window (shared status model, service-lost banner, responsive and accessible).
+- **N4-03:** tray icon and desktop notifications; closing is not disconnecting (D-019).
+- **N4-04:** connect, disconnect and captive-portal controls through the control socket; permission guidance, no privilege prompts.
+- **N4-05:** configuration management: service-mediated `CONFIG-GET` / `CONFIG-APPLY`, validated twice, atomic and fail-closed.
+- **N4-06:** diagnostics: service `DIAGNOSE`, `septuvo diagnose`, app page, a local text report (no telemetry).
+- **N4-07:** desktop packaging, accessibility and responsiveness pass, user guide.
+
+**Acceptance:** CI green with headless UI tests and namespace lab cases for each task; never "connected" before G1; the main workspace stays free of third-party crates.
+
 ## M0 — repository baseline and owner sign-off (FIRST)
 
 **Goal:** a coherent blueprint before any cryptographic/network implementation.
