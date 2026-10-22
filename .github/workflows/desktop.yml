@@ -104,6 +104,7 @@ jobs:
         run: |
           mkdir -p screenshots
           cp docs/ui/desktop/Default_VPN_UI.png screenshots/0-reference-Default_VPN_UI.png
+          cp docs/ui/desktop/Advanced_VPN_UI.png screenshots/0-reference-Advanced_VPN_UI.png
           for state in empty blocking captive failed lost disconnecting protected; do
             for size in 780x760 520x580; do
               LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x900x24" timeout 60 \
@@ -111,6 +112,16 @@ jobs:
               test -s "screenshots/$state-$size.png"
             done
           done
+          for state in empty blocking captive failed lost disconnecting protected; do
+            for size in 980x640 760x560; do
+              LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x900x24" timeout 60 \
+                desktop/target/release/examples/preview "$state" --advanced --size "$size" --screenshot "screenshots/advanced-$state-$size.png"
+              test -s "screenshots/advanced-$state-$size.png"
+            done
+          done
+          LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x900x24" timeout 60 \
+            desktop/target/release/examples/preview blocking --advanced --settings --screenshot screenshots/advanced-settings-980x640.png
+          test -s screenshots/advanced-settings-980x640.png
           ls -l screenshots
 
       - name: Upload the screenshots

@@ -195,3 +195,69 @@ pub fn shield(painter: &Painter, r: Rect, c: Color32, check: bool) {
         );
     }
 }
+
+/// A globe: circle, equator, two latitudes and a meridian ellipse
+/// (Connections tab, the IP row).
+pub fn globe(painter: &Painter, r: Rect, c: Color32) {
+    let s = Stroke::new(width(r), c);
+    let center = r.center();
+    let radius = r.width() * 0.44;
+    painter.circle_stroke(center, radius, s);
+    line(painter, vec![p(r, 0.06, 0.5), p(r, 0.94, 0.5)], s);
+    for y in [0.3, 0.7] {
+        line(painter, vec![p(r, 0.14, y), p(r, 0.86, y)], s);
+    }
+    let meridian: Vec<Pos2> = (0..=32u8)
+        .map(|i| {
+            let a = TAU * f32::from(i) / 32.0;
+            pos2(
+                center.x + radius * 0.45 * a.cos(),
+                center.y + radius * a.sin(),
+            )
+        })
+        .collect();
+    line(painter, meridian, s);
+    line(painter, vec![p(r, 0.5, 0.06), p(r, 0.5, 0.94)], s);
+}
+
+/// A monitor with a pulse line (Diagnostics tab).
+pub fn monitor(painter: &Painter, r: Rect, c: Color32) {
+    let s = Stroke::new(width(r), c);
+    let screen = Rect::from_min_max(p(r, 0.08, 0.14), p(r, 0.92, 0.72));
+    painter.rect_stroke(
+        screen,
+        r.width() * 0.06,
+        s,
+        eframe::egui::StrokeKind::Middle,
+    );
+    line(painter, vec![p(r, 0.5, 0.72), p(r, 0.5, 0.86)], s);
+    line(painter, vec![p(r, 0.3, 0.88), p(r, 0.7, 0.88)], s);
+    line(
+        painter,
+        vec![
+            p(r, 0.2, 0.46),
+            p(r, 0.38, 0.46),
+            p(r, 0.46, 0.3),
+            p(r, 0.56, 0.58),
+            p(r, 0.64, 0.42),
+            p(r, 0.8, 0.42),
+        ],
+        s,
+    );
+}
+
+/// A filled rounded square: the approved Advanced Disconnect symbol.
+pub fn stop(painter: &Painter, r: Rect, c: Color32) {
+    let square = Rect::from_center_size(r.center(), r.size() * 0.62);
+    painter.rect_filled(square, r.width() * 0.14, c);
+}
+
+/// Two overlapping rounded squares (copy to clipboard).
+pub fn copy(painter: &Painter, r: Rect, c: Color32) {
+    let s = Stroke::new(width(r), c);
+    let back = Rect::from_min_max(p(r, 0.34, 0.12), p(r, 0.88, 0.66));
+    let front = Rect::from_min_max(p(r, 0.12, 0.34), p(r, 0.66, 0.88));
+    painter.rect_stroke(back, r.width() * 0.08, s, eframe::egui::StrokeKind::Middle);
+    painter.rect_filled(front, r.width() * 0.08, crate::theme::token::NAVY);
+    painter.rect_stroke(front, r.width() * 0.08, s, eframe::egui::StrokeKind::Middle);
+}

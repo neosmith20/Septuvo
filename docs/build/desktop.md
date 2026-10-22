@@ -47,6 +47,40 @@ Rendered with Mesa's software OpenGL. **Sample data** from a fake service; `prot
 
 ![All states at 520 x 580](desktop-screens/states-520x580.png)
 
+## What N4-02 adds
+
+The **Advanced main window** ([ADVANCED-UI.md](../ui/desktop/ADVANCED-UI.md), `Advanced_VPN_UI.png`) and **Interface Mode** switching.
+
+| Part | Where | Notes |
+| --- | --- | --- |
+| Advanced window | `desktop/src/advanced_window.rs` | Header with the lockup and the **Home**, **Connections**, **Settings**, **Diagnostics** tabs (selected tab underlined); the Home panel (headline, text, status row, main button, connection card, IP row, hero placeholder); the three tiles. 980 × 640 at first, minimum 760 × 560; below 900 px the tiles stack and the window scrolls |
+| Home view model | `desktop/src/home.rs` | Built from the same service answer as the Simple window, so both modes always agree. **You’re Connected** only when all four checks pass |
+| Tiles (ADVANCED-UI §11) | `home.rs` | **Kill Switch** and **DNS Protection**: status only, never buttons. **Local Network Access**: the service's value; operable from N4-04 |
+| Interface Mode | `desktop/src/shells.rs` (Settings → Interface), `app.rs` | `Simple` / `Advanced`, saved at once; the window takes the mode's size (each mode remembers its own). **Sends nothing to the service**: the connection, a pending Disconnect and notices carry over |
+| Tab pages | `advanced_window.rs`, `shells.rs` | Connections, Settings and Diagnostics show the same content as the Simple windows |
+
+**Truthful values (ADVANCED-UI §6, §11):**
+
+| Tile or card | Value |
+| --- | --- |
+| Kill Switch | **On** when the service reports its rules installed; **Off** when nothing is active; **Failed** when the rules are missing (`error-kill-switch-missing`); **Unknown** otherwise, and whenever the service is lost |
+| DNS Protection | **On** only when all four checks pass; **Off** when nothing is active; **Failed** with the kill switch; **Unknown** otherwise. The service does not yet report DNS enforcement on its own, so while blocking it is **Unknown** |
+| Local Network Access | **Allowed** / **Not Allowed** from the service's `local_network` field; **Unknown** while the service does not report it (until N4-04) |
+| Connection card | The connection's name and server address with the neutral icon; no country, city or flag. **No Connections** until N4-03 |
+| Your New IP Address | **Not Connected**, or **Not Available** when connected: the address can only come from your own server over the verified tunnel (after G1). No copy button until there is an address |
+
+**Screenshots**, sample data from a fake service (`protected` and its Local Network Access value cannot happen today):
+
+![Approved Advanced reference beside the N4-02 build](desktop-screens/compare-advanced.png)
+
+**Every state at 980 × 640, and the Settings tab:**
+
+![Advanced states at 980 x 640](desktop-screens/advanced-states-980x640.png)
+
+**Every state at 760 × 560** (the minimum; the tiles stack and the window scrolls):
+
+![Advanced states at 760 x 560](desktop-screens/advanced-states-760x560.png)
+
 ## Build and run
 
 From `desktop/`:
@@ -64,13 +98,15 @@ To control the service your user must be in its control group (`septuvo`); witho
 ```sh
 cargo run --locked --example preview -- blocking
 cargo run --locked --example preview -- lost --size 520x580 --screenshot lost.png
+cargo run --locked --example preview -- blocking --advanced            # Advanced, 980 x 640
+cargo run --locked --example preview -- blocking --advanced --settings # the Settings tab
 ```
 
 States: `empty`, `blocking`, `captive`, `failed`, `lost`, `disconnecting`, `protected`.
 
 **Requirements on the machine:** a Wayland or X11 desktop with OpenGL (Mesa provides software OpenGL without a GPU) and `libxkbcommon`. These are operating-system libraries, loaded at run time.
 
-**Preferences:** `$XDG_CONFIG_HOME/septuvo/desktop.conf` (normally `~/.config/septuvo/desktop.conf`): interface mode, close-button behaviour, window size and position. Plain text, written atomically with mode 0600, at most 16 KiB read; a damaged file falls back to the defaults.
+**Preferences:** `$XDG_CONFIG_HOME/septuvo/desktop.conf` (normally `~/.config/septuvo/desktop.conf`): interface mode, close-button behaviour, and window size and position for each mode. Plain text, written atomically with mode 0600, at most 16 KiB read; a damaged file falls back to the defaults.
 
 ## Tests
 
@@ -88,6 +124,8 @@ cargo test --locked          # from desktop/
   - the status following the service without a restart;
   - Disconnect, a failed disconnect, the tiles opening their windows;
   - every X case.
+- **Advanced Home view model** (`src/home.rs`): every Home state and tile value; Kill Switch and DNS never On unless the service says so (DNS On only for all 16 check combinations' all-pass case); unreported values are Unknown; spoken tile names.
+- **Advanced window and Interface Mode** (`tests/advanced_window.rs`): the approved structure at 980 × 640, 760 × 560 and 1400 × 900; Kill Switch and DNS are not buttons; Local Network Access is not operable yet; every Home state; tabs and the connection card; Disconnect and the X; keyboard order; and **switching Simple → Advanced → Simple with the kill switch blocking sends the fake service nothing but status requests**, and the state is unchanged.
 - **Theme** (`src/theme.rs`): text colours meet WCAG AA contrast (4.5:1) on their backgrounds.
 - **The X against the real service** (`tests/lab_close.rs`, ignored by default): run by `tests/lab/namespaces/desktop_close.sh` as root on a disposable machine. It starts `septuvod` in a lab namespace and connects; then, as a control-group member, the app's X must disconnect the service and exit; as a user outside the group, disconnect is refused, the window stays with the error, and a second X exits without changing the service.
 
@@ -138,6 +176,6 @@ Changing the allowlist is a dependency decision (D-015): it needs the owner's ap
 5. the root-refusal check (`sudo septuvo-vpn` must exit 2);
 6. a headless start-up under Xvfb with Mesa software OpenGL (still running after 10 s);
 7. the desktop close lab against `septuvod` in a throw-away namespace;
-8. screenshots of every state at 780 × 760 and 520 × 580, with the reference image, uploaded as the `desktop-main-window-screenshots` artifact.
+8. screenshots of every state, Simple at 780 × 760 and 520 × 580 and Advanced at 980 × 640 and 760 × 560 (and its Settings tab), with both reference images, uploaded as the `desktop-main-window-screenshots` artifact.
 
 Xvfb, Mesa, the X11/Wayland/keyboard libraries, nftables and iproute2 are Ubuntu packages installed on the runner only, to run the tests.

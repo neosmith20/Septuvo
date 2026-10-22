@@ -15,6 +15,7 @@ use eframe::egui::{
 
 use crate::assets::Textures;
 use crate::icons;
+use crate::prefs::InterfaceMode;
 use crate::state::{ButtonAction, MainView, Shield};
 use crate::theme::{self, bold, medium, semibold, token};
 
@@ -43,13 +44,15 @@ pub enum Action {
     Main(ButtonAction),
     /// Opened a secondary window.
     Open(Shell),
+    /// Chose an Interface Mode in Settings (never a network action).
+    SetMode(InterfaceMode),
 }
 
-fn translucent(c: Color32, alpha: u8) -> Color32 {
+pub(crate) fn translucent(c: Color32, alpha: u8) -> Color32 {
     Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), alpha)
 }
 
-fn focus_ring(ui: &Ui, resp: &Response, rect: Rect, radius: f32) {
+pub(crate) fn focus_ring(ui: &Ui, resp: &Response, rect: Rect, radius: f32) {
     if resp.has_focus() {
         ui.painter().rect_stroke(
             rect.expand(3.0),
@@ -61,7 +64,13 @@ fn focus_ring(ui: &Ui, resp: &Response, rect: Rect, radius: f32) {
 }
 
 /// A rounded rectangle filled with a left-to-right gradient.
-fn gradient_pill(painter: &egui::Painter, rect: Rect, radius: f32, left: Color32, right: Color32) {
+pub(crate) fn gradient_pill(
+    painter: &egui::Painter,
+    rect: Rect,
+    radius: f32,
+    left: Color32,
+    right: Color32,
+) {
     let r = radius.min(rect.height() / 2.0).min(rect.width() / 2.0);
     let corners = [
         (
@@ -109,48 +118,42 @@ fn gradient_pill(painter: &egui::Painter, rect: Rect, radius: f32, left: Color32
 
 fn header(ui: &mut Ui, tex: &Textures, width: f32) -> Rect {
     let (rect, _) = ui.allocate_exact_size(vec2(width, 80.0), Sense::hover());
-    let painter = ui.painter_at(rect);
-    let lockup_left = rect.left() + 24.0;
-    let mut x = rect.left() + 24.0;
+    lockup(ui, tex, pos2(rect.left() + 24.0, rect.center().y), 1.0);
+    rect
+}
+
+/// The "Septuvo VPN" lockup, left-centred at `at`, `scale` 1.0 = the Simple
+/// header (S mark 54 px high). Registered as one accessible image named
+/// "Septuvo VPN". Returns its rectangle.
+pub(crate) fn lockup(ui: &mut Ui, tex: &Textures, at: egui::Pos2, scale: f32) -> Rect {
+    let painter = ui.painter().clone();
+    let full = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
+    let mut x = at.x;
     if let Some(s) = &tex.s_mark {
-        let h = 54.0;
-        let w = h * 103.0 / 160.0;
-        let r = Rect::from_min_size(pos2(x, rect.center().y - h / 2.0), vec2(w, h));
-        painter.image(
-            s.id(),
-            r,
-            Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-            Color32::WHITE,
-        );
-        x = r.right() + 12.0;
+        let h = 54.0 * scale;
+        let r = Rect::from_min_size(pos2(x, at.y - h / 2.0), vec2(h * 103.0 / 160.0, h));
+        painter.image(s.id(), r, full, Color32::WHITE);
+        x = r.right() + 12.0 * scale;
     }
     if let Some(w) = &tex.wordmark {
-        let h = 30.0;
-        let r = Rect::from_min_size(
-            pos2(x, rect.center().y - h / 2.0 + 1.0),
-            vec2(h * 385.0 / 72.0, h),
-        );
-        painter.image(
-            w.id(),
-            r,
-            Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-            Color32::WHITE,
-        );
-        x = r.right() + 9.0;
+        let h = 30.0 * scale;
+        let r = Rect::from_min_size(pos2(x, at.y - h / 2.0 + scale), vec2(h * 385.0 / 72.0, h));
+        painter.image(w.id(), r, full, Color32::WHITE);
+        x = r.right() + 9.0 * scale;
     }
     let vpn = painter.text(
-        pos2(x, rect.center().y - 1.0),
+        pos2(x, at.y - scale),
         Align2::LEFT_CENTER,
         "VPN",
-        bold(29.0),
+        bold(29.0 * scale),
         token::BLUE,
     );
     // The lockup is one accessible image named "Septuvo VPN", not three parts.
-    let lockup = Rect::from_min_max(
-        pos2(lockup_left, rect.top() + 13.0),
-        pos2(vpn.right(), rect.bottom() - 13.0),
+    let rect = Rect::from_min_max(
+        pos2(at.x, at.y - 27.0 * scale),
+        pos2(vpn.right(), at.y + 27.0 * scale),
     );
-    let resp = ui.interact(lockup, ui.id().with("septuvo-vpn-lockup"), Sense::hover());
+    let resp = ui.interact(rect, ui.id().with("septuvo-vpn-lockup"), Sense::hover());
     resp.widget_info(|| WidgetInfo::labeled(WidgetType::Image, true, "Septuvo VPN"));
     rect
 }
@@ -207,7 +210,13 @@ fn selector(ui: &mut Ui, v: &MainView, width: f32) {
 
 fn shield_area(ui: &mut Ui, shield: Shield, size: f32) {
     let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), Sense::hover());
-    let painter = ui.painter_at(rect);
+    paint_shield(&ui.painter_at(rect), rect, shield);
+}
+
+/// The ring and shield in `rect` (a square). Decoration: the status is
+/// always in words too.
+pub(crate) fn paint_shield(painter: &egui::Painter, rect: Rect, shield: Shield) {
+    let size = rect.width().min(rect.height());
     let c = rect.center();
     let colour = match shield {
         Shield::Verified => token::ELECTRIC,
@@ -224,7 +233,7 @@ fn shield_area(ui: &mut Ui, shield: Shield, size: f32) {
     );
     painter.circle_stroke(c, size * 0.47, Stroke::new(1.5, translucent(colour, 70)));
     icons::shield(
-        &painter,
+        painter,
         Rect::from_center_size(c, Vec2::splat(size * 0.42)),
         colour,
         shield == Shield::Verified,
