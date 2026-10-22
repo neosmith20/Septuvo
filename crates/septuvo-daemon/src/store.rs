@@ -505,7 +505,7 @@ mod tests {
     fn add_list_get_rename_select_delete() {
         let dir = temp("cycle");
         let mut s = Store::open(&dir, false).expect("open");
-        assert!(s.list().is_empty());
+        assert_eq!(s.list(), &[] as &[(ConnectionId, String)]);
         let home = s.add(&named("Home VPN")).expect("add");
         let work = s.add(&named("Büro \"Main\"")).expect("add unicode");
         assert_eq!(home.to_string(), "c0001");
