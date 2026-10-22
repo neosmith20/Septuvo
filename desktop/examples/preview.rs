@@ -1,14 +1,16 @@
-//! Design preview of the Septuvo VPN main window with **sample data** (N4-01).
+//! Design preview of the Septuvo VPN main windows with **sample data**
+//! (N4-01, N4-02).
 //!
-//! Shows the Simple main window in each state, from a fake service, so the
-//! owner can compare it with `docs/ui/desktop/Default_VPN_UI.png`. The
+//! Shows the Simple or Advanced main window in each state, from a fake
+//! service, so the owner can compare it with `docs/ui/desktop/*.png`. The
 //! window title says "SAMPLE DATA". Development only: an example, never part
 //! of the `septuvo-vpn` binary. `protected` is a state today's service can
-//! never report (no tunnel before G1); it exists only to check the design.
+//! never report (no tunnel before G1), and its Local Network Access value is
+//! invented too; it exists only to check the design.
 //!
 //! ```text
 //! cargo run --example preview -- [empty|blocking|captive|failed|lost|disconnecting|protected]
-//!                                [--size 780x760] [--screenshot out.png]
+//!                                [--advanced [--settings]] [--size 780x760] [--screenshot out.png]
 //! ```
 //!
 //! With `--screenshot`, the window saves itself as a PNG after a few frames
@@ -16,8 +18,9 @@
 
 use eframe::egui;
 use septuvo_cli::watch::Snapshot;
-use septuvo_desktop::app::{SeptuvoApp, native_options};
-use septuvo_desktop::prefs::{Bounds, Prefs};
+use septuvo_desktop::advanced_window::Page;
+use septuvo_desktop::app::{SeptuvoApp, native_options, sizes};
+use septuvo_desktop::prefs::{Bounds, InterfaceMode, Prefs};
 use septuvo_desktop::service::Fake;
 use septuvo_desktop::state::samples;
 use std::path::PathBuf;
@@ -92,14 +95,19 @@ fn fake(state: &str) -> Option<Fake> {
                 Snapshot::Lost("no Septuvo service is running (looked in /run/septuvo)".into());
             Fake::new(lost.clone(), lost)
         }
-        "protected" => Fake::new(svc(samples::protected()), off),
+        "protected" => Fake::new(
+            svc(samples::protected().with("local_network", "allowed")),
+            off,
+        ),
         _ => return None,
     })
 }
 
 fn main() -> ExitCode {
     let mut state = "empty".to_string();
-    let mut size = [780.0, 760.0];
+    let mut size = None;
+    let mut mode = InterfaceMode::Simple;
+    let mut settings = false;
     let mut screenshot = None;
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
@@ -113,8 +121,10 @@ fn main() -> ExitCode {
                     eprintln!("preview: --size needs WIDTHxHEIGHT");
                     return ExitCode::from(2);
                 };
-                size = s;
+                size = Some(s);
             }
+            "--advanced" => mode = InterfaceMode::Advanced,
+            "--settings" => settings = true,
             "--screenshot" => screenshot = args.next().map(PathBuf::from),
             s => state = s.to_string(),
         }
@@ -123,15 +133,20 @@ fn main() -> ExitCode {
         eprintln!("preview: unknown state `{state}`");
         return ExitCode::from(2);
     };
-    let prefs = Prefs {
-        bounds: Some(Bounds {
+    let size = size.unwrap_or(sizes(mode).0);
+    let mut prefs = Prefs {
+        interface_mode: mode,
+        ..Prefs::default()
+    };
+    prefs.set_bounds_for(
+        mode,
+        Bounds {
             width: size[0],
             height: size[1],
             position: None,
             maximized: false,
-        }),
-        ..Prefs::default()
-    };
+        },
+    );
     let mut options = native_options(&prefs);
     options.viewport = options
         .viewport
@@ -143,6 +158,9 @@ fn main() -> ExitCode {
         options,
         Box::new(move |_cc| {
             let mut app = SeptuvoApp::new(Box::new(link), prefs, None);
+            if settings {
+                app.open_page(Page::Settings);
+            }
             if disconnecting {
                 app.preview_disconnecting();
             }

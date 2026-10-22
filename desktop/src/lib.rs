@@ -10,9 +10,11 @@
 //! No cryptography, keys, enrollment or protocol code before the G1
 //! security review.
 
+pub mod advanced_window;
 pub mod app;
 pub mod assets;
 pub mod close;
+pub mod home;
 pub mod icons;
 pub mod main_window;
 pub mod prefs;

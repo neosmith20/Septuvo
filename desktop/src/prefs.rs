@@ -56,8 +56,10 @@ pub struct Prefs {
     pub interface_mode: InterfaceMode,
     /// Close Button Behavior.
     pub close_button: CloseButton,
-    /// Last non-maximized window bounds.
+    /// Last window bounds in Simple mode.
     pub bounds: Option<Bounds>,
+    /// Last window bounds in Advanced mode (its own size, ADVANCED-UI §4.2).
+    pub advanced_bounds: Option<Bounds>,
 }
 
 fn number(v: &str) -> Option<f32> {
@@ -65,13 +67,46 @@ fn number(v: &str) -> Option<f32> {
     (n.is_finite() && (-100_000.0..=100_000.0).contains(&n)).then_some(n)
 }
 
+/// One window's bounds while parsing.
+#[derive(Default)]
+struct Partial {
+    width: Option<f32>,
+    height: Option<f32>,
+    x: Option<f32>,
+    y: Option<f32>,
+    maximized: bool,
+}
+
+impl Partial {
+    fn set(&mut self, key: &str, v: &str) {
+        match key {
+            "width" => self.width = number(v).filter(|n| *n >= 1.0),
+            "height" => self.height = number(v).filter(|n| *n >= 1.0),
+            "x" => self.x = number(v),
+            "y" => self.y = number(v),
+            "maximized" => self.maximized = v == "true",
+            _ => {}
+        }
+    }
+
+    /// A size needs both dimensions; a position needs both coordinates.
+    fn finish(self) -> Option<Bounds> {
+        Some(Bounds {
+            width: self.width?,
+            height: self.height?,
+            position: self.x.zip(self.y),
+            maximized: self.maximized,
+        })
+    }
+}
+
 impl Prefs {
     /// Parses preferences text. Never fails: anything unusable is ignored.
     #[must_use]
-    #[allow(clippy::many_single_char_names)] // w, h, x, y: window geometry
     pub fn parse(text: &str) -> Prefs {
         let mut p = Prefs::default();
-        let (mut w, mut h, mut x, mut y, mut max) = (None, None, None, None, false);
+        let mut simple = Partial::default();
+        let mut advanced = Partial::default();
         for line in text.lines().take(256) {
             let line = line.trim();
             if line.is_empty() || line.starts_with('#') {
@@ -89,23 +124,17 @@ impl Prefs {
                 ("close_button", "exit-and-disconnect") => {
                     p.close_button = CloseButton::ExitAndDisconnect;
                 }
-                ("window_width", v) => w = number(v).filter(|n| *n >= 1.0),
-                ("window_height", v) => h = number(v).filter(|n| *n >= 1.0),
-                ("window_x", v) => x = number(v),
-                ("window_y", v) => y = number(v),
-                ("window_maximized", "true") => max = true,
-                _ => {}
+                (k, v) => {
+                    if let Some(rest) = k.strip_prefix("advanced_window_") {
+                        advanced.set(rest, v);
+                    } else if let Some(rest) = k.strip_prefix("window_") {
+                        simple.set(rest, v);
+                    }
+                }
             }
         }
-        if let (Some(width), Some(height)) = (w, h) {
-            let position = x.zip(y);
-            p.bounds = Some(Bounds {
-                width,
-                height,
-                position,
-                maximized: max,
-            });
-        }
+        p.bounds = simple.finish();
+        p.advanced_bounds = advanced.finish();
         p
     }
 
@@ -122,19 +151,37 @@ impl Prefs {
             CloseButton::ExitAndDisconnect => "close_button = exit-and-disconnect\n",
             CloseButton::SendToSystemTray => "close_button = send-to-system-tray\n",
         });
-        if let Some(b) = self.bounds {
-            let _ = writeln!(
-                s,
-                "window_width = {}\nwindow_height = {}",
-                b.width.round(),
-                b.height.round()
-            );
-            if let Some((x, y)) = b.position {
-                let _ = writeln!(s, "window_x = {}\nwindow_y = {}", x.round(), y.round());
+        for (prefix, bounds) in [
+            ("window_", self.bounds),
+            ("advanced_window_", self.advanced_bounds),
+        ] {
+            if let Some(b) = bounds {
+                let _ = writeln!(s, "{prefix}width = {}", b.width.round());
+                let _ = writeln!(s, "{prefix}height = {}", b.height.round());
+                if let Some((x, y)) = b.position {
+                    let _ = writeln!(s, "{prefix}x = {}\n{prefix}y = {}", x.round(), y.round());
+                }
+                let _ = writeln!(s, "{prefix}maximized = {}", b.maximized);
             }
-            let _ = writeln!(s, "window_maximized = {}", b.maximized);
         }
         s
+    }
+
+    /// The saved bounds for a mode.
+    #[must_use]
+    pub fn bounds_for(&self, mode: InterfaceMode) -> Option<Bounds> {
+        match mode {
+            InterfaceMode::Simple => self.bounds,
+            InterfaceMode::Advanced => self.advanced_bounds,
+        }
+    }
+
+    /// Sets the saved bounds for a mode.
+    pub fn set_bounds_for(&mut self, mode: InterfaceMode, b: Bounds) {
+        match mode {
+            InterfaceMode::Simple => self.bounds = Some(b),
+            InterfaceMode::Advanced => self.advanced_bounds = Some(b),
+        }
     }
 
     /// Loads preferences; a missing, unreadable or oversized file gives
@@ -196,6 +243,12 @@ mod tests {
                 height: 700.0,
                 position: Some((10.0, -20.0)),
                 maximized: true,
+            }),
+            advanced_bounds: Some(Bounds {
+                width: 980.0,
+                height: 640.0,
+                position: None,
+                maximized: false,
             }),
         };
         assert_eq!(Prefs::parse(&p.render()), p);

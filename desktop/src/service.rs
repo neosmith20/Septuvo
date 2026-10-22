@@ -136,6 +136,9 @@ pub struct Fake {
     pub after: Snapshot,
     /// Disconnects requested so far.
     pub disconnects: u32,
+    /// Every request made to the fake service, in order (`status`,
+    /// `disconnect`), shared with the test that created it.
+    pub log: std::sync::Arc<std::sync::Mutex<Vec<&'static str>>>,
     pending: Option<Result<(), String>>,
 }
 
@@ -149,17 +152,28 @@ impl Fake {
             disconnect_result: Ok(()),
             after,
             disconnects: 0,
+            log: std::sync::Arc::default(),
             pending: None,
+        }
+    }
+}
+
+impl Fake {
+    fn record(&self, request: &'static str) {
+        if let Ok(mut log) = self.log.lock() {
+            log.push(request);
         }
     }
 }
 
 impl Link for Fake {
     fn latest(&mut self) -> Snapshot {
+        self.record("status");
         self.snapshot.clone()
     }
 
     fn disconnect(&mut self) {
+        self.record("disconnect");
         self.disconnects += 1;
         if self.disconnect_result.is_ok() {
             self.snapshot = self.after.clone();
