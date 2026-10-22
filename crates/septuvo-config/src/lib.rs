@@ -21,7 +21,8 @@ pub mod server;
 pub mod toml;
 
 pub use device::{
-    DeviceConfig, DnsPolicy, ServerIdentity, TunnelSettings, load_device, parse_device,
+    DeviceConfig, DnsPolicy, MAX_NAME_CHARS, ServerIdentity, TunnelSettings, connection_name,
+    load_device, name_table, parse_device, quote, split_connection,
 };
 pub use error::{ConfigError, Problem};
 pub use schema::{DEFAULT_RETENTION_DAYS, MAX_RETENTION_DAYS};

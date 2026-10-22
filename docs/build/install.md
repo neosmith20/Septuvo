@@ -55,7 +55,8 @@ On top of the service's own guards (root, lab mode, the named namespace), `septu
 - protects the kernel, clock, hostname and control groups;
 - allows only Unix and netlink sockets;
 - forbids new namespaces, real-time scheduling, SUID and writable executable memory;
-- uses the `@system-service` system-call filter.
+- uses the `@system-service` system-call filter;
+- may write only `/etc/netns` and its own private state directory `/var/lib/septuvo` (mode 0700), which holds the saved connections (N4-03).
 
 **`systemd-analyze security` rates its exposure 2.3 ("OK")**, measured offline on 2026-10-17.
 
@@ -64,7 +65,7 @@ On top of the service's own guards (root, lab mode, the named namespace), `septu
 ## Uninstall
 
 ```sh
-sudo packaging/linux/uninstall.sh            # keeps /etc/septuvo and server device records
+sudo packaging/linux/uninstall.sh            # keeps /etc/septuvo, saved connections and server device records
 sudo packaging/linux/uninstall.sh --purge    # removes them too
 ```
 

@@ -5,6 +5,7 @@ septuvo-config toml_subset
 septuvo-config device_schema
 septuvo-config server_schema
 septuvo-ipc ipc_request
+septuvo-ipc ipc_framed
 septuvo-ipc ipc_response
 septuvo-ipc ipc_builder
 septuvo-server device_records

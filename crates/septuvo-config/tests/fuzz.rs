@@ -57,6 +57,8 @@ const DICT: &[&str] = &[
     "interface",
     "mtu",
     "always_on",
+    "[connection]",
+    "name",
     "retention_days",
     "address",
     "port",
@@ -198,7 +200,6 @@ fn kill_switch(c: &septuvo_config::DeviceConfig) -> KillSwitch {
                 resolvers: resolvers.clone(),
                 lan_exceptions: lan_exceptions.clone(),
             },
-            DnsPolicy::System => DnsRules::System,
         },
         captive_helper: None,
     }

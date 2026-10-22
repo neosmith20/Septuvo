@@ -106,6 +106,7 @@ lab_namespace = "$1"
 runtime_dir = "$RUN"
 control_group = "$GROUP"
 device_config = "$WORK/septuvo.toml"
+connections_dir = "$WORK/connections"
 EOF
 }
 settings "$C" lab > "$WORK/septuvod.toml"

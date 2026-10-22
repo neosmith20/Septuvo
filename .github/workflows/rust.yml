@@ -109,6 +109,11 @@ jobs:
       - name: Run the live status view lab
         run: sudo tests/lab/namespaces/watch.sh target/debug/septuvod target/debug/septuvo
 
+      # N4-03: saved connections; switching while connected never lets a
+      # packet out outside the policy (T2-SW-01).
+      - name: Run the saved-connections and switching lab
+        run: sudo tests/lab/namespaces/switch.sh target/debug/septuvod target/debug/septuvo
+
   # N3-01: installer and systemd service. A staged install (no root), then a
   # real install, use and uninstall on this disposable runner only.
   install:

@@ -1,4 +1,4 @@
-# Septuvo configuration files (N2-01)
+# Septuvo configuration files (N2-01, N4-03)
 
 **Status:** development preview. These files configure parts of Septuvo that exist today: routing policy, DNS policy and local settings on a device, and address ranges and storage on the server. **They do not make a working VPN.** The Septuvo Protocol and enrollment are not implemented before the G1 security review, so nothing here connects to anything.
 
@@ -56,12 +56,13 @@ Every file Septuvo accepts is valid [TOML](https://toml.io/en/v1.0.0), so standa
 | `routing.mode` | yes | `"full-tunnel"` (journey B) or `"split"` (journey A, D-027). In split mode, traffic outside the listed networks is **not** protected |
 | `routing.tunnel` / `direct` / `block` | no | Prefix lists, for example `"192.168.1.30/32"`. Host bits must be zero. Same rules as the N1 policy model: most specific prefix wins, duplicates are rejected, and a `direct` rule for `0.0.0.0/0` or `::/0` is rejected because it would switch protection off |
 | `[dns]` | yes | Must be present |
-| `dns.mode` | no | `"tunnel"` (the default) or `"system"`. `"system"` is refused in full-tunnel mode, because it would send DNS outside the tunnel. **To be tightened (D-039, NP-D10):** `"system"` will also be refused in split mode until the protected domains are always sent through the tunnel |
+| `dns.mode` | no | `"tunnel"`, the default and the only value accepted. **`"system"` is refused in both modes (N4-03, NP-D10):** in full-tunnel mode it would send DNS outside the tunnel; in split mode it stays refused until names in the protected networks are always resolved through the tunnel (per-domain DNS, NP-D2) |
 | `dns.resolvers` | yes, in tunnel mode | 1 to 4 resolver addresses. Each must be routed **through the tunnel** by `[routing]`; otherwise the file is rejected. Loopback resolvers are refused. In tunnel mode, all other DNS (UDP/TCP 53, DNS over TLS, DNS over QUIC) is blocked, in full-tunnel and split mode alike, and the resolver file points at these resolvers while connected ([daemon.md](daemon.md)). DNS over HTTPS cannot be blocked by port ([lab.md](lab.md#dns-over-https-cannot-be-blocked-by-port-stated-not-hidden)) |
 | `dns.lan_exceptions` | no | Up to 8 local resolvers allowed to receive DNS directly. Each must also be covered by a `routing.direct` rule |
 | `tunnel.interface` | no | 1–15 characters from `A-Z a-z 0-9 _ - .`; default `septuvo0` |
 | `tunnel.mtu` | no | 1280–9000; default 1420 (wire-format.md §5.2) |
-| `behavior.always_on` | no | **Retired by D-038 (2026-10-18), to be removed from the file format.** It conflated two things that are now separate global settings of the service: **Lockdown Mode** (blocking without a VPN) and **Connect Automatically at Startup**. Still accepted today; it has no effect. Default `false` |
+| `[behavior]` | — | **Refused since N4-03.** `behavior.always_on` was retired by D-038: it conflated two things that are now separate settings, **Lockdown Mode** (a service setting, blocking without the VPN) and **Connect Automatically at Startup** (an app setting). The error says so; remove the table |
+| `connection.name` | no | The friendly name of a **saved connection** (N4-03): 1–64 characters after trimming, no control characters, any language. Required when the file is saved with `septuvo connection add` (or give `--name`). The service keeps the name separately and adds it back on export, so exported files import again under the same name |
 | `logging.retention_days` | no | 0–365; default 7 (Q10) |
 | `[kill_switch]` | — | **Refused.** The kill switch is mandatory (D-038) and is lifted only by a deliberate disconnect (Q2), and not even then while Lockdown Mode is on (planned, N4-04) |
 
@@ -95,9 +96,13 @@ Errors name the position, the setting and the reason, for example:
 septuvo.toml: line 7, column 8: dns.mode: "system" DNS would send queries outside the tunnel in full-tunnel mode
 ```
 
-## Changes required by the approved desktop UI (planned, not implemented)
+## Saved connections (N4-03)
 
-The owner's desktop decisions (D-037–D-042) need a profile store with several saved connections, global DNS settings with per-connection overrides (Settings → DNS Protection), and service settings for Lockdown Mode and Local Network Access. They are scheduled in the revised N4 work order; until then this file format is unchanged except as noted above. Details: [desktop-ui-reconciliation.md](../reviews/desktop-ui-reconciliation.md).
+The service keeps the user's **complete** connections (N4-D11): each is a device file as above, validated before it is stored. Drafts stay in the app. See [daemon.md](daemon.md#saved-connections-n4-03).
+
+## Changes still to come from the approved desktop UI
+
+Global DNS settings with per-connection overrides (Settings → DNS Protection, N4-07) and the service settings for Lockdown Mode and Local Network Access (N4-04). Details: [desktop-ui-reconciliation.md](../reviews/desktop-ui-reconciliation.md).
 
 ## Not in this task
 

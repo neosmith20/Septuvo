@@ -6,7 +6,7 @@
 //! report as passed is shown as not passed.
 
 use crate::status::{Check, ConnectionStatus};
-use septuvo_ipc::{self as ipc, ClientError, Command, Outcome, Response};
+use septuvo_ipc::{self as ipc, ClientError, Command, Outcome, Request, Response};
 use std::fmt::Write as _;
 use std::path::Path;
 
@@ -37,7 +37,10 @@ pub fn details(response: &Response) -> String {
     for (key, label) in [
         ("message", "Service"),
         ("state", "Service state"),
+        ("failure", "Failure"),
+        ("connection", "Connection"),
         ("kill_switch", "Kill switch"),
+        ("dns_protection", "DNS protection"),
         ("interface", "Tunnel interface"),
         ("dns_policy", "DNS policy"),
         ("resolver_file", "Resolver file"),
@@ -110,12 +113,26 @@ pub struct Reply {
 /// status socket, changes over the control socket.
 #[must_use]
 pub fn ask(runtime_dir: &Path, command: Command) -> Reply {
-    let socket = if command.needs_control() {
+    reply(runtime_dir, call(runtime_dir, &Request::new(command)))
+}
+
+/// Sends `request` to the right socket under `runtime_dir`.
+///
+/// # Errors
+/// See [`ClientError`].
+pub fn call(runtime_dir: &Path, request: &Request) -> Result<Response, ClientError> {
+    let socket = if request.command.needs_control() {
         ipc::control_socket(runtime_dir)
     } else {
         ipc::status_socket(runtime_dir)
     };
-    match ipc::request(&socket, command) {
+    ipc::send(&socket, request)
+}
+
+/// A printable reply for a service answer (or the failure to get one).
+#[must_use]
+pub fn reply(runtime_dir: &Path, answer: Result<Response, ClientError>) -> Reply {
+    match answer {
         Ok(response) => {
             let status = status_from(&response);
             let mut text = details(&response);

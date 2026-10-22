@@ -9,7 +9,12 @@
 //! control_group = "septuvo"
 //! device_config = "/etc/septuvo/septuvo.toml"
 //! captive_helper_user = "septuvo-portal"   # optional: captive-portal mode (N3-02)
+//! connections_dir = "/var/lib/septuvo/connections"   # optional (N4-03)
 //! ```
+//!
+//! `device_config` is the configuration used when no saved connection is
+//! selected; saved connections live in `connections_dir` (the default
+//! shown), a root-owned private directory the service creates if needed.
 
 use septuvo_config::toml::{self, Value};
 use std::fmt;
@@ -34,7 +39,12 @@ pub struct Settings {
     /// The dedicated account captive-portal windows apply to (N3-02), or
     /// `None`: captive-portal mode is then unavailable.
     pub captive_helper_user: Option<String>,
+    /// Where saved connections are stored (N4-03).
+    pub connections_dir: PathBuf,
 }
+
+/// Default store of saved connections.
+pub const DEFAULT_CONNECTIONS_DIR: &str = "/var/lib/septuvo/connections";
 
 /// Why the settings were rejected.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -109,6 +119,7 @@ pub fn parse(text: &str) -> Result<Settings, SettingsError> {
     let mut control_group = None;
     let mut device_config = None;
     let mut captive_helper_user = None;
+    let mut connections_dir = None;
     for e in &table.entries {
         let Value::String(v) = &e.value else {
             return err(format!(
@@ -123,6 +134,7 @@ pub fn parse(text: &str) -> Result<Settings, SettingsError> {
             "control_group" => &mut control_group,
             "device_config" => &mut device_config,
             "captive_helper_user" => &mut captive_helper_user,
+            "connections_dir" => &mut connections_dir,
             _ => return err(format!("{}: daemon.{}: unknown key", e.key_span, e.key)),
         };
         *slot = Some(v.clone());
@@ -154,6 +166,10 @@ pub fn parse(text: &str) -> Result<Settings, SettingsError> {
     if !plain_absolute(&device_config) {
         return err("daemon.device_config must be a plain absolute path");
     }
+    let connections_dir = connections_dir.unwrap_or_else(|| DEFAULT_CONNECTIONS_DIR.to_string());
+    if !plain_absolute(&connections_dir) || connections_dir == "/" {
+        return err("daemon.connections_dir must be a plain absolute path");
+    }
     if let Some(user) = &captive_helper_user
         && (!valid_group(user) || user == "root")
     {
@@ -165,6 +181,7 @@ pub fn parse(text: &str) -> Result<Settings, SettingsError> {
         control_group,
         device_config: PathBuf::from(device_config),
         captive_helper_user,
+        connections_dir: PathBuf::from(connections_dir),
     })
 }
 
@@ -200,6 +217,15 @@ mod tests {
         assert_eq!(s.control_group, "septuvo");
         assert_eq!(s.device_config, PathBuf::from("/etc/septuvo/septuvo.toml"));
         assert_eq!(s.captive_helper_user, None, "captive-portal mode is opt-in");
+        assert_eq!(s.connections_dir, PathBuf::from(DEFAULT_CONNECTIONS_DIR));
+        let custom = parse(&format!("{GOOD}connections_dir = \"/tmp/lab/c\"\n")).expect("valid");
+        assert_eq!(custom.connections_dir, PathBuf::from("/tmp/lab/c"));
+        for bad in ["relative", "/", "/a/../b", "/a//b"] {
+            assert!(
+                parse(&format!("{GOOD}connections_dir = \"{bad}\"\n")).is_err(),
+                "{bad}"
+            );
+        }
     }
 
     #[test]

@@ -1,4 +1,5 @@
 # Septuvo device configuration: journey B, untrusted Wi-Fi (D-027).
+# Saved as a connection, it is named by the optional [connection] table.
 # Everything goes through the tunnel; one printer/NAS on the local network
 # is reachable directly. Check with: septuvo-config check device FILE
 version = 1
@@ -19,8 +20,8 @@ resolvers = ["10.77.0.1", "fd77:77:77::1"]
 interface = "septuvo0"
 mtu = 1420
 
-[behavior]
-always_on = false
-
 [logging]
 retention_days = 7
+
+[connection]
+name = "Travel"

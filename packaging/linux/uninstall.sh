@@ -7,8 +7,9 @@
 # namespace's resolver file), then removes the units, the lab namespace,
 # every installed file, the "septuvo" group and the "septuvo-portal" helper
 # account. No Septuvo rules are left
-# behind. /etc/septuvo and the server's device records in
-# /var/lib/septuvo-server are kept unless --purge is given.
+# behind. /etc/septuvo, the saved connections in /var/lib/septuvo and the
+# server's device records in /var/lib/septuvo-server are kept unless
+# --purge is given.
 # Licensed under PolyForm Noncommercial 1.0.0 (see NOTICE).
 set -u
 
@@ -76,10 +77,11 @@ if getent group septuvo >/dev/null; then
   groupdel septuvo && say "removed group septuvo"
 fi
 if [ "$PURGE" = 1 ]; then
-  rm -rf /etc/septuvo /var/lib/septuvo-server
-  say "purged /etc/septuvo and /var/lib/septuvo-server"
+  rm -rf /etc/septuvo /var/lib/septuvo /var/lib/septuvo-server
+  say "purged /etc/septuvo, /var/lib/septuvo and /var/lib/septuvo-server"
 else
   [ -d /etc/septuvo ] && say "kept /etc/septuvo (use --purge to remove it)"
+  [ -d /var/lib/septuvo ] && say "kept /var/lib/septuvo saved connections (use --purge to remove them)"
   [ -d /var/lib/septuvo-server ] && say "kept /var/lib/septuvo-server device records (use --purge to remove them)"
 fi
 say "done"

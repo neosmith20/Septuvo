@@ -11,8 +11,8 @@ mod fuzzer;
 
 use fuzzer::{Corpus, Rng, run, word};
 use septuvo_ipc::{
-    Command, MAX_FIELDS, MAX_KEY_BYTES, MAX_RESPONSE_BYTES, MAX_VALUE_BYTES, Outcome, Response,
-    parse_request, parse_response,
+    Command, MAX_BODY_BYTES, MAX_FIELDS, MAX_KEY_BYTES, MAX_RESPONSE_BYTES, MAX_VALUE_BYTES,
+    Outcome, Response, parse_framed, parse_request, parse_response, read_request,
 };
 use std::fmt::Write as _;
 
@@ -35,6 +35,17 @@ const DICT: &[&str] = &[
     "\0",
     "\u{1b}[2J",
     "state=blocking\n",
+    "LIST",
+    "GET c0001",
+    "DELETE c9999",
+    "SELECT c0002",
+    "ADD 5\n",
+    "REPLACE c0001 3\n",
+    "RENAME c0001 4\n",
+    "BODY 4\n",
+    "c0001\tHome\n",
+    "\u{e9}",
+    "\u{1f3e0}",
 ];
 
 #[test]
@@ -64,6 +75,64 @@ fn fuzz_ipc_request() {
     run("fuzz_ipc_request", &corpus, structured, check_ipc_request);
 }
 
+/// Requests with bodies (N4-03): the header announces a length; the body
+/// may be shorter, longer, or not text at all.
+#[test]
+fn fuzz_ipc_framed() {
+    let corpus = Corpus {
+        seeds: &[
+            "SEPTUVO/1 ADD 5\nabcde",
+            "SEPTUVO/1 RENAME c0001 8\nHome VPN",
+            "SEPTUVO/1 REPLACE c0002 12\nversion = 1\n",
+            "SEPTUVO/1 LIST\n",
+            "SEPTUVO/1 SELECT c0001\n",
+        ],
+        dict: DICT,
+    };
+    let structured = |rng: &mut Rng| {
+        let body = word(rng, b"ab =\n\t\"[]\xc3\xa9", 40);
+        let len = if rng.chance(80) {
+            body.len()
+        } else {
+            usize::try_from(rng.interesting_number() % 70_000).unwrap_or(0)
+        };
+        let id = rng.interesting_number() % 10_001;
+        let header = match rng.below(4) {
+            0 => format!("SEPTUVO/1 ADD {len}"),
+            1 => format!("SEPTUVO/1 REPLACE c{id:04} {len}"),
+            2 => format!("SEPTUVO/1 RENAME c{id:04} {len}"),
+            _ => format!(
+                "SEPTUVO/1 {} c{id:04}",
+                rng.pick(&["GET", "DELETE", "SELECT"])
+            ),
+        };
+        let mut out = format!("{header}\n").into_bytes();
+        out.extend_from_slice(body.as_bytes());
+        out
+    };
+    run("fuzz_ipc_framed", &corpus, structured, check_ipc_framed);
+}
+
+/// Property check for `fuzz_ipc_framed` (also called by the cargo-fuzz target).
+pub fn check_ipc_framed(data: &[u8]) -> bool {
+    // Reading never takes more than one request, and what it takes parses
+    // the same way.
+    let mut reader = data;
+    let read = read_request(&mut reader).expect("reading from memory cannot fail");
+    assert!(data.starts_with(&read));
+    assert!(read.len() <= septuvo_ipc::MAX_REQUEST_BYTES + 1 + MAX_BODY_BYTES);
+    match parse_framed(data) {
+        Ok(request) => {
+            // Only the canonical encoding is accepted, body included.
+            assert_eq!(request.encode(), data, "canonical form");
+            assert_eq!(request.body.is_some(), request.command.has_body());
+            assert_eq!(parse_framed(&read).as_ref(), Ok(&request), "read the same");
+            true
+        }
+        Err(_) => false,
+    }
+}
+
 fn structured_response(rng: &mut Rng) -> Vec<u8> {
     let mut s = if rng.chance(70) {
         String::from("SEPTUVO/1 OK\n")
@@ -78,6 +147,15 @@ fn structured_response(rng: &mut Rng) -> Vec<u8> {
         let key = word(rng, b"abcdefghijklmnopqrstuvwxyz_0123456789A", 34);
         let value = word(rng, b"abc =~\t", 210);
         let _ = writeln!(s, "{key}={value}");
+    }
+    if rng.chance(30) {
+        let body = word(rng, b"c01\tHome\nEND\xc3\xa9", 60);
+        let len = if rng.chance(85) {
+            body.len()
+        } else {
+            usize::try_from(rng.interesting_number() % 70_000).unwrap_or(0)
+        };
+        let _ = write!(s, "BODY {len}\n{body}");
     }
     s.push_str("END\n");
     s.into_bytes()
@@ -180,9 +258,17 @@ pub fn check_ipc_builder(data: &[u8]) -> bool {
         let value = any(&mut rng, MAX_VALUE_BYTES + 50);
         r = r.with(&key, &value);
     }
+    if rng.chance(30) {
+        r = r.with_body(&any(&mut rng, 300));
+    }
     let encoded = r.encode();
+    let body = r
+        .body
+        .as_ref()
+        .map_or(0, |b| b.len() + "BODY 65536\n".len());
+    assert!(body <= MAX_BODY_BYTES + 16);
     assert!(
-        encoded.len() <= MAX_RESPONSE_BYTES,
+        encoded.len() - body <= MAX_RESPONSE_BYTES,
         "built response of {} bytes exceeds the {MAX_RESPONSE_BYTES}-byte limit",
         encoded.len()
     );

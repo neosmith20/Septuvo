@@ -14,7 +14,7 @@ use fuzzer::{Corpus, Rng, ip_text, run, word};
 use septuvo_daemon::engine::{Engine, Firewall, Interfaces};
 use septuvo_daemon::resolver::{Resolver, nameservers};
 use septuvo_daemon::{guard, settings, sockets};
-use septuvo_ipc::{Command, parse_request};
+use septuvo_ipc::{Command, Request, parse_framed};
 use std::fmt::Write as _;
 use std::io::{Read, Write};
 use std::net::{IpAddr, Shutdown};
@@ -37,6 +37,7 @@ const DICT: &[&str] = &[
     "control_group",
     "device_config",
     "captive_helper_user",
+    "connections_dir",
     "\"root\"",
     "\"/\"",
     "\"/run//x\"",
@@ -427,16 +428,16 @@ pub fn check_control_requests(data: &[u8]) -> bool {
     let (mut client, mut server) = UnixStream::pair().expect("socket pair");
     client.write_all(data).expect("write request");
     let _ = client.shutdown(Shutdown::Write);
-    let mut called = None;
-    let mut handle = |c: Command| {
-        called = Some(c);
-        engine.handle(c, control)
+    let mut called: Option<Request> = None;
+    let mut handle = |r: &Request| {
+        called = Some(r.clone());
+        engine.handle_request(r, control)
     };
     sockets::serve_one(&mut server, &mut handle);
     drop(server);
     let mut reply = Vec::new();
     let _ = client.read_to_end(&mut reply);
-    if let Ok(exact) = parse_request(data) {
+    if let Ok(exact) = parse_framed(data) {
         assert_eq!(
             called,
             Some(exact),
@@ -447,11 +448,8 @@ pub fn check_control_requests(data: &[u8]) -> bool {
     let r = engine.handle(Command::Status, false);
     assert_eq!(r.field("peer"), Some("fail"), "never connected");
     match called {
-        Some(c) => {
-            assert!(
-                data.starts_with(c.encode().as_bytes()),
-                "only what was sent"
-            );
+        Some(r) => {
+            assert!(data.starts_with(&r.encode()), "only what was sent");
             true
         }
         None => false,
@@ -462,9 +460,10 @@ pub fn check_control_requests(data: &[u8]) -> bool {
 /// the cargo-fuzz target).
 pub fn check_status_socket_changes_nothing(data: &[u8]) -> bool {
     let mut engine = test_engine();
-    let accepted = match parse_request(data) {
-        Ok(c) => {
-            let r = engine.handle(c, false);
+    let accepted = match parse_framed(data) {
+        Ok(request) => {
+            let c = request.command;
+            let r = engine.handle_request(&request, false);
             if c.needs_control() {
                 assert!(matches!(r.outcome, septuvo_ipc::Outcome::Err { .. }));
             }

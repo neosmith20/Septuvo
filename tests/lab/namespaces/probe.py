@@ -22,6 +22,11 @@ dns-server LOGFILE READYFILE ADDRESS NAME=IPV4...
     for the name (or the first one for unknown names) and logs each queried
     name. Test code only.
 
+flood DST STOPFILE PREFIX PORT...
+    Send UDP tokens PREFIX-PORT-N to DST, round-robin over the PORTs, as
+    fast as possible until STOPFILE exists (N4-03, profile switching). Then
+    prints one line per port: "PORT SENT REFUSED".
+
 resolve-connect SERVER NAME PORT TOKEN
     Ask SERVER (UDP 53) for the A record of NAME, then send TOKEN over TCP
     to the answer on PORT. Prints "answer:<ip> sent", "answer:<ip>
@@ -96,6 +101,25 @@ def send(proto, dst, port, token, sport=None, src=None):
         s.close()
 
 
+def flood(dst, stopfile, prefix, ports):
+    import os
+    family = socket.AF_INET6 if ipaddress.ip_address(dst).version == 6 else socket.AF_INET
+    s = socket.socket(family, socket.SOCK_DGRAM)
+    counts = {p: [0, 0] for p in ports}
+    n = 0
+    while not os.path.exists(stopfile):
+        for p in ports:
+            n += 1
+            try:
+                s.sendto(f"{prefix}-{p}-{n}".encode("ascii"), (dst, int(p)))
+                counts[p][0] += 1
+            except OSError:
+                counts[p][1] += 1
+    s.close()
+    for p in ports:
+        print(f"{p} {counts[p][0]} {counts[p][1]}")
+
+
 def dns_query(name, ident=0x5E57):
     q = struct.pack("!HHHHHH", ident, 0x0100, 1, 0, 0, 0)
     for label in name.rstrip(".").split("."):
@@ -156,6 +180,8 @@ def main(argv):
         send(*argv[1:])
     elif len(argv) >= 5 and argv[0] == "dns-server":
         dns_server(argv[1], argv[2], argv[3], argv[4:])
+    elif len(argv) >= 5 and argv[0] == "flood":
+        flood(argv[1], argv[2], argv[3], argv[4:])
     elif len(argv) == 5 and argv[0] == "resolve-connect":
         resolve_connect(*argv[1:])
     else:
