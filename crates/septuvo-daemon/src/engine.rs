@@ -20,11 +20,31 @@
 //! **kernel** ends the window (timeout sets, see `septuvo_policy::nft`), so
 //! it closes on time even if this service dies; the service only remembers
 //! the deadline to show the time left.
+//!
+//! **Saved connections (N4-03).** With a [`Store`], the service keeps the
+//! user's complete connections and uses the selected one; without a
+//! selection it uses the device configuration named in its settings, as
+//! before. **Switching while connected (D-041)** replaces the whole ruleset
+//! in **one nftables transaction** (`nft -f` applies a script atomically:
+//! the old table is deleted and the new one created together), so
+//! protection never lapses. If the switch fails, the kernel keeps the old
+//! rules (still blocking), the new selection is kept, and status reports
+//! `state=failed` with the reason; the old connection is never silently
+//! resumed.
+//!
+//! **State vocabulary.** `state` is one of `disconnected`, `blocking`,
+//! `blocking-left-from-earlier-run`, `error-kill-switch-missing` and
+//! `failed` (with `failure`). The protocol also reserves `connecting`,
+//! `switching`, `disconnecting` and `reconnecting` for operations that take
+//! time; before G1 every operation is one atomic firewall transaction done
+//! while the service holds its lock, so status never observes them.
 
 use crate::resolver::Resolver;
+use crate::store::{Store, StoreError};
 use septuvo_config::{DeviceConfig, DnsPolicy};
-use septuvo_ipc::{Command, Response};
+use septuvo_ipc::{Command, ConnectionId, Request, Response};
 use septuvo_policy::nft::{self, DnsRules, KillSwitch};
+use std::fmt::Write as _;
 use std::path::Path;
 use std::process::{Command as Process, Stdio};
 use std::time::{Duration, Instant};
@@ -151,7 +171,18 @@ impl Interfaces for SysClassNet {
 
 /// The service's state machine.
 pub struct Engine<F: Firewall, I: Interfaces, R: Resolver> {
+    /// The configuration in use: the selected saved connection, else
+    /// `default`.
     config: DeviceConfig,
+    /// The device configuration from the service settings.
+    default: DeviceConfig,
+    /// Which saved connection `config` is (`None`: the default).
+    current: Option<ConnectionId>,
+    /// Saved connections (`None`: not configured).
+    store: Option<Store>,
+    /// Why the last connect or switch failed, until the next success or a
+    /// deliberate disconnect.
+    failure: Option<String>,
     firewall: F,
     interfaces: I,
     resolver: R,
@@ -181,7 +212,11 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
     /// disconnect (Q2).
     pub fn new(config: DeviceConfig, firewall: F, interfaces: I, resolver: R) -> Self {
         Engine {
+            default: config.clone(),
             config,
+            current: None,
+            store: None,
+            failure: None,
             firewall,
             interfaces,
             resolver,
@@ -201,6 +236,27 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
         self
     }
 
+    /// Uses saved connections from `store`. The selected one, if any, is
+    /// used from now on; if it is no longer valid, the default is used and
+    /// the reason logged.
+    #[must_use]
+    pub fn with_store(mut self, store: Store) -> Self {
+        if let Some(id) = store.selected() {
+            match store.config(id) {
+                Ok(c) => {
+                    self.config = c;
+                    self.current = Some(id);
+                }
+                Err(e) => (self.log)(&format!(
+                    "selected connection {id} cannot be used ({}); using the default configuration",
+                    e.message
+                )),
+            }
+        }
+        self.store = Some(store);
+        self
+    }
+
     /// Enables captive-portal mode for the dedicated helper account `uid`
     /// (never 0; the renderer refuses root as well).
     #[must_use]
@@ -209,12 +265,22 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
         self
     }
 
-    /// Handles one command. `control` is true if it came over the control
-    /// socket; changes are refused otherwise.
+    /// Handles one command without a body. `control` is true if it came
+    /// over the control socket; changes are refused otherwise.
     pub fn handle(&mut self, command: Command, control: bool) -> Response {
+        self.handle_request(&Request::new(command), control)
+    }
+
+    /// Handles one request.
+    pub fn handle_request(&mut self, request: &Request, control: bool) -> Response {
+        let command = request.command;
         if command.needs_control() && !control {
             return Response::error("not_permitted", "this command needs the control socket");
         }
+        if command.has_body() != request.body.is_some() {
+            return Response::error("bad_request", "body missing or not expected");
+        }
+        let body = request.body.as_deref().unwrap_or_default();
         match command {
             Command::Status => self.status(),
             Command::Connect => self.connect(),
@@ -223,7 +289,192 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
                 minutes,
                 network_dns,
             } => self.captive(minutes, network_dns),
+            Command::List => self.list(),
+            Command::Get(id) => self.with_store_ref(|s| s.export(id)).map_or_else(
+                |e| e,
+                |text| Response::ok().with("id", &id.to_string()).with_body(&text),
+            ),
+            Command::Add => self.add(body),
+            Command::Replace(id) => self.replace(id, body),
+            Command::Rename(id) => self.rename(id, body),
+            Command::Delete(id) => self.delete(id),
+            Command::Select(id) => self.select(id),
         }
+    }
+
+    fn store_error(e: &StoreError) -> Response {
+        Response::error(e.code, &e.message)
+    }
+
+    fn not_configured() -> Response {
+        Response::error(
+            "not_configured",
+            "saved connections are not enabled in the service settings",
+        )
+    }
+
+    fn with_store_ref<T>(
+        &self,
+        f: impl FnOnce(&Store) -> Result<T, StoreError>,
+    ) -> Result<T, Response> {
+        let Some(store) = &self.store else {
+            return Err(Self::not_configured());
+        };
+        f(store).map_err(|e| Self::store_error(&e))
+    }
+
+    fn with_store_mut<T>(
+        &mut self,
+        f: impl FnOnce(&mut Store) -> Result<T, StoreError>,
+    ) -> Result<T, Response> {
+        let Some(store) = &mut self.store else {
+            return Err(Self::not_configured());
+        };
+        f(store).map_err(|e| Self::store_error(&e))
+    }
+
+    /// `selected=` and a body of `ID<TAB>name` lines, in display order.
+    fn list(&self) -> Response {
+        let Some(store) = &self.store else {
+            return Self::not_configured();
+        };
+        let mut body = String::new();
+        for (id, name) in store.list() {
+            let _ = writeln!(body, "{id}\t{name}");
+        }
+        Response::ok()
+            .with("count", &store.list().len().to_string())
+            .with(
+                "selected",
+                &store.selected().map_or("none".into(), |i| i.to_string()),
+            )
+            .with_body(&body)
+    }
+
+    fn add(&mut self, text: &str) -> Response {
+        match self.with_store_mut(|s| s.add(text)) {
+            Ok(id) => {
+                (self.log)(&format!("saved connection {id} added"));
+                Response::ok()
+                    .with("id", &id.to_string())
+                    .with("message", "connection saved (not selected)")
+            }
+            Err(r) => r,
+        }
+    }
+
+    fn rename(&mut self, id: ConnectionId, name: &str) -> Response {
+        match self.with_store_mut(|s| s.rename(id, name)) {
+            Ok(_) => Response::ok()
+                .with("id", &id.to_string())
+                .with("message", "renamed"),
+            Err(r) => r,
+        }
+    }
+
+    /// Replaces a connection's configuration. If it is the one in use, the
+    /// new configuration is used from now on, and applied at once while
+    /// connected (as a switch).
+    fn replace(&mut self, id: ConnectionId, text: &str) -> Response {
+        let config = match self.with_store_mut(|s| s.replace(id, text)) {
+            Ok(c) => c,
+            Err(r) => return r,
+        };
+        (self.log)(&format!("saved connection {id} replaced"));
+        if self.current == Some(id) {
+            return self.use_config(Some(id), config, "connection updated");
+        }
+        Response::ok()
+            .with("id", &id.to_string())
+            .with("message", "connection updated")
+    }
+
+    /// Deletes a connection. The one in use cannot be deleted while
+    /// connected: disconnect first (DEFAULT-UI §4.1).
+    fn delete(&mut self, id: ConnectionId) -> Response {
+        if self.current == Some(id) && self.wanted {
+            return Response::error(
+                "in_use",
+                "this connection is in use: disconnect before deleting it",
+            );
+        }
+        let next = match self.with_store_mut(|s| s.delete(id)) {
+            Ok(n) => n,
+            Err(r) => return r,
+        };
+        (self.log)(&format!("saved connection {id} deleted"));
+        if self.current == Some(id) {
+            // Not connected: the new selection (or the default) is used next.
+            let config = next.and_then(|n| self.store.as_ref().and_then(|s| s.config(n).ok()));
+            self.current = config.as_ref().and(next);
+            self.config = config.unwrap_or_else(|| self.default.clone());
+        }
+        self.status().with("message", "connection deleted")
+    }
+
+    /// Selects a connection; while connected, switches to it (D-041). A
+    /// connection that cannot be used is refused and nothing changes.
+    fn select(&mut self, id: ConnectionId) -> Response {
+        let config = match self.with_store_ref(|s| s.config(id)) {
+            Ok(c) => c,
+            Err(r) => return r,
+        };
+        if let Err(r) = self.with_store_mut(|s| s.select(id)) {
+            return r;
+        }
+        self.use_config(Some(id), config, "connection selected")
+    }
+
+    /// Makes `config` the one in use; while connected, replaces the rules
+    /// in one transaction.
+    fn use_config(
+        &mut self,
+        id: Option<ConnectionId>,
+        config: DeviceConfig,
+        done: &str,
+    ) -> Response {
+        self.config = config;
+        self.current = id;
+        if !self.wanted {
+            return self.status().with("message", done);
+        }
+        let label = id.map_or("the default configuration".into(), |i| i.to_string());
+        match self.apply_rules() {
+            Ok(()) => {
+                self.failure = None;
+                (self.log)(&format!(
+                    "switched to {label}: rules replaced in one transaction"
+                ));
+                let message = match self.install_resolver() {
+                    Ok(()) => "switched: protection was kept throughout".to_string(),
+                    // The kill switch is on, so DNS still cannot leak.
+                    Err(e) => format!("switched, but {e}"),
+                };
+                self.status().with("message", &message)
+            }
+            Err(e) => {
+                // The kernel kept the previous rules: still blocking.
+                let why = format!(
+                    "switching to {label} failed: {e}; the previous rules stay in place (still blocking)"
+                );
+                (self.log)(&why);
+                self.failure = Some(why.clone());
+                self.status().with("message", &why)
+            }
+        }
+    }
+
+    /// Renders and installs the kill switch for the configuration in use,
+    /// in one transaction.
+    fn apply_rules(&mut self) -> Result<(), String> {
+        let script =
+            nft::render(&self.config.policy, &self.kill_switch()).map_err(|e| e.to_string())?;
+        self.firewall.apply(&script)
+    }
+
+    fn install_resolver(&mut self) -> Result<(), String> {
+        let servers = self.tunnel_resolvers().to_vec();
+        self.resolver.install(&servers)
     }
 
     fn kill_switch(&self) -> KillSwitch {
@@ -235,25 +486,23 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
                 .iter()
                 .map(|e| (e.ip(), e.port()))
                 .collect(),
-            dns: match &self.config.dns {
-                DnsPolicy::Tunnel {
+            dns: {
+                let DnsPolicy::Tunnel {
                     resolvers,
                     lan_exceptions,
-                } => DnsRules::Resolvers {
+                } = &self.config.dns;
+                DnsRules::Resolvers {
                     resolvers: resolvers.clone(),
                     lan_exceptions: lan_exceptions.clone(),
-                },
-                DnsPolicy::System => DnsRules::System,
+                }
             },
             captive_helper: self.captive_helper,
         }
     }
 
-    fn tunnel_resolvers(&self) -> Option<&[std::net::IpAddr]> {
-        match &self.config.dns {
-            DnsPolicy::Tunnel { resolvers, .. } => Some(resolvers),
-            DnsPolicy::System => None,
-        }
+    fn tunnel_resolvers(&self) -> &[std::net::IpAddr] {
+        let DnsPolicy::Tunnel { resolvers, .. } = &self.config.dns;
+        resolvers
     }
 
     fn connect(&mut self) -> Response {
@@ -265,13 +514,12 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
             return Response::error("firewall", &e);
         }
         self.wanted = true;
+        self.failure = None;
         // The new table starts with empty captive-portal sets.
         self.captive_until = None;
         self.captive_network_dns = None;
         self.captive_windows = 0;
-        if let Some(servers) = self.tunnel_resolvers().map(<[_]>::to_vec)
-            && let Err(e) = self.resolver.install(&servers)
-        {
+        if let Err(e) = self.install_resolver() {
             // The kill switch is on, so DNS still cannot leak; report it.
             return Response::error("resolver", &format!("kill switch on, but {e}"));
         }
@@ -286,6 +534,7 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
             return Response::error("firewall", &e);
         }
         self.wanted = false;
+        self.failure = None;
         // Removing the table ended any captive-portal window at once.
         self.captive_until = None;
         self.captive_network_dns = None;
@@ -380,14 +629,37 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
             "fail"
         };
         let state = match (self.wanted, kill_switch) {
+            (true, _) if self.failure.is_some() => "failed",
             (true, true) => "blocking",
             (false, true) => "blocking-left-from-earlier-run",
             (true, false) => "error-kill-switch-missing",
             (false, false) => "disconnected",
         };
+        // DNS leak prevention is part of the same ruleset as the kill
+        // switch (one table, installed atomically), so it is verified the
+        // same way: the table is in place.
+        let dns_protection = match (self.wanted, kill_switch) {
+            (_, true) => "on",
+            (true, false) => "failed",
+            (false, false) => "off",
+        };
+        let verified_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
         Response::ok()
             .with("state", state)
+            .with_if(
+                self.failure.is_some(),
+                "failure",
+                self.failure.as_deref().unwrap_or(""),
+            )
+            .with(
+                "connection",
+                &self.current.map_or("default".into(), |i| i.to_string()),
+            )
             .with("kill_switch", if kill_switch { "on" } else { "off" })
+            .with("dns_protection", dns_protection)
+            .with("verified_at", &verified_at.to_string())
             .with("interface", &self.config.tunnel.interface)
             .with("adapter", adapter)
             .with("peer", "fail")
@@ -455,13 +727,12 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
     }
 
     fn dns_policy(&self) -> String {
-        match &self.config.dns {
-            DnsPolicy::Tunnel { resolvers, .. } => {
-                let list: Vec<String> = resolvers.iter().map(ToString::to_string).collect();
-                format!("only through the tunnel to {}", list.join(", "))
-            }
-            DnsPolicy::System => "system resolver (split mode, not protected)".to_string(),
-        }
+        let list: Vec<String> = self
+            .tunnel_resolvers()
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        format!("only through the tunnel to {}", list.join(", "))
     }
 }
 
@@ -605,28 +876,220 @@ mod tests {
         );
     }
 
-    #[test]
-    fn system_dns_in_split_mode_leaves_the_resolver_file_alone() {
-        let config = septuvo_config::parse_device(
-            "version = 1\n[server]\nendpoints = [\"203.0.113.7:51820\"]\n\
-             [routing]\nmode = \"split\"\ntunnel = [\"192.168.50.0/24\"]\n\
-             [dns]\nmode = \"system\"\n",
+    // --- saved connections and switching (N4-03) -------------------------
+
+    fn conn(name: &str, endpoint: &str) -> String {
+        format!(
+            "version = 1\n[server]\nendpoints = [\"{endpoint}\"]\n[routing]\nmode = \"full-tunnel\"\n\
+             [dns]\nresolvers = [\"10.77.0.1\"]\n[connection]\nname = \"{name}\"\n"
         )
-        .expect("valid");
-        let mut e = Engine::new(
-            config,
-            FakeFirewall::default(),
-            FakeInterfaces(false),
-            FakeResolver::default(),
-        );
-        assert_eq!(e.handle(Command::Connect, true).outcome, Outcome::Ok);
-        assert_eq!(e.resolver.servers, None);
+    }
+
+    fn store_dir(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("septuvo-engine-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        dir
+    }
+
+    fn with_store(tag: &str) -> Engine<FakeFirewall, FakeInterfaces, FakeResolver> {
+        let store = Store::open(&store_dir(tag), false).expect("store");
+        engine(FakeFirewall::default(), false).with_store(store)
+    }
+
+    fn add(e: &mut Engine<FakeFirewall, FakeInterfaces, FakeResolver>, text: &str) -> ConnectionId {
+        let r = e.handle_request(&Request::with_body(Command::Add, text), true);
+        ConnectionId::parse(r.field("id").expect("id")).expect("valid id")
+    }
+
+    fn rules(e: &Engine<FakeFirewall, FakeInterfaces, FakeResolver>) -> String {
+        e.firewall.installed.clone().unwrap_or_default()
+    }
+
+    #[test]
+    fn connections_are_listed_by_name_for_everyone() {
+        let mut e = with_store("list");
+        let a = add(&mut e, &conn("Home VPN", "203.0.113.1:5000"));
+        let _ = add(&mut e, &conn("Büro", "203.0.113.2:5000"));
+        let r = e.handle(Command::List, false);
+        assert_eq!(r.outcome, Outcome::Ok);
+        assert_eq!(r.field("count"), Some("2"));
+        assert_eq!(r.field("selected"), Some("none"));
+        assert_eq!(r.body.as_deref(), Some("c0001\tHome VPN\nc0002\tBüro\n"));
+        // The configuration itself needs the control socket.
+        assert_eq!(code(&e.handle(Command::Get(a), false)), "not_permitted");
+        let g = e.handle(Command::Get(a), true);
         assert!(
-            !e.firewall
-                .installed
-                .clone()
-                .unwrap()
-                .contains("dport { 53, 853 } drop")
+            g.body.as_deref().is_some_and(
+                |b| b.contains("203.0.113.1:5000") && b.contains("name = \"Home VPN\"")
+            )
+        );
+        assert_eq!(e.firewall.applied, 0, "nothing touched the network");
+    }
+
+    #[test]
+    fn selecting_while_disconnected_changes_no_rules() {
+        let mut e = with_store("select");
+        let a = add(&mut e, &conn("A", "203.0.113.1:5000"));
+        let r = e.handle(Command::Select(a), true);
+        assert_eq!(r.field("connection"), Some("c0001"));
+        assert_eq!(e.firewall.applied, 0);
+        assert_eq!(e.handle(Command::Connect, true).outcome, Outcome::Ok);
+        assert!(
+            rules(&e).contains("203.0.113.1"),
+            "connect uses the selection"
+        );
+    }
+
+    /// D-041: switching while connected replaces the rules in one firewall
+    /// transaction; there is never a moment without them.
+    #[test]
+    fn switching_while_connected_is_one_transaction() {
+        let mut e = with_store("switch");
+        let a = add(&mut e, &conn("A", "203.0.113.1:5000"));
+        let b = add(&mut e, &conn("B", "203.0.113.2:443"));
+        let _ = e.handle(Command::Select(a), true);
+        let _ = e.handle(Command::Connect, true);
+        let before = e.firewall.applied;
+        let r = e.handle(Command::Select(b), true);
+        assert_eq!(r.outcome, Outcome::Ok);
+        assert_eq!(e.firewall.applied, before + 1, "exactly one transaction");
+        let script = rules(&e);
+        // One script: the old table is replaced, not removed first.
+        assert!(
+            script.contains(
+                "\nadd table inet septuvo\ndelete table inet septuvo\ntable inet septuvo {"
+            )
+        );
+        assert!(script.contains("203.0.113.2") && !script.contains("203.0.113.1"));
+        assert_eq!(r.field("state"), Some("blocking"));
+        assert_eq!(r.field("connection"), Some("c0002"));
+        assert_eq!(r.field("kill_switch"), Some("on"));
+        assert_eq!(r.field("dns_protection"), Some("on"));
+        assert!(
+            r.field("verified_at")
+                .is_some_and(|t| t.parse::<u64>().is_ok())
+        );
+    }
+
+    /// A failed switch keeps the new selection, keeps blocking (the kernel
+    /// kept the old rules) and never resumes the old connection by itself.
+    #[test]
+    fn a_failed_switch_fails_closed() {
+        let mut e = with_store("switch-fail");
+        let a = add(&mut e, &conn("A", "203.0.113.1:5000"));
+        let b = add(&mut e, &conn("B", "203.0.113.2:443"));
+        let _ = e.handle(Command::Select(a), true);
+        let _ = e.handle(Command::Connect, true);
+        let old = rules(&e);
+        e.firewall.fail = true;
+        let r = e.handle(Command::Select(b), true);
+        assert_eq!(r.field("state"), Some("failed"));
+        assert!(
+            r.field("failure")
+                .is_some_and(|f| f.contains("still blocking"))
+        );
+        assert_eq!(
+            r.field("connection"),
+            Some("c0002"),
+            "the new selection is kept"
+        );
+        assert_eq!(rules(&e), old, "the previous rules are still in force");
+        assert_eq!(r.field("kill_switch"), Some("on"));
+        assert_eq!(e.store.as_ref().and_then(Store::selected), Some(b));
+        // Retrying works once the firewall does; the failure clears.
+        e.firewall.fail = false;
+        let r = e.handle(Command::Connect, true);
+        assert_eq!(r.field("state"), Some("blocking"));
+        assert!(rules(&e).contains("203.0.113.2"));
+        assert_eq!(r.field("failure"), None);
+    }
+
+    #[test]
+    fn a_bad_connection_changes_nothing() {
+        let mut e = with_store("bad");
+        let a = add(&mut e, &conn("A", "203.0.113.1:5000"));
+        let _ = e.handle(Command::Select(a), true);
+        let _ = e.handle(Command::Connect, true);
+        let (old_rules, applied) = (rules(&e), e.firewall.applied);
+        let bad = conn("A", "203.0.113.1:5000").replace("10.77.0.1", "10.77.0.999");
+        for r in [
+            e.handle_request(&Request::with_body(Command::Add, bad.as_str()), true),
+            e.handle_request(&Request::with_body(Command::Replace(a), bad.as_str()), true),
+            e.handle_request(&Request::with_body(Command::Rename(a), ""), true),
+            e.handle(Command::Select(ConnectionId::new(77).unwrap()), true),
+            e.handle(Command::Delete(a), true),
+        ] {
+            assert!(matches!(r.outcome, Outcome::Err { .. }), "{r:?}");
+        }
+        assert_eq!((rules(&e), e.firewall.applied), (old_rules, applied));
+        assert_eq!(code(&e.handle(Command::Delete(a), true)), "in_use");
+        let r = e.handle(Command::List, false);
+        assert_eq!(r.body.as_deref(), Some("c0001\tA\n"));
+    }
+
+    #[test]
+    fn replacing_the_connection_in_use_applies_it_while_connected() {
+        let mut e = with_store("replace");
+        let a = add(&mut e, &conn("A", "203.0.113.1:5000"));
+        let _ = e.handle(Command::Select(a), true);
+        let _ = e.handle(Command::Connect, true);
+        let r = e.handle_request(
+            &Request::with_body(Command::Replace(a), conn("A", "203.0.113.9:5000")),
+            true,
+        );
+        assert_eq!(r.outcome, Outcome::Ok);
+        assert!(rules(&e).contains("203.0.113.9"));
+        // Renaming has no network effect at all.
+        let applied = e.firewall.applied;
+        let r = e.handle_request(&Request::with_body(Command::Rename(a), "Home"), true);
+        assert_eq!(r.outcome, Outcome::Ok);
+        assert_eq!(e.firewall.applied, applied);
+    }
+
+    #[test]
+    fn deleting_the_selected_connection_selects_the_next_one() {
+        let mut e = with_store("delete");
+        let a = add(&mut e, &conn("A", "203.0.113.1:5000"));
+        let b = add(&mut e, &conn("B", "203.0.113.2:5000"));
+        let _ = e.handle(Command::Select(a), true);
+        let r = e.handle(Command::Delete(a), true);
+        assert_eq!(r.outcome, Outcome::Ok);
+        assert_eq!(r.field("connection"), Some("c0002"));
+        let r = e.handle(Command::Delete(b), true);
+        assert_eq!(
+            r.field("connection"),
+            Some("default"),
+            "back to the settings' configuration"
+        );
+    }
+
+    #[test]
+    fn the_selection_survives_a_restart() {
+        let dir = store_dir("restart");
+        let mut e =
+            engine(FakeFirewall::default(), false).with_store(Store::open(&dir, false).unwrap());
+        let _ = add(&mut e, &conn("A", "203.0.113.1:5000"));
+        let b = add(&mut e, &conn("B", "203.0.113.2:5000"));
+        let _ = e.handle(Command::Select(b), true);
+        let mut again =
+            engine(FakeFirewall::default(), false).with_store(Store::open(&dir, false).unwrap());
+        assert_eq!(
+            again.handle(Command::Status, false).field("connection"),
+            Some("c0002")
+        );
+        let _ = again.handle(Command::Connect, true);
+        assert!(rules(&again).contains("203.0.113.2"));
+    }
+
+    #[test]
+    fn without_a_store_connection_commands_are_refused() {
+        let mut e = engine(FakeFirewall::default(), false);
+        assert_eq!(code(&e.handle(Command::List, false)), "not_configured");
+        let r = e.handle_request(&Request::with_body(Command::Add, "x"), true);
+        assert_eq!(code(&r), "not_configured");
+        assert_eq!(
+            e.handle(Command::Status, false).field("connection"),
+            Some("default")
         );
     }
 

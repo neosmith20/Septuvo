@@ -22,3 +22,4 @@ pub mod guard;
 pub mod resolver;
 pub mod settings;
 pub mod sockets;
+pub mod store;

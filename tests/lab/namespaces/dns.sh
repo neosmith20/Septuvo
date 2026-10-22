@@ -158,6 +158,7 @@ lab_namespace = "$C"
 runtime_dir = "$RUN"
 control_group = "root"
 device_config = "$WORK/septuvo.toml"
+connections_dir = "$WORK/connections"
 EOF
 mkdir -p "$RESOLV_DIR"
 echo "$ORIGINAL" > "$RESOLV"

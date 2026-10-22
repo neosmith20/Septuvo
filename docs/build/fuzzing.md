@@ -40,8 +40,9 @@
 | | `fuzz_device_schema` | `septuvo.toml` | Deterministic; invariants; **every accepted configuration renders a kill switch** |
 | | `fuzz_server_schema` | `septuvo-server.toml` | Invariants (address families, absolute data directory, retention limit) |
 | `septuvo-ipc` | `fuzz_ipc_request` | Control requests | **Only the canonical encoding of a command is accepted**; captive minutes in range |
-| | `fuzz_ipc_response` | Control responses | Round trip; field limit |
-| | `fuzz_ipc_builder` | The response builder (any keys, values, codes, messages) | **A built response always parses and never exceeds the size limit** |
+| | `fuzz_ipc_framed` | Requests with a length-prefixed body (N4-03): `ADD`, `REPLACE`, `RENAME` with right, wrong and huge lengths | **Only the canonical encoding is accepted, body included**; reading never takes more than one request or more than 64 KiB of body |
+| | `fuzz_ipc_response` | Control responses, with and without a body | Round trip; field limit |
+| | `fuzz_ipc_builder` | The response builder (any keys, values, codes, messages, bodies) | **A built response always parses and never exceeds the size limits** |
 | `septuvo-server` | `fuzz_device_records` | `devices.db` | Round trip and stable encoding; valid names and in-range addresses; printable, bounded errors |
 | | `fuzz_record_operations` | Sequences of add, revoke and remove with hostile names | **A refused operation changes nothing**; every state still round-trips; printable errors |
 | `septuvo-daemon` | `fuzz_daemon_settings` | `septuvod.toml` | Round trip; root never the captive helper |
@@ -82,11 +83,12 @@ The fix then gets a regression test that names the seed.
 
 ## Bugs found
 
-**Three real bugs, all fixed with regression tests:**
+**Four real bugs, all fixed with regression tests:**
 
 | Where | Bug | Fix |
 | --- | --- | --- |
 | `septuvo-ipc`, `Response::with` (seed `0x35f6d570c8fcedeb`) | A response built with many long fields could encode to **4,298 bytes, more than the 4,096 the client accepts**. The client would then show "invalid answer from the Septuvo service". Not reachable with today's status fields, but nothing prevented it | Fields that would not fit are dropped. A missing field already reads as "unknown", never as passed, so this fails safe. An error with an empty message also no longer gains a trailing space when re-encoded |
+| `septuvo-ipc`, `Response::with_body` (N4-03, found while writing it) | An **empty** response body encoded as `BODY 0`, which the parser refused, so a `LIST` with no saved connections would have been "an invalid answer" | A response body may be empty; a request body may not. Regression test in `responses_with_bodies_round_trip` |
 | `septuvo-config`, device schema (found in CI, seed `0xc8c5a99ba1125cd2`) | The validator accepted a tunnel interface name starting with `-` (`-1septuvo0`), but the kill-switch renderer refuses one: **a configuration that passed `septuvo-config check` would fail at connect**. The two rules had drifted apart when the renderer was hardened in #60 | The validator now calls the renderer's own check, `nft::valid_interface`, so the rules cannot drift again |
 | `septuvo-server`, `Records::revoke` / `remove` (seed `0x496239978f4b4369`) | Errors for impossible device names **repeated the name, control characters included**. Printed to a terminal, such a name could carry escape sequences. The command-line tool already filtered them, but the library did not | An invalid name is refused without being repeated |
 
@@ -103,7 +105,7 @@ The fix then gets a regression test that names the seed.
 
 ## Coverage-guided fuzzing (cargo-fuzz)
 
-**Added in H-018, on the owner's decision D-035.** The same 16 property checks also run under **cargo-fuzz / libFuzzer**, which watches which code each input reaches and keeps the inputs that reach new code. That finds deep bugs much faster than random generation.
+**Added in H-018, on the owner's decision D-035.** The same property checks (17 since N4-03) also run under **cargo-fuzz / libFuzzer**, which watches which code each input reaches and keeps the inputs that reach new code. That finds deep bugs much faster than random generation.
 
 - **Where:** [`fuzz/`](../../fuzz), a **separate Cargo workspace**, so the main workspace keeps no third-party crates. One target per row of the table above, e.g. `fuzz/fuzz_targets/toml_subset.rs`. Each target includes the crate's `tests/fuzz.rs` and calls its `check_*` function, so **there is one definition of every property**.
 - **Starting corpus:** exported from the standard-library runner (`SEPTUVO_FUZZ_EXPORT_CORPUS=DIR`): each target's seeds and 256 generated inputs.

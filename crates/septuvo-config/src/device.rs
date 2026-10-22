@@ -4,13 +4,19 @@
 //! (the N1 policy model), how DNS is handled and a few local settings.
 //! Security settings are never silently switched off: when DNS handling is
 //! not configured it defaults to the tunnel, the kill switch cannot be
-//! disabled (owner decision Q2, D-032) and nothing here can enroll a device.
+//! disabled (owner decision Q2, D-032, D-038) and nothing here can enroll a
+//! device.
+//!
+//! A saved connection (N4-03, N4-D11) is this file with an optional
+//! `[connection]` table naming it. The service stores the name separately
+//! ([`split_connection`]) and adds it back when the connection is exported,
+//! so an exported file imports again under the same name.
 
 use crate::error::{ConfigError, Problem};
 use crate::schema::{self, Section};
 use crate::toml::{self, Document, Span};
 use septuvo_policy::{Action, Mode, PathState, Policy, Rule, Verdict, nft};
-use std::fmt;
+use std::fmt::{self, Write as _};
 use std::net::{IpAddr, SocketAddr};
 use std::path::Path;
 
@@ -18,6 +24,8 @@ use std::path::Path;
 pub const MAX_RESOLVERS: usize = 4;
 /// Most LAN DNS exceptions in one configuration.
 pub const MAX_LAN_DNS_EXCEPTIONS: usize = 8;
+/// Longest connection name, in characters (DEFAULT-UI §4.1).
+pub const MAX_NAME_CHARS: usize = 64;
 /// Default tunnel interface name.
 pub const DEFAULT_INTERFACE: &str = "septuvo0";
 /// Default inner MTU (wire-format.md section 5.2).
@@ -44,7 +52,8 @@ impl fmt::Display for ServerIdentity {
     }
 }
 
-/// How the device resolves names.
+/// How the device resolves names. Only tunnel DNS exists: the system's
+/// DNS is refused until per-domain DNS exists (NP-D10).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DnsPolicy {
     /// DNS goes only to these resolvers, through the tunnel; all other DNS
@@ -55,9 +64,6 @@ pub enum DnsPolicy {
         /// LAN resolvers explicitly allowed to receive DNS directly.
         lan_exceptions: Vec<IpAddr>,
     },
-    /// The operating system's normal DNS. Allowed only in split mode, where
-    /// traffic outside the tunnel is not protected by Septuvo anyway.
-    System,
 }
 
 /// Local tunnel interface settings.
@@ -82,18 +88,33 @@ pub struct DeviceConfig {
     pub dns: DnsPolicy,
     /// Tunnel interface settings.
     pub tunnel: TunnelSettings,
-    /// Connect automatically and keep the tunnel up (Q4: off by default).
-    pub always_on: bool,
+    /// The connection's friendly name, from the optional `[connection]`
+    /// table (N4-03).
+    pub name: Option<String>,
     /// Log retention in days (Q10).
     pub log_retention_days: u16,
 }
 
-const TABLES: &[&str] = &["server", "routing", "dns", "tunnel", "behavior", "logging"];
-const FORBIDDEN: &[(&str, &str)] = &[(
-    "kill_switch",
-    "the kill switch is always on and cannot be configured (owner decision Q2): \
-     it is lifted only by a deliberate disconnect",
-)];
+const TABLES: &[&str] = &[
+    "server",
+    "routing",
+    "dns",
+    "tunnel",
+    "logging",
+    "connection",
+];
+const FORBIDDEN: &[(&str, &str)] = &[
+    (
+        "kill_switch",
+        "the kill switch is always on and cannot be configured (owner decision Q2): \
+         it is lifted only by a deliberate disconnect",
+    ),
+    (
+        "behavior",
+        "behavior.always_on was retired (D-038): blocking without the VPN is Lockdown Mode, \
+         a service setting, and connecting at startup is an app setting; remove the [behavior] table",
+    ),
+];
 
 /// Parses and validates a device configuration.
 ///
@@ -122,12 +143,17 @@ pub fn device_from_document(doc: &Document) -> Result<DeviceConfig, ConfigError>
     let endpoints = endpoints(doc, &policy)?;
     let dns = dns(doc, &policy)?;
     let tunnel = tunnel(doc)?;
-    let always_on = match doc.table("behavior") {
-        None => false,
+    let name = match doc.table("connection") {
+        None => None,
         Some(table) => {
             let s = Section { table };
-            s.only(&["always_on"])?;
-            s.boolean("always_on")?.unwrap_or(false)
+            s.only(&["name"])?;
+            match s.string("name")? {
+                None => return Err(s.missing("name")),
+                Some((text, span)) => {
+                    Some(connection_name(text).map_err(|why| s.invalid("name", span, why))?)
+                }
+            }
         }
     };
     Ok(DeviceConfig {
@@ -136,7 +162,7 @@ pub fn device_from_document(doc: &Document) -> Result<DeviceConfig, ConfigError>
         policy,
         dns,
         tunnel,
-        always_on,
+        name,
         log_retention_days: schema::retention_days(doc)?,
     })
 }
@@ -253,22 +279,18 @@ fn dns(doc: &Document, policy: &Policy) -> Result<DnsPolicy, ConfigError> {
     match mode {
         None | Some(("tunnel", _)) => {}
         Some(("system", span)) => {
-            if policy.mode() == Mode::FullTunnel {
-                return Err(s.conflict(
-                    "mode",
-                    span,
-                    "\"system\" DNS would send queries outside the tunnel in full-tunnel mode",
-                ));
-            }
-            for key in ["resolvers", "lan_exceptions"] {
-                if let Some(e) = table.get(key) {
-                    return Err(s.conflict(key, e.key_span, "only used with mode = \"tunnel\""));
-                }
-            }
-            return Ok(DnsPolicy::System);
+            // NP-D10: refused in both modes until the protected domains are
+            // always sent through the tunnel (per-domain DNS, NP-D2).
+            let why = if policy.mode() == Mode::FullTunnel {
+                "\"system\" DNS would send queries outside the tunnel in full-tunnel mode"
+            } else {
+                "\"system\" DNS is not available until names in the protected networks are \
+                 always resolved through the tunnel (NP-D10); use mode = \"tunnel\""
+            };
+            return Err(s.conflict("mode", span, why));
         }
         Some((_, span)) => {
-            return Err(s.invalid("mode", span, "must be \"tunnel\" or \"system\""));
+            return Err(s.invalid("mode", span, "must be \"tunnel\""));
         }
     }
     let resolvers = address_list(s, "resolvers", MAX_RESOLVERS)?;
@@ -356,21 +378,99 @@ impl DeviceConfig {
                     format!("; LAN exceptions {}", join(lan_exceptions))
                 }
             ),
-            DnsPolicy::System => "system resolver (split mode, not protected)".to_string(),
         };
         format!(
-            "server endpoints: {}\nserver identity:  {}\nrouting:          {mode}, {} rule(s)\n\
-             dns:              {dns}\ninterface:        {} (MTU {})\nalways on:        {}\n\
-             log retention:    {} day(s)\nkill switch:      always on (cannot be configured)",
+            "name:             {}\nserver endpoints: {}\nserver identity:  {}\n\
+             routing:          {mode}, {} rule(s)\ndns:              {dns}\n\
+             interface:        {} (MTU {})\nlog retention:    {} day(s)\n\
+             kill switch:      always on (cannot be configured)",
+            self.name.as_deref().unwrap_or("(none)"),
             join(&self.endpoints),
             self.server_identity,
             self.policy.rules().len(),
             self.tunnel.interface,
             self.tunnel.mtu,
-            if self.always_on { "yes" } else { "no" },
             self.log_retention_days,
         )
     }
+}
+
+/// A valid connection name, trimmed: 1 to [`MAX_NAME_CHARS`] characters,
+/// no control characters (DEFAULT-UI §4.1). Uniqueness is the store's job.
+///
+/// # Errors
+/// Why the name cannot be used.
+pub fn connection_name(text: &str) -> Result<String, String> {
+    let name = text.trim();
+    if name.is_empty() {
+        return Err("the name is empty".into());
+    }
+    if name.chars().count() > MAX_NAME_CHARS {
+        return Err(format!(
+            "the name is longer than {MAX_NAME_CHARS} characters"
+        ));
+    }
+    if name
+        .chars()
+        .any(|c| c.is_control() || matches!(c, '\u{2028}' | '\u{2029}'))
+    {
+        return Err("the name contains control characters".into());
+    }
+    Ok(name.to_string())
+}
+
+/// Validates a saved connection's text and separates its name: returns the
+/// configuration (with `name` set if the text had one) and the text with
+/// the `[connection]` table removed, as the service stores it.
+///
+/// # Errors
+/// The first problem found, as [`parse_device`].
+pub fn split_connection(input: &str) -> Result<(DeviceConfig, String), ConfigError> {
+    let doc = toml::parse(input)?;
+    let config = device_from_document(&doc)?;
+    let Some(pos) = doc.tables.iter().position(|t| t.name == "connection") else {
+        return Ok((config, input.to_string()));
+    };
+    // Tables are line-based: the table runs from its header line to the line
+    // before the next header (or the end).
+    let first = doc.tables[pos].span.line;
+    let next = doc.tables.get(pos + 1).map(|t| t.span.line);
+    let body = input.strip_prefix('\u{feff}').unwrap_or(input);
+    let kept: Vec<&str> = body
+        .split_inclusive('\n')
+        .enumerate()
+        .filter(|(i, _)| {
+            let line = i + 1;
+            line < first || next.is_some_and(|n| line >= n)
+        })
+        .map(|(_, l)| l)
+        .collect();
+    Ok((config, kept.concat()))
+}
+
+/// `text` as a TOML basic string, quotes included. Control characters
+/// (which a valid name never has) are written as `\uXXXX` escapes.
+#[must_use]
+pub fn quote(text: &str) -> String {
+    let mut out = String::from("\"");
+    for c in text.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            c if c.is_control() => {
+                let _ = write!(out, "\\u{:04X}", u32::from(c));
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+/// The `[connection]` table to append to stored text for export.
+#[must_use]
+pub fn name_table(name: &str) -> String {
+    format!("\n[connection]\nname = {}\n", quote(name))
 }
 
 fn join<T: fmt::Display>(items: &[T]) -> String {
@@ -418,24 +518,22 @@ lan_exceptions = ["192.168.1.30"]
         assert_eq!(c.policy.mode(), Mode::FullTunnel);
         assert_eq!(c.tunnel.interface, DEFAULT_INTERFACE);
         assert_eq!(c.tunnel.mtu, DEFAULT_MTU);
-        assert!(!c.always_on);
+        assert_eq!(c.name, None);
         assert_eq!(c.log_retention_days, 7);
         let DnsPolicy::Tunnel {
             resolvers,
             lan_exceptions,
-        } = &c.dns
-        else {
-            panic!("tunnel DNS expected");
-        };
+        } = &c.dns;
         assert_eq!(resolvers.len(), 2);
         assert_eq!(lan_exceptions.len(), 1);
         assert!(c.summary().contains("not enrolled"));
         assert!(c.summary().contains("kill switch:      always on"));
     }
 
+    /// NP-D10: refused in split mode too, until per-domain DNS exists.
     #[test]
-    fn split_mode_may_use_system_dns() {
-        let input = r#"version = 1
+    fn system_dns_is_refused_in_both_modes() {
+        let split = r#"version = 1
 [server]
 endpoints = ["198.51.100.7:4000"]
 [routing]
@@ -444,23 +542,111 @@ tunnel = ["192.168.50.0/24"]
 [dns]
 mode = "system"
 "#;
-        assert_eq!(parse_device(input).expect("valid").dns, DnsPolicy::System);
+        let (path, p) = problem(split);
+        assert_eq!(path, "dns.mode");
+        assert!(
+            matches!(p, Problem::Conflict(ref why) if why.contains("NP-D10")),
+            "{p:?}"
+        );
+        let (path, p) = problem(&with("[dns]\n", "[dns]\nmode = \"system\"\n"));
+        assert_eq!(path, "dns.mode");
+        assert!(matches!(p, Problem::Conflict(_)));
+    }
+
+    /// D-038: `behavior.always_on` is retired; the file says what replaced it.
+    #[test]
+    fn always_on_is_retired() {
+        for extra in [
+            "[behavior]\nalways_on = false\n",
+            "[behavior]\nalways_on = true\n",
+            "[behavior]\n",
+        ] {
+            let (path, p) = problem(&format!("{FULL}{extra}"));
+            assert_eq!(path, "behavior");
+            assert!(
+                matches!(p, Problem::Conflict(ref why) if why.contains("Lockdown Mode")),
+                "{p:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn connection_names() {
+        let c =
+            parse_device(&format!("{FULL}[connection]\nname = \"  Home VPN  \"\n")).expect("valid");
+        assert_eq!(c.name.as_deref(), Some("Home VPN"));
+        assert!(c.summary().contains("name:             Home VPN"));
+        let unicode = "\u{1f3e0} Café – Büro";
+        assert_eq!(connection_name(unicode).as_deref(), Ok(unicode));
+        assert_eq!(
+            connection_name(&"é".repeat(MAX_NAME_CHARS)).map(|n| n.chars().count()),
+            Ok(MAX_NAME_CHARS)
+        );
+        for bad in [
+            "",
+            "   ",
+            "a\u{7}b",
+            "line\nbreak",
+            "tab\there",
+            "x\u{2028}y",
+        ] {
+            assert!(connection_name(bad).is_err(), "{bad:?}");
+        }
+        assert!(connection_name(&"a".repeat(MAX_NAME_CHARS + 1)).is_err());
+        for extra in [
+            "[connection]\n",
+            "[connection]\nname = \"\"\n",
+            "[connection]\nname = \"x\"\nother = 1\n",
+            "[connection]\nname = 7\n",
+        ] {
+            assert!(
+                parse_device(&format!("{FULL}{extra}")).is_err(),
+                "{extra:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn split_connection_removes_only_the_name_table() {
+        let text = format!(
+            "{FULL}[connection]\nname = \"Home \\\"VPN\\\"\"  # note\n[tunnel]\nmtu = 1280\n"
+        );
+        let (c, stored) = split_connection(&text).expect("valid");
+        assert_eq!(c.name.as_deref(), Some("Home \"VPN\""));
+        assert!(
+            !stored.contains("[connection]") && !stored.contains("name ="),
+            "{stored}"
+        );
+        assert!(stored.contains("[tunnel]\nmtu = 1280"));
+        let again = parse_device(&stored).expect("stored text is valid");
+        assert_eq!(again.name, None);
+        assert_eq!(again.tunnel.mtu, 1280);
+        // Export adds the name back; importing that gives the same connection.
+        let exported = format!(
+            "{stored}{}",
+            name_table(c.name.as_deref().unwrap_or_default())
+        );
+        let (back, stored2) = split_connection(&exported).expect("re-importable");
+        assert_eq!(back, c);
+        assert_eq!(stored2.trim_end(), stored.trim_end());
+        // Without a name the text is kept as it is.
+        let (plain, kept) = split_connection(FULL).expect("valid");
+        assert_eq!((plain.name, kept.as_str()), (None, FULL));
     }
 
     #[test]
     fn optional_settings_are_read() {
         let input = format!(
-            "{FULL}[tunnel]\ninterface = \"wg-test.1\"\nmtu = 1280\n[behavior]\nalways_on = true\n[logging]\nretention_days = 0\n"
+            "{FULL}[tunnel]\ninterface = \"wg-test.1\"\nmtu = 1280\n[logging]\nretention_days = 0\n"
         );
         let c = parse_device(&input).expect("valid");
         assert_eq!(
             (
                 c.tunnel.interface.as_str(),
                 c.tunnel.mtu,
-                c.always_on,
                 c.log_retention_days
             ),
-            ("wg-test.1", 1280, true, 0)
+            ("wg-test.1", 1280, 0)
         );
     }
 
@@ -657,7 +843,7 @@ resolvers = ["1.1.1.1"]
         }
         let p = problem(&format!("{FULL}[logging]\nretention_days = 366\n")).1;
         assert_eq!(p, Problem::OutOfRange { min: 0, max: 365 });
-        let p = problem(&format!("{FULL}[behavior]\nalways_on = 1\n")).1;
+        let p = problem(&format!("{FULL}[connection]\nname = 1\n")).1;
         assert!(matches!(p, Problem::WrongType { .. }));
     }
 

@@ -83,6 +83,7 @@ lab_namespace = "$C"
 runtime_dir = "$RUN"
 control_group = "$GROUP"
 device_config = "$WORK/septuvo.toml"
+connections_dir = "$WORK/connections"
 captive_helper_user = "$HELPER"
 EOF
 chmod 644 "$WORK"/*.toml

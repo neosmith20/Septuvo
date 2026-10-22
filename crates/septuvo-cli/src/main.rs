@@ -5,11 +5,12 @@
 //! four-stage status model (D-020); `connect` and `disconnect` ask the
 //! service to turn the kill switch on or off; `captive-portal` asks it to
 //! open a captive-portal window for the dedicated sign-in helper account
-//! only, for at most five minutes (N3-02); `policy check`
+//! only, for at most five minutes (N3-02); `connection …` manages the
+//! saved connections the service keeps (N4-03); `policy check`
 //! validates and explains a policy file. The tool itself never changes the
 //! system.
 
-use septuvo_cli::{policy_cmd, service, watch};
+use septuvo_cli::{connection_cmd, policy_cmd, service, watch};
 use septuvo_ipc::Command;
 use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
@@ -28,6 +29,7 @@ Usage:
                                        connection checks
   septuvo connect [--runtime-dir DIR]  Ask the service to turn the kill
                                        switch on (lab preview, no tunnel)
+                                       for the selected connection
   septuvo disconnect [--runtime-dir DIR]
                                        Ask the service to turn it off
   septuvo captive-portal [--minutes N] [--network-dns] [--runtime-dir DIR]
@@ -47,12 +49,20 @@ Usage:
                                        Validate a policy file and explain
                                        what happens to traffic
 
-connect, disconnect and captive-portal need membership of the service's
-control group.
+Saved connections (kept by the service):
+{CONNECTIONS}
+
+connect, disconnect, captive-portal and every connection command except
+list need membership of the service's control group.
 
 Exit codes: 0 success, 1 invalid policy, unreadable file or service
 error, 2 usage error, 3 status shows the VPN is not working.
 ";
+
+/// The help text, with the connection commands.
+fn usage() -> String {
+    USAGE.replace("{CONNECTIONS}", connection_cmd::USAGE)
+}
 
 /// Exit code for a successful command.
 const EXIT_OK: u8 = 0;
@@ -68,19 +78,20 @@ const EXIT_NOT_CONNECTED: u8 = 3;
 fn run(args: &[String], out: &mut impl Write, err: &mut impl Write) -> io::Result<u8> {
     match args {
         [] => {
-            out.write_all(USAGE.as_bytes())?;
+            out.write_all(usage().as_bytes())?;
             Ok(EXIT_OK)
         }
-        [cmd] if cmd == "help" || cmd == "--help" || cmd == "-h" => {
-            out.write_all(USAGE.as_bytes())?;
-            Ok(EXIT_OK)
-        }
+        [cmd] if matches!(cmd.as_str(), "help" | "--help" | "-h") => run(&[], out, err),
         [cmd] if cmd == "version" || cmd == "--version" || cmd == "-V" => {
             writeln!(out, "septuvo {}", env!("CARGO_PKG_VERSION"))?;
             Ok(EXIT_OK)
         }
+        [cmd, rest @ ..] if cmd == "connection" => connection(rest, false, out, err),
         [cmd, rest @ ..] if cmd == "status" || cmd == "connect" || cmd == "disconnect" => {
             let Some(runtime_dir) = runtime_dir(rest) else {
+                if cmd == "connect" && connection_cmd::parse(rest, true).is_some() {
+                    return connection(rest, true, out, err);
+                }
                 writeln!(
                     err,
                     "septuvo: expected nothing or '--runtime-dir DIR' after '{cmd}'"
@@ -165,6 +176,27 @@ fn run(args: &[String], out: &mut impl Write, err: &mut impl Write) -> io::Resul
             writeln!(err, "Run 'septuvo help' for usage.")?;
             Ok(EXIT_USAGE)
         }
+    }
+}
+
+/// `septuvo connection …`, or `septuvo connect CONN` when `connect`.
+fn connection(
+    rest: &[String],
+    connect: bool,
+    out: &mut impl Write,
+    err: &mut impl Write,
+) -> io::Result<u8> {
+    let Some((action, dir)) = connection_cmd::parse(rest, connect) else {
+        writeln!(err, "septuvo: usage:\n{}", connection_cmd::USAGE)?;
+        return Ok(EXIT_USAGE);
+    };
+    let (ok, text) = connection_cmd::run(&action, &dir);
+    if ok {
+        out.write_all(text.as_bytes())?;
+        Ok(EXIT_OK)
+    } else {
+        err.write_all(text.as_bytes())?;
+        Ok(EXIT_INVALID)
     }
 }
 

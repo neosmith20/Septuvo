@@ -3,11 +3,13 @@
 //! `policy check` command.
 //!
 //! [`service`] talks to the local Septuvo service (`septuvod`) over its
-//! Unix sockets (N2-02); [`watch`] is the live status view (N3-04).
+//! Unix sockets (N2-02); [`watch`] is the live status view (N3-04);
+//! [`connection_cmd`] manages saved connections (N4-03).
 //!
 //! Development preview: no VPN networking, no cryptography; the CLI itself
 //! never changes the system (only the service does).
 
+pub mod connection_cmd;
 pub mod policy_cmd;
 pub mod service;
 pub mod status;

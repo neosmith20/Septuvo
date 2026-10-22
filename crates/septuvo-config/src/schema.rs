@@ -106,17 +106,6 @@ impl<'a> Section<'a> {
         }
     }
 
-    /// An optional boolean.
-    pub fn boolean(self, key: &str) -> Result<Option<bool>, ConfigError> {
-        let Some(e) = self.entry(key) else {
-            return Ok(None);
-        };
-        match e.value {
-            Value::Boolean(b) => Ok(Some(b)),
-            _ => Err(self.wrong(e, "true or false")),
-        }
-    }
-
     /// An optional array of strings (with each item's position).
     pub fn strings(self, key: &str) -> Result<Option<&'a [(String, Span)]>, ConfigError> {
         let Some(e) = self.entry(key) else {

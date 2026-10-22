@@ -82,6 +82,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "ipc_framed"
+path = "fuzz_targets/ipc_framed.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "ipc_response"
 path = "fuzz_targets/ipc_response.rs"
 test = false

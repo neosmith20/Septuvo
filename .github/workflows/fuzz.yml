@@ -194,6 +194,7 @@ jobs:
           - device_schema
           - server_schema
           - ipc_request
+          - ipc_framed
           - ipc_response
           - ipc_builder
           - device_records

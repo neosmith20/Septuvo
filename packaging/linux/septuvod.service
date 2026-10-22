@@ -21,6 +21,9 @@ RestartSec=2s
 NetworkNamespacePath=/run/netns/septuvo-lab
 RuntimeDirectory=septuvo
 RuntimeDirectoryMode=0755
+# Saved connections (N4-03): /var/lib/septuvo/connections, private to root.
+StateDirectory=septuvo
+StateDirectoryMode=0700
 
 # Hardening: root, but only the capabilities nft and socket setup need.
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_CHOWN CAP_FOWNER

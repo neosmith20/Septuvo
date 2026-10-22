@@ -12,7 +12,7 @@
 //! enter, so it is never reachable by others, not even for an instant
 //! between creating the socket and setting its mode.
 
-use septuvo_ipc::{self as ipc, Command, Response};
+use septuvo_ipc::{self as ipc, Request, Response};
 use std::fs::{self, DirBuilder, Permissions};
 use std::io::{self, Write};
 use std::os::unix::fs::{DirBuilderExt, FileTypeExt, MetadataExt, PermissionsExt};
@@ -121,13 +121,17 @@ pub fn listen(runtime_dir: &Path, control_gid: u32) -> Result<Listeners, SetupEr
 /// Reads one request from `stream`, asks `handle` for the response and sends
 /// it. Malformed, oversized or slow requests get an error response; nothing
 /// a client sends can make the service stop.
-pub fn serve_one(stream: &mut UnixStream, handle: &mut impl FnMut(Command) -> Response) {
+///
+/// One request per connection: the header and exactly the body it
+/// announces are read (at most [`ipc::MAX_BODY_BYTES`]); anything sent after
+/// that is never read or acted on.
+pub fn serve_one(stream: &mut UnixStream, handle: &mut impl FnMut(&Request) -> Response) {
     let _ = stream.set_read_timeout(Some(ipc::TIMEOUT));
     let _ = stream.set_write_timeout(Some(ipc::TIMEOUT));
-    let response = match ipc::read_message(stream, ipc::MAX_REQUEST_BYTES, b"\n") {
+    let response = match ipc::read_request(stream) {
         Err(_) => Response::error("timeout", "no complete request received in time"),
-        Ok(bytes) => match ipc::parse_request(&bytes) {
-            Ok(command) => handle(command),
+        Ok(bytes) => match ipc::parse_framed(&bytes) {
+            Ok(request) => handle(&request),
             Err(e) => Response::error("bad_request", &e.to_string()),
         },
     };
@@ -153,9 +157,9 @@ mod tests {
             .shutdown(std::net::Shutdown::Write)
             .expect("shutdown");
         let mut called = false;
-        serve_one(&mut server, &mut |c| {
+        serve_one(&mut server, &mut |r| {
             called = true;
-            Response::ok().with("seen", c.as_str())
+            Response::ok().with("seen", r.command.as_str())
         });
         drop(server);
         let mut out = String::new();
@@ -178,7 +182,8 @@ mod tests {
             &b"hello\n"[..],
             b"SEPTUVO/1 REBOOT\n",
             b"SEPTUVO/1 STATUS",
-            b"SEPTUVO/1 STATUS\nSEPTUVO/1 CONNECT\n",
+            b"SEPTUVO/1 ADD 10\nshort",
+            b"SEPTUVO/1 RENAME c0001 3\na\x00b",
             &[b'A'; 10_000][..],
         ] {
             let (called, out) = exchange(bad);
@@ -195,6 +200,32 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Only one request is read per connection: a second one sent after it
+    /// is never acted on. (The client may not even get the answer: the
+    /// connection is closed with its extra data unread.)
+    #[test]
+    fn only_the_first_request_is_read() {
+        let (mut client, mut server) = pair();
+        client
+            .write_all(b"SEPTUVO/1 STATUS\nSEPTUVO/1 CONNECT\n")
+            .expect("write");
+        let mut seen = Vec::new();
+        serve_one(&mut server, &mut |r| {
+            seen.push(r.command);
+            Response::ok()
+        });
+        assert_eq!(seen, [ipc::Command::Status]);
+    }
+
+    #[test]
+    fn serves_a_request_with_a_body() {
+        let wire = ipc::Request::with_body(ipc::Command::Add, "x".repeat(5000)).encode();
+        let (called, out) = exchange(&wire);
+        assert!(called);
+        let r = ipc::parse_response(out.expect("response").as_bytes()).expect("valid");
+        assert_eq!(r.field("seen"), Some("ADD"));
     }
 
     #[test]

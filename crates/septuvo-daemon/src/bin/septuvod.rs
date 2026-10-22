@@ -7,6 +7,7 @@
 
 use septuvo_daemon::engine::{Engine, Nftables, SysClassNet};
 use septuvo_daemon::resolver::ResolvConf;
+use septuvo_daemon::store::Store;
 use septuvo_daemon::{guard, settings, sockets};
 use std::os::unix::net::UnixListener;
 use std::path::PathBuf;
@@ -24,11 +25,11 @@ type Shared = Arc<Mutex<Engine<Nftables, SysClassNet, ResolvConf>>>;
 fn serve(listener: &UnixListener, engine: &Shared, control: bool) {
     for stream in listener.incoming() {
         let Ok(mut stream) = stream else { continue };
-        let mut handle = |command| {
+        let mut handle = |request: &septuvo_ipc::Request| {
             engine
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
-                .handle(command, control)
+                .handle_request(request, control)
         };
         sockets::serve_one(&mut stream, &mut handle);
     }
@@ -104,9 +105,17 @@ fn main() -> ExitCode {
         Ok(l) => l,
         Err(e) => return fail(4, &e.to_string()),
     };
+    // Saved connections (N4-03): a damaged or unsafe store stops the
+    // service rather than being guessed at; rules already installed stay.
+    let store = match Store::open(&settings.connections_dir, true) {
+        Ok(s) => s,
+        Err(e) => return fail(1, &format!("saved connections: {e}")),
+    };
     let resolver = ResolvConf::for_lab_namespace(&settings.lab_namespace);
     let engine: Shared = Arc::new(Mutex::new(
-        Engine::new(config, Nftables, SysClassNet, resolver).with_captive_helper(captive_helper),
+        Engine::new(config, Nftables, SysClassNet, resolver)
+            .with_captive_helper(captive_helper)
+            .with_store(store),
     ));
     println!(
         "septuvod: ready (lab mode, namespace {}, sockets in {})",
