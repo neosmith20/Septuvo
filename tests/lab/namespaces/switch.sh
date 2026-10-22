@@ -185,7 +185,7 @@ result $ok "S12 the connection in use cannot be deleted while connected"
 
 # T2-SW-01: switch back and forth under load.
 rm -f "$WORK/stop" "$WORK/watch.stop"
-inC python3 "$HERE/probe.py" flood 10.200.0.1 "$WORK/stop" flood 53 5000 443 > "$WORK/flood.txt" &
+inC python3 "$HERE/probe.py" flood 10.200.0.1 "$WORK/stop" flood 53 67 5000 443 > "$WORK/flood.txt" &
 FPID=$!
 ( while [ ! -f "$WORK/watch.stop" ]; do
     if inC nft list table inet septuvo >/dev/null 2>&1; then echo present; else echo MISSING; fi
@@ -204,11 +204,15 @@ wait "$FPID" 2>/dev/null; FPID=""
 wait "$WPID" 2>/dev/null; WPID=""
 [ "$switch_ok" = 20 ] && ok=1 || ok=0
 result $ok "S13 20 switches while connected all succeeded ($switch_ok/20), state stayed blocking"
-leaked=$(grep -c '^flood-53-' "$WORK/u.log")
+# Port 53 is dropped by an explicit rule; UDP 67 (from a port other than
+# 68) is named by no rule, so only the chain's drop policy stops it. Both
+# must stay at zero (N4-04 found the second kind leaking while a table was
+# deleted and re-created; the ruleset is now replaced with the chain kept).
+leaked=$(( $(grep -c '^flood-53-' "$WORK/u.log") + $(grep -c '^flood-67-' "$WORK/u.log") ))
 sent53=$(awk '$1 == 53 {print $2}' "$WORK/flood.txt")
 refused53=$(awk '$1 == 53 {print $3}' "$WORK/flood.txt")
 [ "$leaked" = 0 ] && [ "${refused53:-0}" -gt 1000 ] && ok=1 || ok=0
-result $ok "T2-SW-01a no packet outside both policies got out during the switches (port 53: $leaked arrived, $sent53 sent, $refused53 refused)"
+result $ok "T2-SW-01a no packet outside both policies got out during the switches (ports 53 and 67: $leaked arrived; port 53: $sent53 sent, $refused53 refused)"
 a_arrived=$(grep -c '^flood-5000-' "$WORK/u.log")
 b_arrived=$(grep -c '^flood-443-' "$WORK/u.log")
 [ "$a_arrived" -gt 0 ] && [ "$b_arrived" -gt 0 ] && ok=1 || ok=0

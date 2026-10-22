@@ -4,7 +4,7 @@
 #   sudo packaging/linux/uninstall.sh [--prefix /usr] [--purge]
 #
 # Disconnects first (removing the kill switch and restoring the lab
-# namespace's resolver file), then removes the units, the lab namespace,
+# namespace's resolver file), ends Lockdown Mode, then removes the units, the lab namespace,
 # every installed file, the "septuvo" group and the "septuvo-portal" helper
 # account. No Septuvo rules are left
 # behind. /etc/septuvo, the saved connections in /var/lib/septuvo and the
@@ -34,13 +34,13 @@ say() { echo "uninstall: $*"; }
 if [ -x "$PREFIX/bin/septuvo" ] && [ -S /run/septuvo/control/control.sock ]; then
   "$PREFIX/bin/septuvo" disconnect >/dev/null 2>&1 && say "disconnected"
 fi
-# 2. Stop and remove the units.
-for unit in septuvod.service septuvo-lab-netns.service; do
+# 2. Stop and remove the units (Lockdown Mode at boot goes with them).
+for unit in septuvod.service septuvo-lockdown.service septuvo-lab-netns.service; do
   systemctl disable --now "$unit" >/dev/null 2>&1 || true
 done
 # 3. Remove any rules and the resolver file even if the service was dead.
 if ip netns list 2>/dev/null | grep -qw "$NS"; then
-  ip netns exec "$NS" nft delete table inet septuvo 2>/dev/null && say "removed leftover kill-switch rules"
+  ip netns exec "$NS" nft delete table inet septuvo 2>/dev/null && say "removed the remaining Septuvo rules (kill switch or Lockdown Mode)"
 fi
 BACKUP="/etc/netns/.septuvo-$NS.resolv.conf.backup"
 RESOLV="/etc/netns/$NS/resolv.conf"
@@ -59,6 +59,7 @@ fi
 for f in \
   "$PREFIX/libexec/septuvo/septuvod" "$PREFIX/bin/septuvo" "$PREFIX/sbin/septuvo-server" \
   "$PREFIX/lib/systemd/system/septuvod.service" "$PREFIX/lib/systemd/system/septuvo-lab-netns.service" \
+  "$PREFIX/lib/systemd/system/septuvo-lockdown.service" \
   "$PREFIX/lib/sysusers.d/septuvo.conf" "$PREFIX/lib/tmpfiles.d/septuvo.conf" \
   "$PREFIX/share/doc/septuvo/LICENSE.md" "$PREFIX/share/doc/septuvo/NOTICE"; do
   rm -f "$f"
@@ -84,4 +85,5 @@ else
   [ -d /var/lib/septuvo ] && say "kept /var/lib/septuvo saved connections (use --purge to remove them)"
   [ -d /var/lib/septuvo-server ] && say "kept /var/lib/septuvo-server device records (use --purge to remove them)"
 fi
+say "Lockdown Mode has ended: no Septuvo rules remain"
 say "done"

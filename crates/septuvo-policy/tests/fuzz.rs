@@ -10,7 +10,8 @@
 mod fuzzer;
 
 use fuzzer::{Corpus, Rng, ip, prefix_text, run};
-use septuvo_policy::nft::{self, DnsRules, KillSwitch, MAX_CAPTIVE_SECONDS};
+use septuvo_policy::lan::{LocalAccess, MAX_LOCAL_NETWORKS, MIN_IPV4_PREFIX, MIN_IPV6_PREFIX};
+use septuvo_policy::nft::{self, DnsRules, KillSwitch, Lockdown, MAX_CAPTIVE_SECONDS};
 use septuvo_policy::{Action, Mode, PathState, Policy, Prefix, parse_policy};
 use std::fmt::Write as _;
 use std::net::IpAddr;
@@ -177,14 +178,15 @@ fn check_render(policy: &Policy, ks: &KillSwitch) -> bool {
         "printable output only"
     );
     // Outside fixed comment lines, semicolons only come from the fixed
-    // templates: the chain header and two per set declaration.
+    // templates: the chain header, the three set deletions at the start
+    // (two each) and two per set declaration.
     let sets = if ks.captive_helper.is_some() { 3 } else { 0 };
     let semicolons: usize = s
         .lines()
         .filter(|l| !l.trim_start().starts_with('#'))
         .map(|l| l.matches(';').count())
         .sum();
-    assert_eq!(semicolons, 2 + 2 * sets, "no injected statements");
+    assert_eq!(semicolons, 2 + 6 + 2 * sets, "no injected statements");
     let dns = match &ks.dns {
         DnsRules::Resolvers {
             resolvers,
@@ -192,8 +194,16 @@ fn check_render(policy: &Policy, ks: &KillSwitch) -> bool {
         } => resolvers.len() + lan_exceptions.len(),
         _ => 0,
     };
-    let bound = 40 + 3 * policy.rules().len() + ks.endpoints.len() + 2 * dns + 10;
+    let bound = 40
+        + 3 * policy.rules().len()
+        + ks.endpoints.len()
+        + 2 * dns
+        + 10
+        + 2 * ks.local.subnets.len()
+        + 8
+        + 6;
     assert!(s.lines().count() <= bound, "ruleset size bounded");
+    check_local(&s, &ks.local);
     if let Some(uid) = ks.captive_helper {
         for line in s.lines().filter(|l| l.contains('@')) {
             assert!(
@@ -202,8 +212,123 @@ fn check_render(policy: &Policy, ks: &KillSwitch) -> bool {
             );
         }
     } else {
-        assert!(!s.contains("captive") && !s.contains("skuid"));
+        // The start only deletes captive sets left from an earlier ruleset.
+        let table = s.split_once("table inet septuvo {").map_or("", |(_, t)| t);
+        assert!(!table.contains("captive") && !s.contains("skuid"));
     }
+    true
+}
+
+/// Local Network Access in a rendered ruleset: only capped unicast subnets,
+/// and discovery is dropped before any of them is accepted.
+fn check_local(s: &str, local: &LocalAccess) {
+    assert!(local.subnets.len() <= MAX_LOCAL_NETWORKS);
+    for p in &local.subnets {
+        let min = if p.addr().is_ipv4() {
+            MIN_IPV4_PREFIX
+        } else {
+            MIN_IPV6_PREFIX
+        };
+        assert!(p.prefix_len() >= min, "{p} wider than the cap was rendered");
+        assert!(!p.addr().is_multicast());
+    }
+    if local.is_empty() {
+        assert!(!s.contains("NP-L2") && !s.contains("{ 1900, 5353, 5355 }"));
+        return;
+    }
+    let pos = |needle: &str| s.find(needle).unwrap_or(usize::MAX);
+    let discovery = pos("udp dport { 1900, 5353, 5355 } drop");
+    let multicast = pos("ip daddr { 224.0.0.0/4, 255.255.255.255 } drop");
+    let first_accept = local
+        .subnets
+        .iter()
+        .map(|p| pos(&format!(" {p} accept")))
+        .chain(local.ipv6_link_local.then(|| pos("fe80::/10 accept")))
+        .min()
+        .unwrap_or(usize::MAX);
+    assert!(
+        discovery < first_accept && multicast < first_accept,
+        "discovery dropped first"
+    );
+}
+
+/// A random Local Network Access, sometimes with hostile (too wide,
+/// multicast, too many) subnets that the renderer must refuse.
+fn local_access(rng: &mut Rng) -> LocalAccess {
+    if rng.chance(40) {
+        return LocalAccess::default();
+    }
+    let n = if rng.chance(90) {
+        rng.below(4)
+    } else {
+        rng.below(12)
+    };
+    let subnets = (0..n)
+        .filter_map(|_| {
+            let addr = ip(rng);
+            let max = if addr.is_ipv4() { 32 } else { 128 };
+            let len = if rng.chance(80) {
+                let min = if addr.is_ipv4() {
+                    MIN_IPV4_PREFIX
+                } else {
+                    MIN_IPV6_PREFIX
+                };
+                min + u8::try_from(rng.below(usize::from(max - min))).unwrap_or(0)
+            } else {
+                u8::try_from(rng.below(usize::from(max) + 1)).unwrap_or(0)
+            };
+            Prefix::containing(addr, len).ok()
+        })
+        .collect();
+    LocalAccess {
+        subnets,
+        ipv6_link_local: rng.chance(50),
+    }
+}
+
+/// Lockdown Mode rulesets: whatever the input, blocking by default, never
+/// through the tunnel, no injected statements, discovery dropped first.
+fn check_lockdown(rng: &mut Rng) -> bool {
+    let l = Lockdown {
+        tunnel_interface: (*rng.pick(&IFACES[..2])).to_string(),
+        endpoints: {
+            let max = if rng.chance(95) { 10 } else { 200 };
+            let n = rng.below(max);
+            let mut v = Vec::with_capacity(n);
+            for _ in 0..n {
+                let addr = ip(rng);
+                v.push((addr, u16::try_from(rng.below(65_536)).unwrap_or(0)));
+            }
+            v
+        },
+        captive_helper: match rng.below(4) {
+            0 => None,
+            1 => Some(0),
+            _ => Some(995),
+        },
+        local: local_access(rng),
+    };
+    let Ok(s) = nft::render_lockdown(&l) else {
+        return false;
+    };
+    assert!(l.endpoints.len() <= nft::MAX_LOCKDOWN_ENDPOINTS);
+    assert!(s.contains("policy drop;"));
+    assert!(
+        !s.contains(&format!("oifname \"{}\" accept", l.tunnel_interface)),
+        "never through the tunnel in Lockdown Mode"
+    );
+    assert!(
+        s.contains("udp dport { 53, 853 } drop"),
+        "no DNS without a tunnel"
+    );
+    let sets = if l.captive_helper.is_some() { 3 } else { 0 };
+    let semicolons: usize = s
+        .lines()
+        .filter(|line| !line.trim_start().starts_with('#'))
+        .map(|line| line.matches(';').count())
+        .sum();
+    assert_eq!(semicolons, 2 + 6 + 2 * sets, "no injected statements");
+    check_local(&s, &l.local);
     true
 }
 
@@ -327,8 +452,10 @@ pub fn check_nft_render(data: &[u8]) -> bool {
             4 => Some(0),
             _ => Some(u32::try_from(rng.interesting_number() & 0xffff_ffff).unwrap_or(1)),
         },
+        local: local_access(&mut rng),
     };
     let rendered = check_render(&policy, &ks);
+    let _ = check_lockdown(&mut rng);
     let seconds = u32::try_from(rng.interesting_number() & 0x3ff).unwrap_or(0);
     let resolvers: Vec<IpAddr> = addrs(&mut rng, 7);
     if let Ok(s) = nft::captive_script(seconds, &resolvers) {

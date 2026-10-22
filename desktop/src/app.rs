@@ -8,7 +8,7 @@ use std::sync::Arc;
 use crate::advanced_window::{self, Page};
 use crate::assets::{ICON, Textures};
 use crate::close::{COULD_NOT, Close, Step};
-use crate::home::HomeView;
+use crate::home::{HomeView, LanNote};
 use crate::main_window::{self, Action};
 use crate::prefs::{Bounds, InterfaceMode, Prefs};
 use crate::service::{Link, REFRESH};
@@ -46,6 +46,8 @@ pub struct SeptuvoApp {
     pending: Pending,
     origin: Option<Origin>,
     notice: Option<String>,
+    lan: LanNote,
+    lan_wanted: bool,
     shells: Shells,
     page: Page,
     textures: Option<Textures>,
@@ -65,6 +67,8 @@ impl SeptuvoApp {
             pending: Pending::None,
             origin: None,
             notice: None,
+            lan: LanNote::None,
+            lan_wanted: false,
             shells: Shells::default(),
             page: Page::default(),
             textures: None,
@@ -83,6 +87,12 @@ impl SeptuvoApp {
     /// only: the preview's fake would otherwise answer at once).
     pub fn preview_disconnecting(&mut self) {
         self.pending = Pending::Disconnecting;
+    }
+
+    /// Shows the note after allowing Local Network Access without asking
+    /// the service (design preview only).
+    pub fn preview_local_network_note(&mut self) {
+        self.lan = LanNote::Allowed;
     }
 
     /// Replaces the service link (tests: the service changes state).
@@ -253,6 +263,22 @@ impl SeptuvoApp {
         }
     }
 
+    /// The service's answer to a Local Network Access change (N4-04): the
+    /// value shown always comes from the service; a refusal says why.
+    fn handle_setting_result(&mut self) {
+        let Some(result) = self.link.setting_result() else {
+            return;
+        };
+        if self.pending == Pending::Setting {
+            self.pending = Pending::None;
+        }
+        self.lan = match result {
+            Ok(()) if self.lan_wanted => LanNote::Allowed,
+            Ok(()) => LanNote::None,
+            Err(why) => LanNote::Refused(why),
+        };
+    }
+
     /// Draws one frame into `ui` (the whole window). Public for tests.
     pub fn draw(&mut self, ui: &mut Ui) {
         let ctx = ui.ctx().clone();
@@ -261,6 +287,7 @@ impl SeptuvoApp {
         }
         self.keep_on_screen(&ctx);
         self.handle_result(&ctx);
+        self.handle_setting_result();
         let snapshot = self.link.latest();
         self.handle_close(&ctx, &snapshot);
         let notice = self.close.notice.clone().or_else(|| self.notice.clone());
@@ -274,7 +301,8 @@ impl SeptuvoApp {
                 main_window::draw(ui, &view, textures)
             }
             InterfaceMode::Advanced => {
-                let view = HomeView::build(&snapshot, self.pending, notice.as_deref());
+                let view =
+                    HomeView::build_with(&snapshot, self.pending, notice.as_deref(), &self.lan);
                 advanced_window::draw(ui, &view, textures, &mut self.page, mode)
             }
         };
@@ -288,7 +316,13 @@ impl SeptuvoApp {
                     self.origin = Some(Origin::Button);
                     self.link.disconnect();
                 }
-                Action::Main(_) => {}
+                Action::SetLocalNetwork(allowed) if self.pending == Pending::None => {
+                    self.pending = Pending::Setting;
+                    self.lan = LanNote::None;
+                    self.lan_wanted = allowed;
+                    self.link.set_local_network(allowed);
+                }
+                Action::Main(_) | Action::SetLocalNetwork(_) => {}
                 Action::Open(s) => self.shells.open(s),
                 Action::SetMode(m) => self.set_mode(&ctx, m),
             }

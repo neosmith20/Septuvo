@@ -65,7 +65,7 @@ The **Advanced main window** ([ADVANCED-UI.md](../ui/desktop/ADVANCED-UI.md), `A
 | --- | --- |
 | Kill Switch | **On** when the service reports its rules installed; **Off** when nothing is active; **Failed** when the rules are missing (`error-kill-switch-missing`); **Unknown** otherwise, and whenever the service is lost |
 | DNS Protection | **On** only when all four checks pass; **Off** when nothing is active; **Failed** with the kill switch; **Unknown** otherwise. The service does not yet report DNS enforcement on its own, so while blocking it is **Unknown** |
-| Local Network Access | **Allowed** / **Not Allowed** from the service's `local_network` field; **Unknown** while the service does not report it (until N4-04) |
+| Local Network Access | **Allowed** / **Not Allowed** from the service's `local_network` field; **Unknown** while the service does not report it. Operable from N4-04 (below) |
 | Connection card | The connection's name and server address with the neutral icon; no country, city or flag. **No Connections** until N4-03 |
 | Your New IP Address | **Not Connected**, or **Not Available** when connected: the address can only come from your own server over the verified tunnel (after G1). No copy button until there is an address |
 
@@ -80,6 +80,24 @@ The **Advanced main window** ([ADVANCED-UI.md](../ui/desktop/ADVANCED-UI.md), `A
 **Every state at 760 × 560** (the minimum; the tiles stack and the window scrolls):
 
 ![Advanced states at 760 x 560](desktop-screens/advanced-states-760x560.png)
+
+## What N4-04 adds
+
+**Lockdown Mode** and **Local Network Access** are service settings ([daemon.md](daemon.md#lockdown-mode-n4-04)); the app shows and changes them only through the service.
+
+| Part | Where | Notes |
+| --- | --- | --- |
+| **Internet Blocked** | `desktop/src/state.rs` | Lockdown Mode blocking with no connection (DEFAULT-UI §7.1, ADVANCED-UI §6.1): heading **Internet Blocked**, `Lockdown Mode is on. Internet access is blocked until you connect.`, warning shield, never a green check. **Connect** stays disabled with its reason until connecting from the app arrives (N4-05). Lockdown Mode reported without its rules (`error-lockdown-missing`) is **Connection Failed** |
+| The X with Lockdown Mode | `state.rs` (`needs_disconnect`) | Lockdown Mode with no connection is a setting, not a session: the X simply exits, and blocking continues after exit (D-038, D-041) |
+| Kill Switch tile | `home.rs` | **On** in Lockdown Mode (`Lockdown Mode blocks internet access until you connect.`); **Failed** when its rules are missing |
+| **Local Network Access tile** | `home.rs`, `advanced_window.rs`, `service.rs`, `app.rs` | Now a working control (ADVANCED-UI §11.3). Clicking sends `LOCAL-NETWORK ALLOWED` or `NOT-ALLOWED` over the control socket; the tile then shows **only the value the service reports**. After allowing it shows the one short note `Devices on this network will be able to reach you, and you them, outside the VPN.` (in place of the usual sentence, so it is never noisy). If the service refuses, the tile keeps the service's value and says why (`Not changed: …`). Disabled, with the reason, while the service is lost, reports no value, or is busy with another request. The connection is never touched |
+| Accessibility | `advanced_window.rs` | The tile is still announced as `Local Network Access, Allowed, button`; its supporting sentence (the note, a refusal) is announced too |
+
+Lockdown Mode itself is turned on and off with `septuvo lockdown on|off` for now; its Settings row (DEFAULT-UI §6.3) is wired in N4-06.
+
+**Screenshots**, sample data from a fake service (`lockdown`, `lan-allowed` in the preview):
+
+![Internet Blocked and Local Network Access](desktop-screens/lockdown-and-lan.png)
 
 ## Build and run
 
@@ -125,7 +143,7 @@ cargo test --locked          # from desktop/
   - Disconnect, a failed disconnect, the tiles opening their windows;
   - every X case.
 - **Advanced Home view model** (`src/home.rs`): every Home state and tile value; Kill Switch and DNS never On unless the service says so (DNS On only for all 16 check combinations' all-pass case); unreported values are Unknown; spoken tile names.
-- **Advanced window and Interface Mode** (`tests/advanced_window.rs`): the approved structure at 980 × 640, 760 × 560 and 1400 × 900; Kill Switch and DNS are not buttons; Local Network Access is not operable yet; every Home state; tabs and the connection card; Disconnect and the X; keyboard order; and **switching Simple → Advanced → Simple with the kill switch blocking sends the fake service nothing but status requests**, and the state is unchanged.
+- **Advanced window and Interface Mode** (`tests/advanced_window.rs`): the approved structure at 980 × 640, 760 × 560 and 1400 × 900; Kill Switch and DNS are not buttons; Local Network Access changed only through the service (the note after allowing, a refusal keeping the value and saying why); Internet Blocked and its X; every Home state; tabs and the connection card; Disconnect and the X; keyboard order; and **switching Simple → Advanced → Simple with the kill switch blocking sends the fake service nothing but status requests**, and the state is unchanged.
 - **Theme** (`src/theme.rs`): text colours meet WCAG AA contrast (4.5:1) on their backgrounds.
 - **The X against the real service** (`tests/lab_close.rs`, ignored by default): run by `tests/lab/namespaces/desktop_close.sh` as root on a disposable machine. It starts `septuvod` in a lab namespace and connects; then, as a control-group member, the app's X must disconnect the service and exit; as a user outside the group, disconnect is refused, the window stays with the error, and a second X exits without changing the service.
 

@@ -102,11 +102,12 @@ sudo tests/lab/namespaces/dns.sh [--require-ipv6] target/debug/septuvod target/d
 - **Routes are lab plumbing**, set by the harness. Septuvo's own route and DNS configuration (for example systemd-resolved, and home-domain DNS in split mode, NP-D2) comes with the real client in M5.
 - **Not covered here:**
   - captive-portal mode (Q1): covered separately by `captive.sh` (N3-02, see [captive-portal.md](captive-portal.md));
-  - boot-time Lockdown Mode (D-038; planned in N4-04);
+  - Lockdown Mode and Local Network Access (N4-04): covered separately by `lockdown.sh` (T2-LD-01) and `lan.sh` (T2-LAN-01), with boot ordering in the install test (see [daemon.md](daemon.md#lockdown-mode-n4-04));
   - sleep/wake;
   - roaming between real interfaces;
   - updates.
 
   These belong to M5 and the G2 lab.
+- **Swapping rulesets under load:** these cases apply and replace rules with no traffic in flight. Swapping under a flood is tested by `switch.sh` and `lockdown.sh`, which found that deleting and re-creating the table was not packet-atomic (fixed in N4-04: [daemon.md](daemon.md#finding-n4-04-replacing-a-table-by-deleting-it-was-not-packet-atomic)).
 - **Rules outliving a crash (NP-E5):** they are kernel state, so they stay in place after the process that applied them exits. Every case here runs after that process has exited. A crashing Septuvo service does not exist yet.
 - **Not a real network:** the namespaces share one kernel and use virtual links, so this is not a full real-network test. The owner-hardware VM stage (D-026) repeats it before G2.

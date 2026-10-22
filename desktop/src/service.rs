@@ -2,7 +2,8 @@
 //!
 //! [`Worker`] runs one background thread: it asks for status over the
 //! read-only status socket every [`REFRESH`], and performs a deliberate
-//! disconnect over the control socket when asked. The window never waits on
+//! disconnect or a Local Network Access change over the control socket when
+//! asked. The window never waits on
 //! the service. [`Link`] lets tests use a fake service instead.
 
 use septuvo_cli::watch::{Snapshot, snapshot};
@@ -22,6 +23,12 @@ pub trait Link {
     fn disconnect(&mut self);
     /// The result of the last disconnect, once, when it has arrived.
     fn result(&mut self) -> Option<Result<(), String>>;
+    /// Asks the service to set Local Network Access (N4-04, D-040). Its
+    /// result arrives in [`Link::setting_result`]; the value shown is always
+    /// the one the service then reports.
+    fn set_local_network(&mut self, allowed: bool);
+    /// The result of the last setting change, once, when it has arrived.
+    fn setting_result(&mut self) -> Option<Result<(), String>>;
 }
 
 /// Plain-language reason a disconnect failed.
@@ -42,7 +49,19 @@ pub fn explain(e: &ClientError) -> String {
 /// # Errors
 /// The service refused, could not be reached, or answered badly.
 pub fn disconnect_now(runtime_dir: &Path) -> Result<(), String> {
-    match ipc::request(&ipc::control_socket(runtime_dir), Command::Disconnect) {
+    control(runtime_dir, Command::Disconnect)
+}
+
+/// Sets Local Network Access, synchronously, over the control socket.
+///
+/// # Errors
+/// The service refused, could not be reached, or answered badly.
+pub fn set_local_network_now(runtime_dir: &Path, allowed: bool) -> Result<(), String> {
+    control(runtime_dir, Command::LocalNetwork(allowed))
+}
+
+fn control(runtime_dir: &Path, command: Command) -> Result<(), String> {
+    match ipc::request(&ipc::control_socket(runtime_dir), command) {
         Ok(r) => match r.outcome {
             Outcome::Ok => Ok(()),
             Outcome::Err { code, message } => {
@@ -55,6 +74,7 @@ pub fn disconnect_now(runtime_dir: &Path) -> Result<(), String> {
 
 enum Request {
     Disconnect,
+    LocalNetwork(bool),
 }
 
 /// The real link: a background thread.
@@ -62,6 +82,7 @@ pub struct Worker {
     snapshots: Receiver<Snapshot>,
     requests: Sender<Request>,
     results: Receiver<Result<(), String>>,
+    settings: Receiver<Result<(), String>>,
     last: Snapshot,
 }
 
@@ -78,6 +99,7 @@ impl Worker {
         let (snap_tx, snapshots) = mpsc::channel();
         let (requests, req_rx) = mpsc::channel();
         let (res_tx, results) = mpsc::channel();
+        let (set_tx, settings) = mpsc::channel();
         std::thread::Builder::new()
             .name("septuvo-service".into())
             .spawn(move || {
@@ -86,6 +108,12 @@ impl Worker {
                         Ok(Request::Disconnect) => {
                             let r = disconnect_now(&runtime_dir);
                             if res_tx.send(r).is_err() {
+                                return;
+                            }
+                        }
+                        Ok(Request::LocalNetwork(allowed)) => {
+                            let r = set_local_network_now(&runtime_dir, allowed);
+                            if set_tx.send(r).is_err() {
                                 return;
                             }
                         }
@@ -103,6 +131,7 @@ impl Worker {
             snapshots,
             requests,
             results,
+            settings,
             last: first,
         }
     }
@@ -123,6 +152,14 @@ impl Link for Worker {
     fn result(&mut self) -> Option<Result<(), String>> {
         self.results.try_recv().ok()
     }
+
+    fn set_local_network(&mut self, allowed: bool) {
+        let _ = self.requests.send(Request::LocalNetwork(allowed));
+    }
+
+    fn setting_result(&mut self) -> Option<Result<(), String>> {
+        self.settings.try_recv().ok()
+    }
 }
 
 /// A fake service for tests and the design preview.
@@ -136,10 +173,15 @@ pub struct Fake {
     pub after: Snapshot,
     /// Disconnects requested so far.
     pub disconnects: u32,
+    /// What a Local Network Access change returns; on success the
+    /// snapshot's `local_network` becomes the new value.
+    pub setting_outcome: Result<(), String>,
     /// Every request made to the fake service, in order (`status`,
-    /// `disconnect`), shared with the test that created it.
+    /// `disconnect`, `local-network allowed`, `local-network not-allowed`),
+    /// shared with the test that created it.
     pub log: std::sync::Arc<std::sync::Mutex<Vec<&'static str>>>,
     pending: Option<Result<(), String>>,
+    pending_setting: Option<Result<(), String>>,
 }
 
 impl Fake {
@@ -152,8 +194,10 @@ impl Fake {
             disconnect_result: Ok(()),
             after,
             disconnects: 0,
+            setting_outcome: Ok(()),
             log: std::sync::Arc::default(),
             pending: None,
+            pending_setting: None,
         }
     }
 }
@@ -183,5 +227,27 @@ impl Link for Fake {
 
     fn result(&mut self) -> Option<Result<(), String>> {
         self.pending.take()
+    }
+
+    fn set_local_network(&mut self, allowed: bool) {
+        let value = if allowed { "allowed" } else { "not-allowed" };
+        self.record(if allowed {
+            "local-network allowed"
+        } else {
+            "local-network not-allowed"
+        });
+        if self.setting_outcome.is_ok()
+            && let Snapshot::Service(r) = &mut self.snapshot
+        {
+            match r.fields.iter_mut().find(|(k, _)| k == "local_network") {
+                Some((_, v)) => *v = value.to_string(),
+                None => r.fields.push(("local_network".into(), value.into())),
+            }
+        }
+        self.pending_setting = Some(self.setting_outcome.clone());
+    }
+
+    fn setting_result(&mut self) -> Option<Result<(), String>> {
+        self.pending_setting.take()
     }
 }

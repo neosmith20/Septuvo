@@ -85,6 +85,10 @@ def send(proto, dst, port, token, sport=None, src=None):
     kind = socket.SOCK_DGRAM if proto == "udp" else socket.SOCK_STREAM
     s = socket.socket(family, kind)
     s.settimeout(1.5)
+    if proto == "udp" and family == socket.AF_INET:
+        # Allowed to send to a broadcast address (N4-04 discovery checks),
+        # so a refusal can only come from the firewall.
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     try:
         if sport:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

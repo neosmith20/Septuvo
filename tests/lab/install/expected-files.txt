@@ -2,6 +2,7 @@
 644 f etc/septuvo/septuvo.toml
 644 f etc/septuvo/septuvod.toml
 644 f usr/lib/systemd/system/septuvo-lab-netns.service
+644 f usr/lib/systemd/system/septuvo-lockdown.service
 644 f usr/lib/systemd/system/septuvod.service
 644 f usr/lib/sysusers.d/septuvo.conf
 644 f usr/lib/tmpfiles.d/septuvo.conf

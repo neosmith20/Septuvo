@@ -1,0 +1,53 @@
+# Septuvo VPN (development preview): Lockdown Mode at boot (N4-04, D-038).
+#
+# Lab only, like septuvod.service. Runs once at boot, before the network is
+# configured (network-pre.target): if Lockdown Mode is on, it installs the
+# blocking rules in the lab namespace "septuvo-lab" before any interface
+# there could pass traffic. If Lockdown Mode is off it does nothing.
+# The rules stay until Lockdown Mode is turned off ("septuvo lockdown off"),
+# the administrator recovery command runs, or Septuvo is uninstalled.
+# Stopping this unit never removes them.
+# Licensed under PolyForm Noncommercial 1.0.0 (see NOTICE).
+[Unit]
+Description=Septuvo Lockdown Mode at boot (development preview, lab only)
+Documentation=https://github.com/neosmith20/Septuvo/blob/main/docs/build/install.md
+DefaultDependencies=no
+Requires=septuvo-lab-netns.service
+After=septuvo-lab-netns.service local-fs.target
+Before=network-pre.target septuvod.service shutdown.target
+Wants=network-pre.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=@LIBEXECDIR@/septuvod --settings /etc/septuvo/septuvod.toml --apply-lockdown
+NetworkNamespacePath=/run/netns/septuvo-lab
+StateDirectory=septuvo
+StateDirectoryMode=0700
+
+# Hardening: only what nft needs.
+CapabilityBoundingSet=CAP_NET_ADMIN
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+UMask=0077
+
+[Install]
+WantedBy=sysinit.target

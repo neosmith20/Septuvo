@@ -114,6 +114,17 @@ jobs:
       - name: Run the saved-connections and switching lab
         run: sudo tests/lab/namespaces/switch.sh target/debug/septuvod target/debug/septuvo
 
+      # N4-04: Lockdown Mode blocks with no connection, after a deliberate
+      # disconnect, with the service killed or restarted and at boot
+      # (T2-LD-01), and recovery removes every rule (IPv6 required).
+      - name: Run the Lockdown Mode lab (IPv6 required)
+        run: sudo tests/lab/namespaces/lockdown.sh --require-ipv6 target/debug/septuvod target/debug/septuvo
+
+      # N4-04: Local Network Access opens only capped, non-overlapping
+      # attached subnets and never discovery (T2-LAN-01, IPv6 required).
+      - name: Run the Local Network Access lab (IPv6 required)
+        run: sudo tests/lab/namespaces/lan.sh --require-ipv6 target/debug/septuvod target/debug/septuvo
+
   # N3-01: installer and systemd service. A staged install (no root), then a
   # real install, use and uninstall on this disposable runner only.
   install:

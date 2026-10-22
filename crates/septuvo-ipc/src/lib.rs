@@ -163,6 +163,12 @@ pub enum Command {
     Delete(ConnectionId),
     /// Select a connection; while connected, switch to it (D-041).
     Select(ConnectionId),
+    /// Turn Lockdown Mode on or off (N4-04, D-038). `LOCKDOWN ON` /
+    /// `LOCKDOWN OFF`.
+    Lockdown(bool),
+    /// Set Local Network Access (N4-04, D-040). `LOCAL-NETWORK ALLOWED` /
+    /// `LOCAL-NETWORK NOT-ALLOWED`.
+    LocalNetwork(bool),
 }
 
 impl Command {
@@ -181,6 +187,8 @@ impl Command {
             Command::Rename(_) => "RENAME",
             Command::Delete(_) => "DELETE",
             Command::Select(_) => "SELECT",
+            Command::Lockdown(_) => "LOCKDOWN",
+            Command::LocalNetwork(_) => "LOCAL-NETWORK",
         }
     }
 
@@ -216,6 +224,13 @@ impl Command {
             Command::Get(id) | Command::Delete(id) | Command::Select(id) => {
                 format!("{VERSION} {} {id}\n", self.as_str())
             }
+            Command::Lockdown(on) => {
+                format!("{VERSION} LOCKDOWN {}\n", if on { "ON" } else { "OFF" })
+            }
+            Command::LocalNetwork(allowed) => format!(
+                "{VERSION} LOCAL-NETWORK {}\n",
+                if allowed { "ALLOWED" } else { "NOT-ALLOWED" }
+            ),
             Command::Add => format!("{VERSION} ADD {body_len}\n"),
             Command::Replace(id) | Command::Rename(id) => {
                 format!("{VERSION} {} {id} {body_len}\n", self.as_str())
@@ -374,6 +389,10 @@ fn parse_header(line: &str) -> Result<(Command, usize), ProtocolError> {
         ["CONNECT"] => Ok((Command::Connect, 0)),
         ["DISCONNECT"] => Ok((Command::Disconnect, 0)),
         ["LIST"] => Ok((Command::List, 0)),
+        ["LOCKDOWN", "ON"] => Ok((Command::Lockdown(true), 0)),
+        ["LOCKDOWN", "OFF"] => Ok((Command::Lockdown(false), 0)),
+        ["LOCAL-NETWORK", "ALLOWED"] => Ok((Command::LocalNetwork(true), 0)),
+        ["LOCAL-NETWORK", "NOT-ALLOWED"] => Ok((Command::LocalNetwork(false), 0)),
         ["GET", c] => Ok((Command::Get(id(c)?), 0)),
         ["DELETE", c] => Ok((Command::Delete(id(c)?), 0)),
         ["SELECT", c] => Ok((Command::Select(id(c)?), 0)),
@@ -399,7 +418,8 @@ fn parse_header(line: &str) -> Result<(Command, usize), ProtocolError> {
             )
         }),
         [
-            "CAPTIVE" | "GET" | "DELETE" | "SELECT" | "ADD" | "REPLACE" | "RENAME",
+            "CAPTIVE" | "GET" | "DELETE" | "SELECT" | "ADD" | "REPLACE" | "RENAME" | "LOCKDOWN"
+            | "LOCAL-NETWORK",
             _,
             ..,
         ] => Err(ProtocolError::Malformed),
@@ -1102,6 +1122,35 @@ mod tests {
         let mut short: &[u8] = b"SEPTUVO/1 STATUS\nignored";
         let got = read_message(&mut short, MAX_REQUEST_BYTES, b"\n").expect("reads");
         assert!(got.starts_with(b"SEPTUVO/1 STATUS\n"));
+    }
+
+    #[test]
+    fn settings_requests_round_trip() {
+        for c in [
+            Command::Lockdown(true),
+            Command::Lockdown(false),
+            Command::LocalNetwork(true),
+            Command::LocalNetwork(false),
+        ] {
+            assert_eq!(parse_request(c.encode().as_bytes()), Ok(c));
+            assert!(c.needs_control() && !c.has_body());
+        }
+        assert_eq!(
+            Command::LocalNetwork(false).encode(),
+            "SEPTUVO/1 LOCAL-NETWORK NOT-ALLOWED\n"
+        );
+        for bad in [
+            "LOCKDOWN on",
+            "LOCKDOWN",
+            "LOCKDOWN ON ON",
+            "LOCAL-NETWORK YES",
+            "LOCAL-NETWORK ALLOWED x",
+        ] {
+            assert!(
+                parse_request(format!("{VERSION} {bad}\n").as_bytes()).is_err(),
+                "{bad}"
+            );
+        }
     }
 
     #[test]

@@ -9,7 +9,7 @@
 //! invented too; it exists only to check the design.
 //!
 //! ```text
-//! cargo run --example preview -- [empty|blocking|captive|failed|lost|disconnecting|protected]
+//! cargo run --example preview -- [empty|blocking|captive|failed|lost|disconnecting|protected|lockdown|lan-allowed]
 //!                                [--advanced [--settings]] [--size 780x760] [--screenshot out.png]
 //! ```
 //!
@@ -95,6 +95,19 @@ fn fake(state: &str) -> Option<Fake> {
                 Snapshot::Lost("no Septuvo service is running (looked in /run/septuvo)".into());
             Fake::new(lost.clone(), lost)
         }
+        // Lockdown Mode blocking, no connection (N4-04).
+        "lockdown" => Fake::new(svc(samples::lockdown()), off),
+        // The same, just after the user allowed Local Network Access: the
+        // one short note (ADVANCED-UI §11.3).
+        "lan-allowed" => {
+            let mut r = samples::lockdown();
+            for (k, v) in &mut r.fields {
+                if k == "local_network" {
+                    *v = "allowed".into();
+                }
+            }
+            Fake::new(svc(r), off)
+        }
         "protected" => Fake::new(
             svc(samples::protected().with("local_network", "allowed")),
             off,
@@ -153,6 +166,7 @@ fn main() -> ExitCode {
         .with_title(format!("Septuvo VPN (SAMPLE DATA: {state})"))
         .with_resizable(screenshot.is_none());
     let disconnecting = state == "disconnecting";
+    let lan_note = state == "lan-allowed";
     let result = eframe::run_native(
         "Septuvo VPN (design preview)",
         options,
@@ -163,6 +177,9 @@ fn main() -> ExitCode {
             }
             if disconnecting {
                 app.preview_disconnecting();
+            }
+            if lan_note {
+                app.preview_local_network_note();
             }
             Ok(Box::new(Preview {
                 app,

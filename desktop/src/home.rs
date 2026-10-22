@@ -3,7 +3,9 @@
 //! Built from the same service answer as the Simple window ([`MainView`]),
 //! so both modes always agree. Everything shown is what the service
 //! reported: the Kill Switch and DNS Protection tiles are status only, and a
-//! value the service does not report is **Unknown**, never assumed.
+//! value the service does not report is **Unknown**, never assumed. Local
+//! Network Access is the one control (N4-04): clicking it asks the service,
+//! and the tile shows only the value the service then reports.
 
 use septuvo_cli::service::status_from;
 use septuvo_cli::watch::Snapshot;
@@ -34,7 +36,7 @@ pub struct Tile {
     /// Colour of the value (always with the word).
     pub tone: Tone,
     /// The supporting sentence.
-    pub text: &'static str,
+    pub text: String,
     /// Status or control.
     pub kind: TileKind,
 }
@@ -87,14 +89,33 @@ pub const IP_LABEL: &str = "Your New IP Address";
 const UNKNOWN_KS: &str = "Septuvo cannot check the kill switch right now.";
 const UNKNOWN_DNS: &str = "Septuvo cannot check DNS protection right now.";
 const UNKNOWN_LAN: &str = "Septuvo cannot check local network access right now.";
-const LAN_LATER: &str = "Changing this arrives with development task N4-04.";
+const LAN_NOT_RUNNING: &str = "The Septuvo service is not running.";
+const LAN_WAITING: &str = "Waiting for the Septuvo service…";
+/// The one short note shown after turning Local Network Access to Allowed
+/// (ADVANCED-UI §11.3).
+pub const LAN_ALLOWED_NOTE: &str =
+    "Devices on this network will be able to reach you, and you them, outside the VPN.";
+
+/// What the app last heard back about a Local Network Access change.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum LanNote {
+    /// Nothing to add: the tile shows its usual sentence.
+    #[default]
+    None,
+    /// The service confirmed **Allowed** after the user chose it: the one
+    /// short note.
+    Allowed,
+    /// The service refused or failed; the tile keeps the value the service
+    /// reports and says why.
+    Refused(String),
+}
 
 fn tile(label: &'static str, value: &'static str, tone: Tone, text: &'static str) -> Tile {
     Tile {
         label,
         value,
         tone,
-        text,
+        text: text.to_string(),
         kind: TileKind::Status,
     }
 }
@@ -112,6 +133,18 @@ pub fn kill_switch(snapshot: &Snapshot) -> Tile {
             "Failed",
             Tone::Danger,
             "Protection could not be enforced. Open Diagnostics.",
+        ),
+        (Some("error-lockdown-missing"), _) => tile(
+            label,
+            "Failed",
+            Tone::Danger,
+            "Lockdown Mode could not be enforced. Open Diagnostics.",
+        ),
+        (Some("lockdown"), Some("on")) => tile(
+            label,
+            "On",
+            Tone::Good,
+            "Lockdown Mode blocks internet access until you connect.",
         ),
         (Some(_), Some("on")) => tile(
             label,
@@ -164,9 +197,10 @@ pub fn dns(snapshot: &Snapshot) -> Tile {
 }
 
 /// The Local Network Access tile (ADVANCED-UI §11.3): the service's value,
-/// read from its `local_network` field. Not operable until N4-04.
+/// read from its `local_network` field, as a control. It can be used only
+/// while the service reports a value and nothing else is waiting for it.
 #[must_use]
-pub fn local_network(snapshot: &Snapshot) -> Tile {
+pub fn local_network(snapshot: &Snapshot, pending: Pending, note: &LanNote) -> Tile {
     let (value, tone, text) = match snapshot {
         Snapshot::Service(r) => match r.field("local_network") {
             Some("allowed") => (
@@ -183,14 +217,25 @@ pub fn local_network(snapshot: &Snapshot) -> Tile {
         },
         Snapshot::Lost(_) => ("Unknown", Tone::Caution, UNKNOWN_LAN),
     };
+    let text = match note {
+        LanNote::Refused(why) => format!("Not changed: {}", crate::state::plain(why)),
+        LanNote::Allowed if value == "Allowed" => LAN_ALLOWED_NOTE.to_string(),
+        _ => text.to_string(),
+    };
+    let reason = match (snapshot, pending) {
+        (Snapshot::Lost(_), _) => Some(LAN_NOT_RUNNING),
+        (_, Pending::Setting | Pending::Disconnecting) => Some(LAN_WAITING),
+        _ if value == "Unknown" => Some(UNKNOWN_LAN),
+        _ => None,
+    };
     Tile {
         label: "Local Network Access",
         value,
         tone,
         text,
         kind: TileKind::Control {
-            enabled: false,
-            reason: Some(LAN_LATER),
+            enabled: reason.is_none(),
+            reason,
         },
     }
 }
@@ -203,6 +248,18 @@ impl HomeView {
     /// The Home page for one service answer.
     #[must_use]
     pub fn build(snapshot: &Snapshot, pending: Pending, notice: Option<&str>) -> HomeView {
+        Self::build_with(snapshot, pending, notice, &LanNote::None)
+    }
+
+    /// The Home page, with what the app last heard about a Local Network
+    /// Access change.
+    #[must_use]
+    pub fn build_with(
+        snapshot: &Snapshot,
+        pending: Pending,
+        notice: Option<&str>,
+        lan: &LanNote,
+    ) -> HomeView {
         let main = MainView::build(snapshot, pending, notice);
         let headline = if main.heading == "Protected" {
             "You’re Connected"
@@ -227,7 +284,7 @@ impl HomeView {
             copy: false,
             kill_switch: kill_switch(snapshot),
             dns: dns(snapshot),
-            local_network: local_network(snapshot),
+            local_network: local_network(snapshot, pending, lan),
             main,
         }
     }
@@ -335,21 +392,75 @@ mod tests {
 
     #[test]
     fn local_network_access_shows_the_services_value() {
+        let lan = |s: &Snapshot| local_network(s, Pending::None, &LanNote::None);
         for (field, value) in [
             ("allowed", "Allowed"),
             ("not-allowed", "Not Allowed"),
             ("maybe", "Unknown"),
         ] {
             let s = svc(samples::blocking().with("local_network", field));
-            assert_eq!(local_network(&s).value, value);
+            assert_eq!(lan(&s).value, value);
         }
+        // Operable only with a value from the service and nothing waiting.
+        let known = svc(samples::lockdown());
         assert_eq!(
-            local_network(&svc(samples::blocking())).kind,
+            lan(&known).kind,
             TileKind::Control {
-                enabled: false,
-                reason: Some(LAN_LATER)
+                enabled: true,
+                reason: None
             }
         );
+        for (s, pending, reason) in [
+            (svc(samples::blocking()), Pending::None, UNKNOWN_LAN),
+            (lost(), Pending::None, LAN_NOT_RUNNING),
+            (known.clone(), Pending::Setting, LAN_WAITING),
+            (known.clone(), Pending::Disconnecting, LAN_WAITING),
+        ] {
+            assert_eq!(
+                local_network(&s, pending, &LanNote::None).kind,
+                TileKind::Control {
+                    enabled: false,
+                    reason: Some(reason)
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn allowing_shows_the_one_note_and_a_refusal_says_why() {
+        let allowed = svc(Response::ok()
+            .with("state", "lockdown")
+            .with("kill_switch", "on")
+            .with("local_network", "allowed"));
+        let t = local_network(&allowed, Pending::None, &LanNote::Allowed);
+        assert_eq!((t.value, t.text.as_str()), ("Allowed", LAN_ALLOWED_NOTE));
+        // The note never contradicts the service: Not Allowed keeps its text.
+        let t = local_network(&svc(samples::lockdown()), Pending::None, &LanNote::Allowed);
+        assert_eq!(t.value, "Not Allowed");
+        assert_ne!(t.text, LAN_ALLOWED_NOTE);
+        let t = local_network(
+            &svc(samples::lockdown()),
+            Pending::None,
+            &LanNote::Refused("the firewall refused\u{1b}[2J".into()),
+        );
+        assert_eq!(t.value, "Not Allowed");
+        assert_eq!(t.text, "Not changed: the firewall refused[2J");
+    }
+
+    #[test]
+    fn lockdown_mode_tiles() {
+        let v = HomeView::build(&svc(samples::lockdown()), Pending::None, None);
+        assert_eq!(v.headline, "Internet Blocked");
+        assert_eq!(
+            [v.kill_switch.value, v.dns.value, v.local_network.value],
+            ["On", "Unknown", "Not Allowed"]
+        );
+        let v = HomeView::build(
+            &svc(Response::ok().with("state", "error-lockdown-missing")),
+            Pending::None,
+            None,
+        );
+        assert_eq!(v.kill_switch.value, "Failed");
     }
 
     #[test]
@@ -358,7 +469,7 @@ mod tests {
         assert_eq!(kill_switch(&s).accessible(), "Kill Switch, On, status");
         assert_eq!(dns(&s).accessible(), "DNS Protection, Unknown, status");
         assert_eq!(
-            local_network(&s).accessible(),
+            local_network(&s, Pending::None, &LanNote::None).accessible(),
             "Local Network Access, Unknown, button"
         );
     }

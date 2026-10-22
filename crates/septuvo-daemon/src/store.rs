@@ -8,6 +8,8 @@
 //!   index.toml      order, names, the selected connection, the next ID
 //!   c0001.toml      a connection's configuration, without its name
 //!   c0002.toml
+//!   service.toml    the service settings: Lockdown Mode and Local Network
+//!                   Access (N4-04)
 //! ```
 //!
 //! Names live in the index, so renaming never rewrites a configuration;
@@ -66,6 +68,54 @@ pub struct Store {
     entries: Vec<(ConnectionId, String)>,
     selected: Option<ConnectionId>,
     next: u16,
+    /// The service settings (N4-04).
+    service: ServiceSettings,
+}
+
+/// Service settings the user changes through the control socket and the
+/// service enforces (DEFAULT-UI §6; D-038, D-040).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ServiceSettings {
+    /// Lockdown Mode (off by default, NP-K1).
+    pub lockdown: bool,
+    /// Local Network Access is Allowed (Not Allowed by default, NP-L1).
+    pub local_network: bool,
+}
+
+impl ServiceSettings {
+    fn text(self) -> String {
+        format!(
+            "# Septuvo service settings (written by septuvod; do not edit)\nversion = 1\nlockdown = {}\nlocal_network = \"{}\"\n",
+            self.lockdown,
+            if self.local_network {
+                "allowed"
+            } else {
+                "not-allowed"
+            }
+        )
+    }
+
+    fn parse(text: &str) -> Result<ServiceSettings, String> {
+        let doc = toml::parse(text).map_err(|e| e.to_string())?;
+        if !doc.tables.is_empty()
+            || doc.root.get("version").map(|e| &e.value) != Some(&Value::Integer(1))
+        {
+            return Err("unknown format".into());
+        }
+        let mut out = ServiceSettings::default();
+        for e in &doc.root.entries {
+            match (e.key.as_str(), &e.value) {
+                ("version", _) => {}
+                ("lockdown", Value::Boolean(b)) => out.lockdown = *b,
+                ("local_network", Value::String(v)) if v == "allowed" => out.local_network = true,
+                ("local_network", Value::String(v)) if v == "not-allowed" => {
+                    out.local_network = false;
+                }
+                (k, _) => return Err(format!("unknown or invalid setting '{k}'")),
+            }
+        }
+        Ok(out)
+    }
 }
 
 fn key(name: &str) -> String {
@@ -109,7 +159,17 @@ impl Store {
             entries: Vec::new(),
             selected: None,
             next: 1,
+            service: ServiceSettings::default(),
         };
+        let settings = dir.join("service.toml");
+        match read_bounded(&settings, MAX_INDEX_BYTES) {
+            Ok(text) => {
+                store.service = ServiceSettings::parse(&text)
+                    .map_err(|why| format!("{}: {why}", settings.display()))?;
+            }
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+            Err(e) => return Err(format!("cannot read {}: {e}", settings.display())),
+        }
         let index = dir.join("index.toml");
         match read_bounded(&index, MAX_INDEX_BYTES) {
             Ok(text) => store
@@ -219,6 +279,33 @@ impl Store {
     fn write_index(&self) -> Result<(), StoreError> {
         write_atomic(&self.dir.join("index.toml"), &self.index_text())
             .map_err(|e| io_err("cannot save the connection list", &e))
+    }
+
+    /// The service settings.
+    #[must_use]
+    pub fn service(&self) -> ServiceSettings {
+        self.service
+    }
+
+    /// Changes the service settings (saved before this returns).
+    ///
+    /// # Errors
+    /// A write failure; nothing is changed then.
+    pub fn set_service(&mut self, settings: ServiceSettings) -> Result<(), StoreError> {
+        write_atomic(&self.dir.join("service.toml"), &settings.text())
+            .map_err(|e| io_err("cannot save the service settings", &e))?;
+        self.service = settings;
+        Ok(())
+    }
+
+    /// Every saved connection's valid configuration (one that is no longer
+    /// valid is skipped).
+    #[must_use]
+    pub fn configs(&self) -> Vec<DeviceConfig> {
+        self.entries
+            .iter()
+            .filter_map(|(id, _)| self.config(*id).ok())
+            .collect()
     }
 
     /// The connections, in display order.
@@ -658,6 +745,33 @@ mod tests {
             Store::open(&dir, true).is_err(),
             "a readable or non-root store is refused"
         );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn service_settings_persist_and_damage_is_refused() {
+        let dir = temp("service");
+        let mut s = Store::open(&dir, false).expect("open");
+        assert_eq!(
+            s.service(),
+            ServiceSettings::default(),
+            "both off by default"
+        );
+        let on = ServiceSettings {
+            lockdown: true,
+            local_network: true,
+        };
+        s.set_service(on).expect("save");
+        assert_eq!(Store::open(&dir, false).expect("reopen").service(), on);
+        for bad in [
+            "version = 1\nlockdown = \"yes\"\n",
+            "version = 1\nlocal_network = \"maybe\"\n",
+            "version = 2\n",
+            "version = 1\n[x]\n",
+        ] {
+            fs::write(dir.join("service.toml"), bad).unwrap();
+            assert!(Store::open(&dir, false).is_err(), "{bad}");
+        }
         let _ = fs::remove_dir_all(&dir);
     }
 

@@ -40,6 +40,7 @@ fn run(args: &[String]) -> Result<String, String> {
         endpoints,
         dns: DnsRules::TunnelOnly,
         captive_helper: None,
+        local: septuvo_policy::lan::LocalAccess::default(),
     };
     render(&policy, &ks).map_err(|e| e.to_string())
 }

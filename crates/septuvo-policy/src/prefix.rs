@@ -82,6 +82,16 @@ fn to_bits(addr: IpAddr) -> u128 {
     }
 }
 
+/// The address for `bits` in `family`.
+fn from_bits(bits: u128, family: Family) -> IpAddr {
+    match family {
+        Family::V4 => IpAddr::V4(std::net::Ipv4Addr::from(
+            u32::try_from(bits & 0xffff_ffff).unwrap_or(0),
+        )),
+        Family::V6 => IpAddr::V6(std::net::Ipv6Addr::from(bits)),
+    }
+}
+
 /// Network mask with `len` leading one bits within a `width`-bit address.
 fn mask(len: u8, width: u8) -> u128 {
     debug_assert!(len <= width && (width == 32 || width == 128));
@@ -129,6 +139,45 @@ impl Prefix {
     #[must_use]
     pub fn family(&self) -> Family {
         Family::of(self.addr)
+    }
+
+    /// The prefix of length `len` that contains `addr` (host bits cleared),
+    /// for example `192.168.1.30` and 24 give `192.168.1.0/24`.
+    ///
+    /// # Errors
+    /// [`PrefixError::LengthTooLong`].
+    pub fn containing(addr: IpAddr, len: u8) -> Result<Self, PrefixError> {
+        let width = Family::of(addr).bits();
+        if len > width {
+            return Err(PrefixError::LengthTooLong);
+        }
+        let bits = to_bits(addr) & mask(len, width);
+        Ok(Prefix {
+            addr: from_bits(bits, Family::of(addr)),
+            len,
+        })
+    }
+
+    /// The last address of the prefix (for IPv4, the subnet broadcast
+    /// address).
+    #[must_use]
+    pub fn last(&self) -> IpAddr {
+        let width = self.family().bits();
+        let all = if width == 128 {
+            u128::MAX
+        } else {
+            (1u128 << width) - 1
+        };
+        from_bits(
+            to_bits(self.addr) | (all & !mask(self.len, width)),
+            self.family(),
+        )
+    }
+
+    /// True if the two prefixes share any address (one contains the other).
+    #[must_use]
+    pub fn overlaps(&self, other: &Prefix) -> bool {
+        self.family() == other.family() && (self.contains(other.addr) || other.contains(self.addr))
     }
 
     /// True if `addr` is inside this prefix. Addresses of the other family

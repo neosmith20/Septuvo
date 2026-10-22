@@ -32,18 +32,33 @@
 //! `state=failed` with the reason; the old connection is never silently
 //! resumed.
 //!
+//! **Lockdown Mode (N4-04, D-038).** When on, a blocking ruleset
+//! ([`nft::render_lockdown`]) is in force whenever no connection is: at
+//! service start, after a deliberate disconnect, and from boot (the
+//! `--apply-lockdown` start-up step). It is lifted only by turning Lockdown
+//! Mode off, the administrator recovery command or uninstall.
+//!
+//! **Local Network Access (N4-04, D-040).** When Allowed, the directly
+//! attached subnets ([`lan::attached_subnets`]) are opened in whichever
+//! ruleset is in force, recomputed whenever an address changes.
+//!
 //! **State vocabulary.** `state` is one of `disconnected`, `blocking`,
-//! `blocking-left-from-earlier-run`, `error-kill-switch-missing` and
-//! `failed` (with `failure`). The protocol also reserves `connecting`,
+//! `blocking-left-from-earlier-run`, `error-kill-switch-missing`, `lockdown`
+//! (Lockdown Mode blocking, not connected), `error-lockdown-missing`
+//! (Lockdown Mode on, but its rules are not in place) and `failed` (with
+//! `failure`). The protocol also reserves `connecting`,
 //! `switching`, `disconnecting` and `reconnecting` for operations that take
 //! time; before G1 every operation is one atomic firewall transaction done
 //! while the service holds its lock, so status never observes them.
 
+use crate::addresses::{Addresses, NoAddresses};
 use crate::resolver::Resolver;
-use crate::store::{Store, StoreError};
+use crate::store::{ServiceSettings, Store, StoreError};
 use septuvo_config::{DeviceConfig, DnsPolicy};
 use septuvo_ipc::{Command, ConnectionId, Request, Response};
-use septuvo_policy::nft::{self, DnsRules, KillSwitch};
+use septuvo_policy::lan::{self, LocalAccess};
+use septuvo_policy::nft::{self, DnsRules, KillSwitch, Lockdown};
+use septuvo_policy::{Action, Prefix};
 use std::fmt::Write as _;
 use std::path::Path;
 use std::process::{Command as Process, Stdio};
@@ -200,6 +215,10 @@ pub struct Engine<F: Firewall, I: Interfaces, R: Resolver> {
     captive_windows: u8,
     /// Where service events go: standard error (the journal) by default.
     log: fn(&str),
+    /// The interfaces' addresses, for Local Network Access.
+    addresses: Box<dyn Addresses>,
+    /// What Local Network Access opened in the rules last applied.
+    applied_local: LocalAccess,
 }
 
 fn log_to_stderr(line: &str) {
@@ -226,6 +245,172 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
             captive_helper: None,
             captive_windows: 0,
             log: log_to_stderr,
+            addresses: Box::new(NoAddresses),
+            applied_local: LocalAccess::default(),
+        }
+    }
+
+    /// Reads interface addresses from `addresses` (Local Network Access).
+    #[must_use]
+    pub fn with_addresses(mut self, addresses: Box<dyn Addresses>) -> Self {
+        self.addresses = addresses;
+        self
+    }
+
+    /// The service settings (all off without a store).
+    fn settings(&self) -> ServiceSettings {
+        self.store.as_ref().map(Store::service).unwrap_or_default()
+    }
+
+    /// Lockdown Mode is on and no connection is wanted: the Lockdown Mode
+    /// ruleset must be in force.
+    fn lockdown_idle(&self) -> bool {
+        self.settings().lockdown && !self.wanted
+    }
+
+    /// Start-up (and the boot step): with Lockdown Mode on and no
+    /// connection, installs the Lockdown Mode ruleset. Otherwise nothing:
+    /// rules left by an earlier run are kept (Q2).
+    ///
+    /// # Errors
+    /// The ruleset could not be applied.
+    pub fn apply_startup(&mut self) -> Result<bool, String> {
+        if !self.lockdown_idle() {
+            return Ok(false);
+        }
+        self.apply_lockdown()?;
+        (self.log)("Lockdown Mode: blocking ruleset installed (no connection)");
+        Ok(true)
+    }
+
+    /// Recomputes Local Network Access after an address change and, if what
+    /// it opens changed, re-applies the ruleset in force (NP-L6). Returns
+    /// true if the rules were replaced.
+    pub fn addresses_changed(&mut self) -> bool {
+        if !self.settings().local_network || !(self.wanted || self.lockdown_idle()) {
+            return false;
+        }
+        let now = if self.wanted {
+            self.local_for_connection()
+        } else {
+            self.local_for_lockdown()
+        };
+        if now == self.applied_local {
+            return false;
+        }
+        match self.refresh_rules() {
+            Ok(()) => {
+                (self.log)("addresses changed: Local Network Access rules updated");
+                true
+            }
+            Err(e) => {
+                (self.log)(&format!(
+                    "addresses changed, but the rules could not be updated: {e}"
+                ));
+                false
+            }
+        }
+    }
+
+    /// The tunnel and blocked prefixes of `config` (NP-L4).
+    fn excluded(config: &DeviceConfig) -> Vec<Prefix> {
+        config
+            .policy
+            .rules()
+            .iter()
+            .filter(|r| r.action != Action::Direct)
+            .map(|r| r.prefix)
+            .collect()
+    }
+
+    /// Local Network Access for the connection in use.
+    fn local_for_connection(&mut self) -> LocalAccess {
+        if !self.settings().local_network {
+            return LocalAccess::default();
+        }
+        let endpoints: Vec<_> = self
+            .config
+            .endpoints
+            .iter()
+            .map(std::net::SocketAddr::ip)
+            .collect();
+        let exclude = Self::excluded(&self.config);
+        let addrs = self.addresses.current();
+        lan::attached_subnets(&addrs, &self.config.tunnel.interface, &exclude, &endpoints).access
+    }
+
+    /// Every configuration the Lockdown Mode ruleset must let the user
+    /// connect with: the default and every saved one.
+    fn all_configs(&self) -> Vec<DeviceConfig> {
+        let mut all = vec![self.default.clone()];
+        if let Some(store) = &self.store {
+            all.extend(store.configs());
+        }
+        all
+    }
+
+    /// Local Network Access while Lockdown Mode blocks: nothing that
+    /// overlaps any saved connection's tunnel or blocked prefixes or
+    /// endpoints is opened.
+    fn local_for_lockdown(&mut self) -> LocalAccess {
+        if !self.settings().local_network {
+            return LocalAccess::default();
+        }
+        let configs = self.all_configs();
+        let exclude: Vec<Prefix> = configs.iter().flat_map(Self::excluded).collect();
+        let endpoints: Vec<_> = configs
+            .iter()
+            .flat_map(|c| c.endpoints.iter().map(std::net::SocketAddr::ip))
+            .collect();
+        let addrs = self.addresses.current();
+        lan::attached_subnets(&addrs, &self.config.tunnel.interface, &exclude, &endpoints).access
+    }
+
+    fn apply_lockdown(&mut self) -> Result<(), String> {
+        let mut endpoints: Vec<(std::net::IpAddr, u16)> = Vec::new();
+        for c in self.all_configs() {
+            for e in c.endpoints {
+                if !endpoints.contains(&(e.ip(), e.port())) {
+                    endpoints.push((e.ip(), e.port()));
+                }
+            }
+        }
+        endpoints.truncate(nft::MAX_LOCKDOWN_ENDPOINTS);
+        let local = self.local_for_lockdown();
+        let script = nft::render_lockdown(&Lockdown {
+            tunnel_interface: self.config.tunnel.interface.clone(),
+            endpoints,
+            captive_helper: self.captive_helper,
+            local: local.clone(),
+        })
+        .map_err(|e| e.to_string())?;
+        self.firewall.apply(&script)?;
+        self.applied_local = local;
+        // A new table starts with empty captive-portal sets.
+        self.captive_until = None;
+        self.captive_network_dns = None;
+        Ok(())
+    }
+
+    /// While Lockdown Mode blocks, the saved connections' endpoints are part
+    /// of its ruleset: re-applied after the list changes.
+    fn refresh_lockdown_endpoints(&mut self) {
+        if self.lockdown_idle()
+            && let Err(e) = self.apply_lockdown()
+        {
+            (self.log)(&format!("Lockdown Mode rules could not be updated: {e}"));
+        }
+    }
+
+    /// Re-applies the ruleset that should be in force: the kill switch while
+    /// connected, Lockdown Mode while it blocks; nothing otherwise.
+    fn refresh_rules(&mut self) -> Result<(), String> {
+        if self.wanted {
+            self.apply_rules()
+        } else if self.lockdown_idle() {
+            self.apply_lockdown()
+        } else {
+            Ok(())
         }
     }
 
@@ -299,7 +484,100 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
             Command::Rename(id) => self.rename(id, body),
             Command::Delete(id) => self.delete(id),
             Command::Select(id) => self.select(id),
+            Command::Lockdown(on) => self.set_lockdown(on),
+            Command::LocalNetwork(allowed) => self.set_local_network(allowed),
         }
+    }
+
+    /// Lockdown Mode on or off (D-038). While connected nothing changes
+    /// now: it applies when the connection ends.
+    fn set_lockdown(&mut self, on: bool) -> Response {
+        let old = self.settings();
+        if old.lockdown == on {
+            // Already on with no connection: install the rules again, which
+            // repairs rules removed by hand (`error-lockdown-missing`).
+            if on && !self.wanted {
+                if let Err(e) = self.apply_lockdown() {
+                    return Response::error(
+                        "firewall",
+                        &format!("Lockdown Mode rules could not be installed: {e}"),
+                    );
+                }
+                return self.status().with(
+                    "message",
+                    "Lockdown Mode on: blocking rules installed again",
+                );
+            }
+            return self.status().with("message", "Lockdown Mode unchanged");
+        }
+        if let Err(r) = self.with_store_mut(|s| {
+            s.set_service(ServiceSettings {
+                lockdown: on,
+                ..old
+            })
+        }) {
+            return r;
+        }
+        if !self.wanted {
+            let applied = if on {
+                self.apply_lockdown()
+            } else {
+                self.firewall.apply(&nft::removal_script())
+            };
+            if let Err(e) = applied {
+                // Keep the setting and the rules consistent: undo.
+                let _ = self.with_store_mut(|s| s.set_service(old));
+                return Response::error("firewall", &format!("Lockdown Mode was not changed: {e}"));
+            }
+        }
+        (self.log)(&format!(
+            "Lockdown Mode turned {}",
+            if on { "on" } else { "off" }
+        ));
+        let message = match (on, self.wanted) {
+            (true, false) => "Lockdown Mode on: internet access is blocked until you connect",
+            (true, true) => "Lockdown Mode on: it will keep blocking when this connection ends",
+            (false, false) => "Lockdown Mode off: normal networking restored",
+            (false, true) => {
+                "Lockdown Mode off: a deliberate disconnect will restore normal networking"
+            }
+        };
+        self.status().with("message", message)
+    }
+
+    /// Local Network Access Allowed or Not Allowed (D-040). The service
+    /// applies it at once to the ruleset in force; if that fails the setting
+    /// is not changed.
+    fn set_local_network(&mut self, allowed: bool) -> Response {
+        let old = self.settings();
+        if let Err(r) = self.with_store_mut(|s| {
+            s.set_service(ServiceSettings {
+                local_network: allowed,
+                ..old
+            })
+        }) {
+            return r;
+        }
+        if let Err(e) = self.refresh_rules() {
+            let _ = self.with_store_mut(|s| s.set_service(old));
+            let _ = self.refresh_rules();
+            return Response::error(
+                "firewall",
+                &format!("Local Network Access was not changed: {e}"),
+            );
+        }
+        (self.log)(&format!(
+            "Local Network Access set to {}",
+            if allowed { "Allowed" } else { "Not Allowed" }
+        ));
+        let mut r = self.status();
+        if allowed {
+            r = r.with(
+                "message",
+                "Devices on this network will be able to reach you, and you them, outside the VPN.",
+            );
+        }
+        r
     }
 
     fn store_error(e: &StoreError) -> Response {
@@ -355,6 +633,7 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
         match self.with_store_mut(|s| s.add(text)) {
             Ok(id) => {
                 (self.log)(&format!("saved connection {id} added"));
+                self.refresh_lockdown_endpoints();
                 Response::ok()
                     .with("id", &id.to_string())
                     .with("message", "connection saved (not selected)")
@@ -381,6 +660,7 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
             Err(r) => return r,
         };
         (self.log)(&format!("saved connection {id} replaced"));
+        self.refresh_lockdown_endpoints();
         if self.current == Some(id) {
             return self.use_config(Some(id), config, "connection updated");
         }
@@ -403,6 +683,7 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
             Err(r) => return r,
         };
         (self.log)(&format!("saved connection {id} deleted"));
+        self.refresh_lockdown_endpoints();
         if self.current == Some(id) {
             // Not connected: the new selection (or the default) is used next.
             let config = next.and_then(|n| self.store.as_ref().and_then(|s| s.config(n).ok()));
@@ -467,9 +748,11 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
     /// Renders and installs the kill switch for the configuration in use,
     /// in one transaction.
     fn apply_rules(&mut self) -> Result<(), String> {
-        let script =
-            nft::render(&self.config.policy, &self.kill_switch()).map_err(|e| e.to_string())?;
-        self.firewall.apply(&script)
+        let ks = self.kill_switch();
+        let script = nft::render(&self.config.policy, &ks).map_err(|e| e.to_string())?;
+        self.firewall.apply(&script)?;
+        self.applied_local = ks.local;
+        Ok(())
     }
 
     fn install_resolver(&mut self) -> Result<(), String> {
@@ -477,8 +760,10 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
         self.resolver.install(&servers)
     }
 
-    fn kill_switch(&self) -> KillSwitch {
+    fn kill_switch(&mut self) -> KillSwitch {
+        let local = self.local_for_connection();
         KillSwitch {
+            local,
             tunnel_interface: self.config.tunnel.interface.clone(),
             endpoints: self
                 .config
@@ -506,13 +791,15 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
     }
 
     fn connect(&mut self) -> Response {
-        let script = match nft::render(&self.config.policy, &self.kill_switch()) {
+        let ks = self.kill_switch();
+        let script = match nft::render(&self.config.policy, &ks) {
             Ok(s) => s,
             Err(e) => return Response::error("invalid_policy", &e.to_string()),
         };
         if let Err(e) = self.firewall.apply(&script) {
             return Response::error("firewall", &e);
         }
+        self.applied_local = ks.local;
         self.wanted = true;
         self.failure = None;
         // The new table starts with empty captive-portal sets.
@@ -530,10 +817,19 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
     }
 
     fn disconnect(&mut self) -> Response {
-        if let Err(e) = self.firewall.apply(&nft::removal_script()) {
+        // With Lockdown Mode on, a deliberate disconnect keeps blocking
+        // (D-038, amends Q2); otherwise it removes the rules.
+        let lockdown = self.settings().lockdown;
+        self.wanted = false;
+        let removed = if lockdown {
+            self.apply_lockdown()
+        } else {
+            self.firewall.apply(&nft::removal_script())
+        };
+        if let Err(e) = removed {
+            self.wanted = true;
             return Response::error("firewall", &e);
         }
-        self.wanted = false;
         self.failure = None;
         // Removing the table ended any captive-portal window at once.
         self.captive_until = None;
@@ -543,7 +839,11 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
         }
         self.status().with(
             "message",
-            "disconnected: Septuvo rules removed and the resolver file restored (deliberate disconnect)",
+            if lockdown {
+                "disconnected: Lockdown Mode keeps blocking internet access until you connect"
+            } else {
+                "disconnected: Septuvo rules removed and the resolver file restored (deliberate disconnect)"
+            },
         )
     }
 
@@ -563,10 +863,11 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
                 "captive-portal mode needs a dedicated helper account (daemon.captive_helper_user)",
             );
         }
-        if !self.wanted || !self.firewall.active() {
+        // While connected, or while Lockdown Mode blocks (NP-K2).
+        if !(self.wanted || self.lockdown_idle()) || !self.firewall.active() {
             return Response::error(
                 "not_connected",
-                "captive-portal mode is only available while connected (kill switch on)",
+                "captive-portal mode is only available while connected or while Lockdown Mode blocks",
             );
         }
         if self.captive_windows >= MAX_CAPTIVE_WINDOWS {
@@ -628,11 +929,17 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
         } else {
             "fail"
         };
+        let settings = self.settings();
         let state = match (self.wanted, kill_switch) {
             (true, _) if self.failure.is_some() => "failed",
             (true, true) => "blocking",
+            (false, true) if settings.lockdown => "lockdown",
             (false, true) => "blocking-left-from-earlier-run",
             (true, false) => "error-kill-switch-missing",
+            // Lockdown Mode is on but its rules are not in place (removed
+            // by hand, or they could not be installed): never shown as an
+            // ordinary disconnected state.
+            (false, false) if settings.lockdown => "error-lockdown-missing",
             (false, false) => "disconnected",
         };
         // DNS leak prevention is part of the same ruleset as the kill
@@ -659,6 +966,20 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
             )
             .with("kill_switch", if kill_switch { "on" } else { "off" })
             .with("dns_protection", dns_protection)
+            .with("lockdown", if settings.lockdown { "on" } else { "off" })
+            .with(
+                "local_network",
+                if settings.local_network {
+                    "allowed"
+                } else {
+                    "not-allowed"
+                },
+            )
+            .with_if(
+                kill_switch && !self.applied_local.is_empty(),
+                "local_subnets",
+                &self.local_summary(),
+            )
             .with("verified_at", &verified_at.to_string())
             .with("interface", &self.config.tunnel.interface)
             .with("adapter", adapter)
@@ -692,6 +1013,20 @@ impl<F: Firewall, I: Interfaces, R: Resolver> Engine<F, I, R> {
                 &(MAX_CAPTIVE_WINDOWS - self.captive_windows.min(MAX_CAPTIVE_WINDOWS)).to_string(),
             )
             .with("note", PEER_NOTE)
+    }
+
+    /// The opened local subnets, for status.
+    fn local_summary(&self) -> String {
+        let mut list: Vec<String> = self
+            .applied_local
+            .subnets
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        if self.applied_local.ipv6_link_local {
+            list.push("fe80::/10".into());
+        }
+        list.join(", ")
     }
 
     fn captive_state(&self, open: bool) -> &'static str {
@@ -876,6 +1211,247 @@ mod tests {
         );
     }
 
+    // --- Lockdown Mode and Local Network Access (N4-04) ------------------
+
+    #[derive(Clone, Default)]
+    struct FakeAddresses(
+        std::sync::Arc<std::sync::Mutex<Vec<septuvo_policy::lan::InterfaceAddress>>>,
+    );
+
+    impl Addresses for FakeAddresses {
+        fn current(&mut self) -> Vec<septuvo_policy::lan::InterfaceAddress> {
+            self.0.lock().unwrap().clone()
+        }
+    }
+
+    impl FakeAddresses {
+        fn set(&self, list: &[(&str, &str)]) {
+            *self.0.lock().unwrap() = list
+                .iter()
+                .map(|(iface, cidr)| {
+                    let (a, l) = cidr.split_once('/').unwrap();
+                    septuvo_policy::lan::InterfaceAddress {
+                        interface: (*iface).into(),
+                        addr: a.parse().unwrap(),
+                        prefix_len: l.parse().unwrap(),
+                    }
+                })
+                .collect();
+        }
+    }
+
+    fn lab(
+        tag: &str,
+    ) -> (
+        Engine<FakeFirewall, FakeInterfaces, FakeResolver>,
+        FakeAddresses,
+        std::path::PathBuf,
+    ) {
+        let dir = store_dir(tag);
+        let addrs = FakeAddresses::default();
+        addrs.set(&[
+            ("lo", "127.0.0.1/8"),
+            ("eth0", "192.168.1.30/24"),
+            ("eth0", "fe80::1/64"),
+        ]);
+        let e = engine(FakeFirewall::default(), false)
+            .with_store(Store::open(&dir, false).unwrap())
+            .with_addresses(Box::new(addrs.clone()));
+        (e, addrs, dir)
+    }
+
+    #[test]
+    fn lockdown_is_off_by_default_and_blocks_when_turned_on() {
+        let (mut e, _, _) = lab("ld-on");
+        let r = e.handle(Command::Status, false);
+        assert_eq!(
+            (r.field("lockdown"), r.field("local_network")),
+            (Some("off"), Some("not-allowed"))
+        );
+        assert_eq!(
+            code(&e.handle(Command::Lockdown(true), false)),
+            "not_permitted"
+        );
+        let r = e.handle(Command::Lockdown(true), true);
+        assert_eq!(r.field("state"), Some("lockdown"));
+        assert_eq!(r.field("kill_switch"), Some("on"));
+        assert!(rules(&e).contains("Lockdown Mode"));
+        assert!(
+            rules(&e).contains("203.0.113.7 udp dport 51820 accept"),
+            "the user can still connect"
+        );
+        // Off again: normal networking.
+        let r = e.handle(Command::Lockdown(false), true);
+        assert_eq!(r.field("state"), Some("disconnected"));
+        assert!(e.firewall.installed.is_none());
+    }
+
+    /// D-038: a deliberate disconnect keeps blocking with Lockdown Mode on.
+    #[test]
+    fn lockdown_keeps_blocking_after_disconnect() {
+        let (mut e, _, _) = lab("ld-disc");
+        let _ = e.handle(Command::Connect, true);
+        let r = e.handle(Command::Lockdown(true), true);
+        assert!(
+            r.field("message")
+                .is_some_and(|m| m.contains("when this connection ends"))
+        );
+        assert!(
+            !rules(&e).contains("Lockdown Mode"),
+            "nothing changes while connected"
+        );
+        let r = e.handle(Command::Disconnect, true);
+        assert_eq!(r.outcome, Outcome::Ok);
+        assert_eq!(r.field("state"), Some("lockdown"));
+        assert!(rules(&e).contains("Lockdown Mode"));
+    }
+
+    /// Rules removed by hand show as an error; turning Lockdown Mode on
+    /// again installs them again.
+    #[test]
+    fn lockdown_on_again_repairs_missing_rules() {
+        let (mut e, _, dir) = lab("ld-repair");
+        let _ = e.handle(Command::Lockdown(true), true);
+        let mut again =
+            engine(FakeFirewall::default(), false).with_store(Store::open(&dir, false).unwrap());
+        assert_eq!(
+            again.handle(Command::Status, false).field("state"),
+            Some("error-lockdown-missing")
+        );
+        let r = again.handle(Command::Lockdown(true), true);
+        assert_eq!(r.outcome, Outcome::Ok);
+        assert_eq!(r.field("state"), Some("lockdown"));
+        assert!(rules(&again).contains("Lockdown Mode"));
+    }
+
+    /// Across a service restart (and from boot): the start-up step installs
+    /// the Lockdown Mode ruleset again.
+    #[test]
+    fn lockdown_survives_a_restart() {
+        let (mut e, _, dir) = lab("ld-restart");
+        let _ = e.handle(Command::Lockdown(true), true);
+        let mut again =
+            engine(FakeFirewall::default(), false).with_store(Store::open(&dir, false).unwrap());
+        // Before the start-up step the rules are missing: an error, never
+        // an ordinary "disconnected".
+        assert_eq!(
+            again.handle(Command::Status, false).field("state"),
+            Some("error-lockdown-missing")
+        );
+        assert_eq!(again.apply_startup(), Ok(true));
+        assert!(rules(&again).contains("Lockdown Mode"));
+        assert_eq!(
+            again.handle(Command::Status, false).field("state"),
+            Some("lockdown")
+        );
+        // With Lockdown Mode off the start-up step changes nothing.
+        let mut off = engine(FakeFirewall::default(), false)
+            .with_store(Store::open(&store_dir("ld-off"), false).unwrap());
+        assert_eq!(off.apply_startup(), Ok(false));
+        assert_eq!(off.firewall.applied, 0);
+    }
+
+    #[test]
+    fn lockdown_lets_the_user_reach_every_saved_connection() {
+        let (mut e, _, _) = lab("ld-endpoints");
+        let _ = add(&mut e, &conn("A", "198.51.100.1:5000"));
+        let _ = add(&mut e, &conn("B", "[2001:db8::7]:443"));
+        let _ = e.handle(Command::Lockdown(true), true);
+        let s = rules(&e);
+        assert!(s.contains("ip daddr 198.51.100.1 udp dport 5000 accept"));
+        assert!(s.contains("ip6 daddr 2001:db8::7 udp dport 443 accept"));
+        // A connection saved while Lockdown Mode blocks becomes reachable at once.
+        let _ = add(&mut e, &conn("C", "198.51.100.9:6000"));
+        assert!(rules(&e).contains("ip daddr 198.51.100.9 udp dport 6000 accept"));
+    }
+
+    #[test]
+    fn a_failed_lockdown_change_changes_nothing() {
+        let (mut e, _, _) = lab("ld-fail");
+        e.firewall.fail = true;
+        let r = e.handle(Command::Lockdown(true), true);
+        assert_eq!(code(&r), "firewall");
+        assert_eq!(
+            e.handle(Command::Status, false).field("lockdown"),
+            Some("off")
+        );
+    }
+
+    #[test]
+    fn captive_portal_works_while_lockdown_blocks() {
+        let (mut e, _, _) = lab("ld-captive");
+        assert_eq!(code(&e.handle(captive(1, false), true)), "not_connected");
+        let _ = e.handle(Command::Lockdown(true), true);
+        assert_eq!(e.handle(captive(1, false), true).outcome, Outcome::Ok);
+    }
+
+    #[test]
+    fn local_network_access_opens_only_the_attached_subnet() {
+        let (mut e, addrs, _) = lab("lan");
+        let _ = e.handle(Command::Connect, true);
+        assert!(!rules(&e).contains("192.168.1.0/24"));
+        let r = e.handle(Command::LocalNetwork(true), true);
+        assert_eq!(r.field("local_network"), Some("allowed"));
+        assert!(
+            r.field("message")
+                .is_some_and(|m| m.contains("outside the VPN"))
+        );
+        assert_eq!(r.field("local_subnets"), Some("192.168.1.0/24, fe80::/10"));
+        assert!(rules(&e).contains("ip daddr 192.168.1.0/24 accept"));
+        // NP-L6: a new network replaces the old subnet at once.
+        addrs.set(&[("eth0", "10.9.8.7/24")]);
+        assert!(e.addresses_changed());
+        assert!(rules(&e).contains("ip daddr 10.9.8.0/24 accept"));
+        assert!(
+            !rules(&e).contains("192.168.1.0/24"),
+            "no stale subnet stays open"
+        );
+        assert!(
+            !e.addresses_changed(),
+            "nothing changed: nothing re-applied"
+        );
+        // NP-L3: a hostile, huge prefix opens nothing.
+        addrs.set(&[("eth0", "10.9.8.7/8")]);
+        assert!(e.addresses_changed());
+        assert!(!rules(&e).contains("10.0.0.0/8"));
+        // Not Allowed again: the subnets are gone.
+        addrs.set(&[("eth0", "192.168.1.30/24")]);
+        let _ = e.handle(Command::LocalNetwork(false), true);
+        assert!(!rules(&e).contains("192.168.1.0/24"));
+    }
+
+    #[test]
+    fn local_network_access_never_opens_the_server_or_tunnel_prefixes() {
+        let (mut e, addrs, _) = lab("lan-overlap");
+        // The endpoint 203.0.113.7 sits in the attached subnet: not opened.
+        addrs.set(&[("eth0", "203.0.113.20/24")]);
+        let _ = e.handle(Command::Connect, true);
+        let _ = e.handle(Command::LocalNetwork(true), true);
+        assert!(!rules(&e).contains("203.0.113.0/24 accept"));
+    }
+
+    #[test]
+    fn local_network_access_applies_in_lockdown_too() {
+        let (mut e, _, _) = lab("lan-ld");
+        let _ = e.handle(Command::Lockdown(true), true);
+        let _ = e.handle(Command::LocalNetwork(true), true);
+        let s = rules(&e);
+        assert!(s.contains("Lockdown Mode") && s.contains("ip daddr 192.168.1.0/24 accept"));
+    }
+
+    #[test]
+    fn a_failed_local_network_change_is_undone() {
+        let (mut e, _, _) = lab("lan-fail");
+        let _ = e.handle(Command::Connect, true);
+        e.firewall.fail = true;
+        let r = e.handle(Command::LocalNetwork(true), true);
+        assert_eq!(code(&r), "firewall");
+        assert_eq!(
+            e.handle(Command::Status, false).field("local_network"),
+            Some("not-allowed")
+        );
+    }
+
     // --- saved connections and switching (N4-03) -------------------------
 
     fn conn(name: &str, endpoint: &str) -> String {
@@ -955,11 +1531,7 @@ mod tests {
         assert_eq!(e.firewall.applied, before + 1, "exactly one transaction");
         let script = rules(&e);
         // One script: the old table is replaced, not removed first.
-        assert!(
-            script.contains(
-                "\nadd table inet septuvo\ndelete table inet septuvo\ntable inet septuvo {"
-            )
-        );
+        assert!(script.contains("\nadd table inet septuvo\nflush table inet septuvo\n"));
         assert!(script.contains("203.0.113.2") && !script.contains("203.0.113.1"));
         assert_eq!(r.field("state"), Some("blocking"));
         assert_eq!(r.field("connection"), Some("c0002"));
@@ -1155,9 +1727,12 @@ mod tests {
             code(&none.handle(captive(5, false), true)),
             "not_configured"
         );
+        let installed = none.firewall.installed.clone().unwrap();
+        // The script's start only deletes any old captive sets.
+        let (_, table) = installed.split_once("table inet septuvo {").unwrap();
         assert!(
-            !none.firewall.installed.clone().unwrap().contains("captive"),
-            "no helper, no captive rules at all"
+            !table.contains("captive"),
+            "no helper, no captive rules or sets at all"
         );
         assert_eq!(
             none.handle(Command::Status, false).field("captive_portal"),
