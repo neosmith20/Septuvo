@@ -1,0 +1,121 @@
+name: Desktop
+
+# N4: the Septuvo VPN desktop app (desktop/, its own Cargo workspace).
+# Septuvo-authored code is Rust (D-005); every non-Rust native component is
+# reviewed (D-015): the native-code gate (crates/septuvo-native-gate) inspects
+# every crate the app builds and the built binary, against
+# desktop/native-allowlist.txt.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    name: desktop (native-code gate, fmt, clippy, tests, start-up, close lab, screenshots)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, verified 2026-10-13
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned toolchain from rust-toolchain.toml
+        run: |
+          channel="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          test -n "$channel"
+          rustup toolchain install "$channel" --profile minimal --component rustfmt --component clippy
+          rustc --version
+
+      # Operating-system components used only to run the tests on this runner:
+      # a virtual X display, Mesa's software OpenGL, keyboard layouts and the
+      # Wayland client library. Never part of Septuvo.
+      - name: Install test tooling (Ubuntu packages, runner only)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends xvfb xauth libegl1 libegl-mesa0 libgl1 libgl1-mesa-dri \
+            libxkbcommon0 libxkbcommon-x11-0 libwayland-client0 libx11-6 libx11-xcb1 libxcursor1 libxi6 libxrandr2 \
+            nftables iproute2
+
+      - name: Native-code gate (every crate the app builds)
+        run: cargo run --locked -q -p septuvo-native-gate -- deps --manifest-path desktop/Cargo.toml --allowlist desktop/native-allowlist.txt
+
+      - name: Format
+        working-directory: desktop
+        run: cargo fmt --check
+
+      - name: Lint (warnings are errors)
+        working-directory: desktop
+        run: |
+          set +e
+          cargo clippy --locked --all-targets --message-format=short -- -D warnings 2>&1 | tee clippy.txt
+          status=${PIPESTATUS[0]}
+          sed -n 's/^\([^: ]*\):\([0-9]*\):\([0-9]*\): \(error\|warning\)[^:]*: \(.*\)$/::error file=desktop\/\1,line=\2,col=\3::\5/p' clippy.txt
+          exit "$status"
+
+      - name: Test (view model; main window through the accessibility tree)
+        working-directory: desktop
+        run: cargo test --locked
+
+      - name: Build (release)
+        working-directory: desktop
+        run: cargo build --locked --release --bin septuvo-vpn --example preview
+
+      - name: Native-code gate (built binary and build outputs)
+        run: cargo run --locked -q -p septuvo-native-gate -- artifacts --allowlist desktop/native-allowlist.txt --target-dir desktop/target desktop/target/release/septuvo-vpn
+
+      - name: Refuses to run as root
+        run: |
+          set +e
+          out="$(sudo desktop/target/release/septuvo-vpn 2>&1)"
+          status=$?
+          echo "$out"
+          test "$status" = 2 && grep -q "does not run as root" <<<"$out"
+
+      - name: Starts and keeps running on a headless display (software OpenGL)
+        run: |
+          set +e
+          LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x900x24" timeout 10 desktop/target/release/septuvo-vpn 2>&1 | tee startup.txt
+          status=${PIPESTATUS[0]}
+          # 124: still running when stopped after 10 s, which is the pass condition.
+          if [ "$status" != 124 ]; then echo "::error title=desktop start-up::septuvo-vpn exited with $status"; exit 1; fi
+
+      # N4-01: the window's X against the real lab service, in a throw-away
+      # namespace with throw-away users, on this runner only.
+      - name: Build the lab service and the CLI
+        run: cargo build -p septuvo-daemon -p septuvo-cli --bins --locked
+
+      - name: Run the desktop close lab
+        run: |
+          test_bin="$(cd desktop && cargo test --locked --no-run --test lab_close --message-format=json 2>/dev/null \
+            | python3 -c 'import sys, json
+          for line in sys.stdin:
+              m = json.loads(line)
+              if m.get("reason") == "compiler-artifact" and m.get("executable") and m["target"]["name"] == "lab_close":
+                  print(m["executable"])')"
+          test -x "$test_bin"
+          sudo tests/lab/namespaces/desktop_close.sh target/debug/septuvod target/debug/septuvo "$test_bin"
+
+      - name: Screenshots for the owner's visual sign-off (sample data)
+        run: |
+          mkdir -p screenshots
+          cp docs/ui/desktop/Default_VPN_UI.png screenshots/0-reference-Default_VPN_UI.png
+          for state in empty blocking captive failed lost disconnecting protected; do
+            for size in 780x760 520x580; do
+              LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x900x24" timeout 60 \
+                desktop/target/release/examples/preview "$state" --size "$size" --screenshot "screenshots/$state-$size.png"
+              test -s "screenshots/$state-$size.png"
+            done
+          done
+          ls -l screenshots
+
+      - name: Upload the screenshots
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-main-window-screenshots
+          path: screenshots/
+          retention-days: 30

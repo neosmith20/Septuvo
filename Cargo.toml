@@ -5,9 +5,10 @@
 
 [workspace]
 resolver = "3"
-# fuzz/ is a separate workspace (cargo-fuzz, development only; D-035).
-exclude = ["fuzz"]
-members = ["crates/septuvo-policy", "crates/septuvo-cli", "crates/septuvo-config", "crates/septuvo-ipc", "crates/septuvo-daemon", "crates/septuvo-server"]
+# fuzz/ (cargo-fuzz, development only; D-035) and desktop/ (the Septuvo VPN
+# desktop app with its reviewed third-party crates; N4) are separate workspaces.
+exclude = ["fuzz", "desktop"]
+members = ["crates/septuvo-policy", "crates/septuvo-cli", "crates/septuvo-config", "crates/septuvo-ipc", "crates/septuvo-daemon", "crates/septuvo-server", "crates/septuvo-native-gate"]
 
 [workspace.package]
 version = "0.0.0"

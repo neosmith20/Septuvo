@@ -1,0 +1,39 @@
+# Septuvo VPN desktop application for Linux (N4, work order docs/work-orders/N4.md).
+# Septuvo-authored code is Rust (D-005). A separate workspace, so the main workspace keeps no
+# third-party crates. Every crate here was reviewed in
+# docs/reviews/dependency-review-desktop.md before it was added, is pinned
+# exactly (Cargo.lock, every version at least two weeks old), and is checked in
+# CI by the native-code gate (crates/septuvo-native-gate) against
+# desktop/native-allowlist.txt.
+
+[package]
+name = "septuvo-desktop"
+version = "0.0.0"
+edition = "2024"
+license = "PolyForm-Noncommercial-1.0.0"
+publish = false
+description = "Septuvo VPN desktop application (development preview, no VPN functionality)"
+repository = "https://github.com/neosmith20/Septuvo"
+
+[[bin]]
+name = "septuvo-vpn"
+path = "src/main.rs"
+
+[dependencies]
+eframe = { version = "=0.36.2", default-features = false, features = ["accesskit", "glow", "wayland", "x11"] }
+septuvo-cli = { path = "../crates/septuvo-cli" }
+septuvo-ipc = { path = "../crates/septuvo-ipc" }
+
+[dev-dependencies]
+egui_kittest = { version = "=0.36.2", default-features = false }
+
+# Its own workspace: not a member of the main one.
+[workspace]
+members = ["."]
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
