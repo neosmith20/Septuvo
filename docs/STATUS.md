@@ -110,15 +110,15 @@ Dates are `YYYY-MM-DD` UTC: the authorization date for READY rows, the merge dat
 
 | Task ID | State | Predecessor | Owner decision date (UTC) | Work-order approval | Completion evidence |
 | --- | --- | --- | --- | --- | --- |
-| N4-01 | NOT STARTED | N3-04 | — | — | — |
-| N4-02 | NOT STARTED | N4-01 | — | — | — |
-| N4-03 | NOT STARTED | N4-02 | — | — | — |
-| N4-04 | NOT STARTED | N4-03 | — | — | — |
-| N4-05 | NOT STARTED | N4-04 | — | — | — |
-| N4-06 | NOT STARTED | N4-05 | — | — | — |
-| N4-07 | NOT STARTED | N4-06 | — | — | — |
-| N4-08 | NOT STARTED | N4-07 | — | — | — |
-| N4-09 | NOT STARTED | N4-08 | — | — | — |
+| N4-01 | READY | N3-04 | 2026-10-18 | [Work order N4 revision 2, merged in PR #72](https://github.com/neosmith20/Septuvo/pull/72) | — |
+| N4-02 | READY | N4-01 | 2026-10-18 | [Work order N4 revision 2, merged in PR #72](https://github.com/neosmith20/Septuvo/pull/72) | — |
+| N4-03 | READY | N4-02 | 2026-10-18 | [Work order N4 revision 2, merged in PR #72](https://github.com/neosmith20/Septuvo/pull/72) | — |
+| N4-04 | READY | N4-03 | 2026-10-18 | [Work order N4 revision 2, merged in PR #72](https://github.com/neosmith20/Septuvo/pull/72) | — |
+| N4-05 | READY | N4-04 | 2026-10-18 | [Work order N4 revision 2, merged in PR #72](https://github.com/neosmith20/Septuvo/pull/72) | — |
+| N4-06 | READY | N4-05 | 2026-10-18 | [Work order N4 revision 2, merged in PR #72](https://github.com/neosmith20/Septuvo/pull/72) | — |
+| N4-07 | READY | N4-06 | 2026-10-18 | [Work order N4 revision 2, merged in PR #72](https://github.com/neosmith20/Septuvo/pull/72) | — |
+| N4-08 | READY | N4-07 | 2026-10-18 | [Work order N4 revision 2, merged in PR #72](https://github.com/neosmith20/Septuvo/pull/72) | — |
+| N4-09 | READY | N4-08 | 2026-10-18 | [Work order N4 revision 2, merged in PR #72](https://github.com/neosmith20/Septuvo/pull/72) | — |
 
 ## Dotted subtasks (owner authorized separately)
 
@@ -152,6 +152,9 @@ Use separate `H-001`, `H-002` etc. IDs for routine work outside the 43 base task
 | H-016 | ACCEPTED | 2026-10-17 | Routine (D-031) | [PR #60](https://github.com/neosmith20/Septuvo/pull/60) |
 | H-017 | ACCEPTED | 2026-10-17 | Routine (D-031) | [PR #61](https://github.com/neosmith20/Septuvo/pull/61) |
 | H-018 | ACCEPTED | 2026-10-18 | Routine (D-031) | [PR #65](https://github.com/neosmith20/Septuvo/pull/65) |
+| H-019 | ACCEPTED | 2026-10-18 | Routine (D-031) | [PR #67](https://github.com/neosmith20/Septuvo/pull/67) |
+| H-020 | ACCEPTED | 2026-10-18 | Routine (D-031) | [PR #68](https://github.com/neosmith20/Septuvo/pull/68); [PR #72](https://github.com/neosmith20/Septuvo/pull/72) |
+| H-021 | ACCEPTED | 2026-10-18 | Routine (D-031) | [PR #72](https://github.com/neosmith20/Septuvo/pull/72) |
 
 ## Allowed task states
 
