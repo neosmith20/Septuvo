@@ -20,3 +20,6 @@ $RECYCLE.BIN/
 
 # Rust build output (N1 onward)
 /target/
+
+# desktop/ is a separate Cargo workspace (N4)
+/desktop/target/

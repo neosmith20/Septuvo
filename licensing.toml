@@ -51,6 +51,12 @@ license = "PolyForm-Noncommercial-1.0.0"
 component = "server"
 note = "Septuvo Server administration: device records (N2-04)"
 
+[[crate]]
+path = "crates/septuvo-native-gate"
+license = "Apache-2.0"
+component = "tooling"
+note = "Native-code review gate for CI (N4-01); repository tooling, never shipped"
+
 [brand]
 path = "brand"
 notice = "brand/NOTICE.md"

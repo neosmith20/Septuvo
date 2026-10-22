@@ -21,7 +21,9 @@
 | `crates/septuvo-ipc` | Apache-2.0 | Open reference implementation | Local control protocol between the `septuvo` tool and the service; Apache-2.0 because the Apache-2.0 CLI depends on it (N2-02, approved in the N2 work order) |
 | `crates/septuvo-daemon` | PolyForm Noncommercial 1.0.0 | Septuvo VPN | Privileged service `septuvod` (N2-02) |
 | `crates/septuvo-server` | PolyForm Noncommercial 1.0.0 | Septuvo Server | Server administration: device records (N2-04) |
+| `crates/septuvo-native-gate` | Apache-2.0 | Repository tooling, never shipped | Native-code review gate run in CI (N4-01); Apache-2.0 like the repository's other open tooling, so anyone can reuse the check |
 | `packaging/linux/` (not a crate) | PolyForm Noncommercial 1.0.0 | Septuvo VPN | Linux installer, systemd units and templates (N3-01); carries its own `LICENSE.md` and `NOTICE` |
+| `desktop/` (separate workspace, not in `licensing.toml`) | PolyForm Noncommercial 1.0.0 | Septuvo VPN | The desktop application `septuvo-vpn` (N4, N4-D5); carries its own `LICENSE.md` and `NOTICE`, which list its third-party crates (MIT, Apache-2.0, BSD-style, ISC, Zlib, Unlicense) and the Inter typeface (SIL Open Font License 1.1, `desktop/assets/fonts/OFL.txt`) |
 | `fuzz/` (separate workspace, not in `licensing.toml`) | PolyForm Noncommercial 1.0.0 | Development only, never shipped | cargo-fuzz targets (H-018, D-035); carries its own `LICENSE.md` and `NOTICE`, which also list the third-party test tooling it uses (`libfuzzer-sys`, MIT OR Apache-2.0, with LLVM libFuzzer, NCSA) |
 
 New Septuvo VPN or Septuvo Server application code goes into **new crates** classified as PolyForm Noncommercial in [`licensing.toml`](licensing.toml). Whether the two existing crates should instead move to PolyForm for future changes is owner question **L6** (section 8).

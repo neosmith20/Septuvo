@@ -1,0 +1,25 @@
+Septuvo VPN desktop application (desktop/)
+
+Licensed under the PolyForm Noncommercial License 1.0.0 (see LICENSE.md).
+Development preview: no VPN functionality before the G1 security review.
+
+Required Notice: Copyright 2026 the Septuvo rights holder (GitHub: neosmith20). Commercial use requires a separate written license agreement.
+
+The Septuvo name, logo, wordmark and icons in assets/icons and assets/brand
+are brand assets: see
+brand/NOTICE.md. No code license grants any right to use them.
+
+Third-party components built into the application (pinned in desktop/Cargo.lock;
+reviewed in docs/reviews/dependency-review-desktop.md):
+- egui, eframe, epaint, egui-winit, egui_glow (MIT OR Apache-2.0)
+- AccessKit (MIT OR Apache-2.0), winit (Apache-2.0), glutin (Apache-2.0),
+  glow (MIT OR Apache-2.0 OR Zlib), zbus (MIT)
+- and their dependencies, each under MIT, Apache-2.0, BSD-2-Clause,
+  BSD-3-Clause, ISC, Zlib, 0BSD, Unicode-3.0 or Unlicense terms
+  (several offer a choice; Septuvo uses a permissive option in every case).
+- The Inter typeface, Copyright (c) 2016 The Inter Project Authors, under the
+  SIL Open Font License 1.1 (assets/fonts/OFL.txt). Inter-Regular.ttf,
+  Inter-Medium.ttf, Inter-SemiBold.ttf and Inter-Bold.ttf, unmodified, from
+  Inter 4.1 (github.com/rsms/inter).
+
+Test-only (never shipped): egui_kittest and kittest (MIT OR Apache-2.0).
