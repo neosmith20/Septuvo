@@ -32,7 +32,7 @@ done
 
 ID=$$
 C="sv-lc-$ID" U="sv-lu-$ID"
-GROUP="sv-lg-$ID" MEMBER="svlm$ID" OTHER="svlo$ID"
+GROUP="sv-lg-$ID" MEMBER="svlm$ID" OTHER="svlo$ID" HELPER="svlh$ID"
 WORK=$(mktemp -d)
 chmod 755 "$WORK"
 RUN="$WORK/run"
@@ -53,7 +53,9 @@ cleanup() {
   done
   userdel "$MEMBER" 2>/dev/null || true
   userdel "$OTHER" 2>/dev/null || true
+  userdel "$HELPER" 2>/dev/null || true
   groupdel "$GROUP" 2>/dev/null || true
+  groupdel "$HELPER" 2>/dev/null || true
   rm -rf "/etc/netns/$C" "/etc/netns/.septuvo-$C.resolv.conf.backup" "/etc/netns/.septuvo-$C.resolv.conf.tmp" "$WORK"
 }
 trap cleanup EXIT
@@ -83,6 +85,9 @@ table() { inC nft list table inet septuvo 2>/dev/null; }
 groupadd "$GROUP"
 useradd -M -N -s /usr/sbin/nologin -G "$GROUP" "$MEMBER"
 useradd -M -N -s /usr/sbin/nologin "$OTHER"
+# A captive-portal helper account, as installed: the Lockdown Mode ruleset
+# then carries the helper's (empty) window rules too.
+useradd -r -M -U -s /usr/sbin/nologin "$HELPER"
 mkdir "$WORK/bin" "$WORK/store"
 chmod 700 "$WORK/store"
 install -m 755 "$DAEMON" "$WORK/bin/septuvod"
@@ -130,6 +135,7 @@ runtime_dir = "$RUN"
 control_group = "$GROUP"
 device_config = "$WORK/septuvo.toml"
 connections_dir = "$STORE"
+captive_helper_user = "$HELPER"
 EOF
 chmod 644 "$WORK"/*.toml
 

@@ -157,4 +157,6 @@ jobs:
         run: tests/lab/install/run.sh target/release
 
       - name: Real install, use and uninstall (disposable runner)
-        run: sudo tests/lab/install/run.sh --real target/release
+        # GITHUB_ACTIONS is passed through sudo so failures and their
+        # details become annotations.
+        run: sudo GITHUB_ACTIONS=true tests/lab/install/run.sh --real target/release

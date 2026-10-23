@@ -25,6 +25,16 @@ result() {
   if [ "$1" = 1 ]; then PASS=$((PASS + 1)); echo "PASS  $2"
   else FAIL=$((FAIL + 1)); echo "FAIL  $2"; [ -n "${GITHUB_ACTIONS:-}" ] && echo "::error title=install lab::$2"; fi
 }
+# Prints the details of a failure (a file, or standard input), indented; in
+# CI also as annotations, since the job log is not always at hand.
+detail() {
+  local n=0
+  while IFS= read -r line; do
+    echo "      $line"
+    n=$((n + 1))
+    if [ -n "${GITHUB_ACTIONS:-}" ] && [ $n -le 8 ]; then echo "::warning title=install lab detail::$line"; fi
+  done < "${1:-/dev/stdin}"
+}
 cleanup() { rm -rf "$WORK"; }
 trap cleanup EXIT
 
@@ -83,7 +93,7 @@ set +e
 "$PKG/install.sh" --bindir "$BINDIR" --enable > "$WORK/b1.log" 2>&1; rc=$?
 [ $rc = 0 ] && ok=1 || ok=0
 result $ok "I10 real install with --enable succeeds (exit $rc)"
-[ $ok = 1 ] || sed 's/^/      /' "$WORK/b1.log"
+[ $ok = 1 ] || detail "$WORK/b1.log"
 bad=$(for f in /usr/libexec/septuvo /usr/libexec/septuvo/septuvod /usr/bin/septuvo /usr/sbin/septuvo-server \
          /usr/lib/systemd/system/septuvod.service /usr/lib/systemd/system/septuvo-lab-netns.service \
          /usr/lib/systemd/system/septuvo-lockdown.service \
@@ -94,11 +104,11 @@ result $ok "I10b every installed file is owned by root:root${bad:+ (not: $bad)}"
 systemd-analyze verify /usr/lib/systemd/system/septuvod.service /usr/lib/systemd/system/septuvo-lab-netns.service \
   /usr/lib/systemd/system/septuvo-lockdown.service > "$WORK/verify.log" 2>&1 && ok=1 || ok=0
 result $ok "I11 systemd-analyze verify accepts all three units"
-[ $ok = 1 ] || sed 's/^/      /' "$WORK/verify.log"
+[ $ok = 1 ] || detail "$WORK/verify.log"
 for _ in $(seq 50); do [ -S /run/septuvo/status.sock ] && break; sleep 0.1; done
 systemctl is-active --quiet septuvod.service && ip netns list | grep -qw septuvo-lab && ok=1 || ok=0
 result $ok "I12 the service runs, inside the lab namespace septuvo-lab"
-[ $ok = 1 ] || journalctl -u septuvod.service --no-pager -n 20 | sed 's/^/      /'
+[ $ok = 1 ] || journalctl -u septuvod.service --no-pager -n 20 | detail
 systemd-analyze security septuvod.service --no-pager 2>/dev/null | tail -1 | sed 's/^/      exposure: /'
 
 uid=$(id -u septuvo-portal 2>/dev/null)
@@ -116,7 +126,7 @@ runuser -u "$MEMBER" -- /usr/bin/septuvo connect > "$WORK/connect.log" 2>&1 \
 result $ok "I15 a septuvo group member can connect: the kill switch is on in the lab namespace"
 ip netns exec septuvo-lab nft list chain inet septuvo output 2>/dev/null | grep -q "meta skuid $uid tcp dport @captive_web accept" && ok=1 || ok=0
 result $ok "I15b the installed service scopes captive-portal rules to the helper account only"
-[ $ok = 1 ] || sed 's/^/      /' "$WORK/connect.log"
+[ $ok = 1 ] || detail "$WORK/connect.log"
 nft list table inet septuvo > /dev/null 2>&1 && ok=0 || ok=1
 result $ok "I16 the host's own firewall is untouched (rules only in the lab namespace)"
 systemctl stop septuvod.service
@@ -136,14 +146,14 @@ grep -qw network-pre.target <<<"$before" && grep -qw septuvod.service <<<"$befor
   && [ "$(systemctl show -p DefaultDependencies --value septuvo-lockdown.service)" = no ] \
   && systemctl is-enabled --quiet septuvo-lockdown.service && ok=1 || ok=0
 result $ok "I23 the Lockdown Mode boot unit is enabled and ordered before network-pre.target and the service"
-[ $ok = 1 ] || echo "      Before=$before; lab namespace Before=$nsbefore"
+[ $ok = 1 ] || echo "Before=$before; lab namespace Before=$nsbefore; enabled: $(systemctl is-enabled septuvo-lockdown.service)" | detail
 svc() { runuser -u "$MEMBER" -- /usr/bin/septuvo "$@" 2>&1; }
 svc lockdown on > "$WORK/ld.log"; rc=$?
 st=$(svc status)
 [ $rc = 0 ] && grep -q "Service state: lockdown" <<<"$st" && grep -q "Lockdown Mode: on" <<<"$st" \
   && ip netns exec septuvo-lab nft list table inet septuvo > /dev/null 2>&1 && ok=1 || ok=0
 result $ok "I24 Lockdown Mode on: blocking rules installed with no connection"
-[ $ok = 1 ] || sed 's/^/      /' "$WORK/ld.log"
+[ $ok = 1 ] || { detail "$WORK/ld.log"; echo "$st" | detail; }
 # A simulated reboot: the namespace (and every rule in it) goes away, then
 # only the boot unit runs, as it does before the network at boot.
 systemctl stop septuvod.service septuvo-lab-netns.service
@@ -152,7 +162,7 @@ systemctl start septuvo-lockdown.service > "$WORK/boot.log" 2>&1
 ip netns exec septuvo-lab nft list table inet septuvo > /dev/null 2>&1 \
   && ! systemctl is-active --quiet septuvod.service || ok=0
 result $ok "I25 at boot the Lockdown Mode rules are installed by the boot unit alone, before the service starts"
-[ $ok = 1 ] || journalctl -u septuvo-lockdown.service --no-pager -n 20 | sed 's/^/      /'
+[ $ok = 1 ] || journalctl -u septuvo-lockdown.service --no-pager -n 20 | detail
 systemctl start septuvod.service
 for _ in $(seq 50); do [ -S /run/septuvo/control/control.sock ] && break; sleep 0.1; done
 svc status | grep -q "Service state: lockdown" && ok=1 || ok=0
@@ -165,7 +175,7 @@ for _ in $(seq 50); do [ -S /run/septuvo/control/control.sock ] && break; sleep 
 st=$(svc status)
 [ $rc = 0 ] && grep -q "Lockdown Mode: off" <<<"$st" && grep -q "Service state: disconnected" <<<"$st" || ok=0
 result $ok "I27 the administrator recovery command turns Lockdown Mode off and removes every rule"
-[ $ok = 1 ] || sed 's/^/      /' "$WORK/recover.log"
+[ $ok = 1 ] || { detail "$WORK/recover.log"; echo "$st" | detail; }
 svc lockdown on > /dev/null
 
 runuser -u "$MEMBER" -- /usr/bin/septuvo connect > /dev/null 2>&1
@@ -187,7 +197,7 @@ ip netns list | grep -qw septuvo-lab && left="$left netns:septuvo-lab"
 systemctl list-unit-files 2>/dev/null | grep -q '^septuvo' && left="$left units"
 [ $rc = 0 ] && [ -z "$left" ] && ok=1 || ok=0
 result $ok "I20 uninstall (connected, Lockdown Mode on) leaves no files, units, group, namespace or rules${left:+ (left:$left)}"
-[ $ok = 1 ] || sed 's/^/      /' "$WORK/un.log"
+[ $ok = 1 ] || detail "$WORK/un.log"
 [ -f /etc/septuvo/septuvo.toml ] && grep -q "kept /etc/septuvo" "$WORK/un.log" && ok=1 || ok=0
 result $ok "I21 uninstall keeps /etc/septuvo unless --purge, and says so"
 "$PKG/uninstall.sh" --purge > /dev/null 2>&1
