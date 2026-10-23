@@ -148,6 +148,14 @@ grep -qw network-pre.target <<<"$before" && grep -qw septuvod.service <<<"$befor
 result $ok "I23 the Lockdown Mode boot unit is enabled and ordered before network-pre.target and the service"
 [ $ok = 1 ] || echo "Before=$before; lab namespace Before=$nsbefore; enabled: $(systemctl is-enabled septuvo-lockdown.service)" | detail
 svc() { runuser -u "$MEMBER" -- /usr/bin/septuvo "$@" 2>&1; }
+# Waits until the started service answers status (up to 20 s).
+ready() {
+  for _ in $(seq 200); do
+    /usr/bin/septuvo status 2>/dev/null | grep -q "^Service state:" && return 0
+    sleep 0.1
+  done
+  return 1
+}
 svc lockdown on > "$WORK/ld.log"; rc=$?
 st=$(svc status)
 [ $rc = 0 ] && grep -q "Service state: lockdown" <<<"$st" && grep -q "Lockdown Mode: on" <<<"$st" \
@@ -164,14 +172,16 @@ ip netns exec septuvo-lab nft list table inet septuvo > /dev/null 2>&1 \
 result $ok "I25 at boot the Lockdown Mode rules are installed by the boot unit alone, before the service starts"
 [ $ok = 1 ] || journalctl -u septuvo-lockdown.service --no-pager -n 20 | detail
 systemctl start septuvod.service
-for _ in $(seq 50); do [ -S /run/septuvo/control/control.sock ] && break; sleep 0.1; done
-svc status | grep -q "Service state: lockdown" && ok=1 || ok=0
+ready
+st=$(svc status)
+grep -q "Service state: lockdown" <<<"$st" && ok=1 || ok=0
 result $ok "I26 the service then reports Lockdown Mode blocking"
+[ $ok = 1 ] || { echo "$st" | detail; journalctl -u septuvod.service --no-pager -n 8 | detail; }
 systemctl stop septuvod.service
 ip netns exec septuvo-lab /usr/libexec/septuvo/septuvod --settings /etc/septuvo/septuvod.toml --recover > "$WORK/recover.log" 2>&1; rc=$?
 ip netns exec septuvo-lab nft list table inet septuvo > /dev/null 2>&1 && ok=0 || ok=1
 systemctl start septuvod.service
-for _ in $(seq 50); do [ -S /run/septuvo/control/control.sock ] && break; sleep 0.1; done
+ready
 st=$(svc status)
 [ $rc = 0 ] && grep -q "Lockdown Mode: off" <<<"$st" && grep -q "Service state: disconnected" <<<"$st" || ok=0
 result $ok "I27 the administrator recovery command turns Lockdown Mode off and removes every rule"
