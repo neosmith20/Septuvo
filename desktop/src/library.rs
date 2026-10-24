@@ -271,10 +271,7 @@ mod tests {
         assert_eq!(e[0].detail, "203.0.113.7:51820");
         assert!(e[0].in_use && !e[0].selected && e[1].selected);
         // Known settings survive a refresh; removed connections go.
-        assert!(
-            lib.apply_list(&list("c0001\tHome VPN\n", "none"))
-                .is_empty()
-        );
+        assert_eq!(lib.apply_list(&list("c0001\tHome VPN\n", "none")), vec![]);
         assert_eq!(lib.selected(), None);
     }
 
