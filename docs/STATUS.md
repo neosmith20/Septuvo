@@ -113,7 +113,7 @@ Dates are `YYYY-MM-DD` UTC: the authorization date for READY rows, the merge dat
 | N4-01 | ACCEPTED | N3-04 | 2026-10-22 | [Work order N4 revision 2, merged in PR #72](https://github.com/neosmith20/Septuvo/pull/72) | [PR #74](https://github.com/neosmith20/Septuvo/pull/74) |
 | N4-02 | ACCEPTED | N4-01 | 2026-10-22 | [Work order N4 revision 2, merged in PR #72](https://github.com/neosmith20/Septuvo/pull/72) | [PR #75](https://github.com/neosmith20/Septuvo/pull/75) |
 | N4-03 | ACCEPTED | N4-02 | 2026-10-22 | [Work order N4 revision 2, merged in PR #72](https://github.com/neosmith20/Septuvo/pull/72) | [PR #76](https://github.com/neosmith20/Septuvo/pull/76) |
-| N4-04 | READY | N4-03 | 2026-10-18 | [Work order N4 revision 2, merged in PR #72](https://github.com/neosmith20/Septuvo/pull/72) | — |
+| N4-04 | ACCEPTED | N4-03 | 2026-10-24 | [Work order N4 revision 2, merged in PR #72](https://github.com/neosmith20/Septuvo/pull/72) | [PR #77](https://github.com/neosmith20/Septuvo/pull/77) |
 | N4-05 | READY | N4-04 | 2026-10-18 | [Work order N4 revision 2, merged in PR #72](https://github.com/neosmith20/Septuvo/pull/72) | — |
 | N4-06 | READY | N4-05 | 2026-10-18 | [Work order N4 revision 2, merged in PR #72](https://github.com/neosmith20/Septuvo/pull/72) | — |
 | N4-07 | READY | N4-06 | 2026-10-18 | [Work order N4 revision 2, merged in PR #72](https://github.com/neosmith20/Septuvo/pull/72) | — |

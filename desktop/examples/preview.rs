@@ -9,17 +9,27 @@
 //! invented too; it exists only to check the design.
 //!
 //! ```text
-//! cargo run --example preview -- [empty|blocking|captive|failed|lost|disconnecting|protected|lockdown|lan-allowed]
-//!                                [--advanced [--settings]] [--size 780x760] [--screenshot out.png]
+//! cargo run --example preview -- [empty|blocking|captive|failed|lost|disconnecting|protected|lockdown|lan-allowed|saved|saved-blocking]
+//!                                [--advanced [--settings | --connections]] [--open selector|connections|add|editor]
+//!                                [--size 780x760] [--screenshot out.png]
 //! ```
 //!
-//! With `--screenshot`, the window saves itself as a PNG after a few frames
+//! `saved` and `saved-blocking` have three sample saved connections and a
+//! draft (N4-05). `--open` shows a secondary area inside the main window
+//! (so one screenshot holds it) or the profile selector's list.
+//!
+//! ```text
+//! ```
+//!
+//! With `--screenshot`, the window saves itself as a PNG after 40 frames (once
+//! windows have faded in)
 //! and closes (used in CI, under Xvfb with Mesa's software OpenGL).
 
 use eframe::egui;
 use septuvo_cli::watch::Snapshot;
 use septuvo_desktop::advanced_window::Page;
 use septuvo_desktop::app::{SeptuvoApp, native_options, sizes};
+use septuvo_desktop::main_window::Shell;
 use septuvo_desktop::prefs::{Bounds, InterfaceMode, Prefs};
 use septuvo_desktop::service::Fake;
 use septuvo_desktop::state::samples;
@@ -73,13 +83,20 @@ impl eframe::App for Preview {
             }
             self.done = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-        } else if self.frames >= 6 && !self.requested {
+        } else if self.frames >= 40 && !self.requested {
             self.requested = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
         }
         ctx.request_repaint();
     }
 }
+
+/// Sample saved connections (documentation addresses only).
+const SAMPLE_CONNECTIONS: [&str; 3] = [
+    "version = 1\n[server]\nendpoints = [\"203.0.113.10:51820\"]\n[routing]\nmode = \"full-tunnel\"\n[dns]\nresolvers = [\"10.77.0.1\"]\n[connection]\nname = \"Home VPN\"\n",
+    "version = 1\n[server]\nendpoints = [\"198.51.100.7:51820\"]\n[routing]\nmode = \"split\"\ntunnel = [\"10.20.0.0/16\"]\n[dns]\nresolvers = [\"10.20.0.53\"]\n[connection]\nname = \"Office\"\n",
+    "version = 1\n[server]\nendpoints = [\"192.0.2.44:443\"]\n[routing]\nmode = \"full-tunnel\"\n[dns]\nresolvers = [\"10.9.0.1\"]\n[connection]\nname = \"Travel\"\n",
+];
 
 fn fake(state: &str) -> Option<Fake> {
     let svc = |r| Snapshot::Service(r);
@@ -108,6 +125,10 @@ fn fake(state: &str) -> Option<Fake> {
             }
             Fake::new(svc(r), off)
         }
+        "saved" => Fake::new(off.clone(), off).with_connections(&SAMPLE_CONNECTIONS),
+        "saved-blocking" => {
+            Fake::new(svc(samples::blocking()), off).with_connections(&SAMPLE_CONNECTIONS)
+        }
         "protected" => Fake::new(
             svc(samples::protected().with("local_network", "allowed")),
             off,
@@ -121,6 +142,8 @@ fn main() -> ExitCode {
     let mut size = None;
     let mut mode = InterfaceMode::Simple;
     let mut settings = false;
+    let mut connections_tab = false;
+    let mut open: Option<String> = None;
     let mut screenshot = None;
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
@@ -138,6 +161,8 @@ fn main() -> ExitCode {
             }
             "--advanced" => mode = InterfaceMode::Advanced,
             "--settings" => settings = true,
+            "--connections" => connections_tab = true,
+            "--open" => open = args.next(),
             "--screenshot" => screenshot = args.next().map(PathBuf::from),
             s => state = s.to_string(),
         }
@@ -167,14 +192,28 @@ fn main() -> ExitCode {
         .with_resizable(screenshot.is_none());
     let disconnecting = state == "disconnecting";
     let lan_note = state == "lan-allowed";
+    let shell = match open.as_deref() {
+        Some("connections") => Some(Shell::Connections),
+        Some("add") => Some(Shell::AddImport),
+        Some("editor") => Some(Shell::Editor),
+        _ => None,
+    };
+    let selector = open.as_deref() == Some("selector");
     let result = eframe::run_native(
         "Septuvo VPN (design preview)",
         options,
-        Box::new(move |_cc| {
+        Box::new(move |cc| {
+            // Secondary areas inside the main window, so one screenshot
+            // holds them.
+            cc.egui_ctx.set_embed_viewports(shell.is_some());
             let mut app = SeptuvoApp::new(Box::new(link), prefs, None);
             if settings {
                 app.open_page(Page::Settings);
             }
+            if connections_tab {
+                app.open_page(Page::Connections);
+            }
+            app.preview_open(shell, selector);
             if disconnecting {
                 app.preview_disconnecting();
             }

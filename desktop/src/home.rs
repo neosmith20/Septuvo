@@ -10,7 +10,7 @@
 use septuvo_cli::service::status_from;
 use septuvo_cli::watch::Snapshot;
 
-use crate::state::{MainView, Pending, Tone};
+use crate::state::{Choice, MainView, Pending, Tone};
 
 /// Whether a tile is a status indicator or a control (ADVANCED-UI §11, §14.2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -248,7 +248,13 @@ impl HomeView {
     /// The Home page for one service answer.
     #[must_use]
     pub fn build(snapshot: &Snapshot, pending: Pending, notice: Option<&str>) -> HomeView {
-        Self::build_with(snapshot, pending, notice, &LanNote::None)
+        Self::build_with(
+            snapshot,
+            pending,
+            notice,
+            &LanNote::None,
+            &Choice::default(),
+        )
     }
 
     /// The Home page, with what the app last heard about a Local Network
@@ -259,8 +265,9 @@ impl HomeView {
         pending: Pending,
         notice: Option<&str>,
         lan: &LanNote,
+        choice: &Choice,
     ) -> HomeView {
-        let main = MainView::build(snapshot, pending, notice);
+        let main = MainView::build_with(snapshot, pending, notice, choice);
         let headline = if main.heading == "Protected" {
             "You’re Connected"
         } else {
@@ -269,10 +276,15 @@ impl HomeView {
         let is_connected = connected(snapshot);
         HomeView {
             headline,
-            // Saved connections arrive with the service's store (N4-03).
+            // The name and server address only, never a location (§6.4).
             connection: ConnectionCard {
                 title: main.selector.text.clone(),
-                detail: "Add or import a VPN configuration.".into(),
+                detail: match (&choice.name, choice.draft, &choice.detail) {
+                    (None, _, _) => "Add or import a VPN configuration.".into(),
+                    (Some(_), true, _) => "Draft · Setup Required".into(),
+                    (Some(_), false, Some(d)) => crate::state::plain(d),
+                    (Some(_), false, None) => String::new(),
+                },
             },
             // The address comes only from the user's own server over the
             // verified tunnel (after G1); nothing reports it yet.

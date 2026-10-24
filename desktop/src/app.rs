@@ -8,12 +8,16 @@ use std::sync::Arc;
 use crate::advanced_window::{self, Page};
 use crate::assets::{ICON, Textures};
 use crate::close::{COULD_NOT, Close, Step};
+use crate::connections::{Connections, Effect, Session};
+use crate::drafts::{self, Drafts};
+use crate::files::{FakeFiles, Files};
 use crate::home::{HomeView, LanNote};
-use crate::main_window::{self, Action};
+use crate::library::{Key, Library};
+use crate::main_window::{self, Action, Shell};
 use crate::prefs::{Bounds, InterfaceMode, Prefs};
 use crate::service::{Link, REFRESH};
 use crate::shells::Shells;
-use crate::state::{ButtonAction, MainView, Pending};
+use crate::state::{ButtonAction, Choice, MainView, Pending};
 use crate::theme;
 use crate::{APP_ID, theme::token};
 
@@ -35,6 +39,8 @@ pub fn sizes(mode: InterfaceMode) -> ([f32; 2], [f32; 2]) {
 enum Origin {
     Button,
     Close,
+    /// Disconnecting the connection in use before deleting it (N4-05).
+    DeleteFirst,
 }
 
 /// The Septuvo VPN app.
@@ -50,6 +56,8 @@ pub struct SeptuvoApp {
     lan_wanted: bool,
     shells: Shells,
     page: Page,
+    conns: Connections,
+    files: Box<dyn Files>,
     textures: Option<Textures>,
     exit: bool,
     placed: bool,
@@ -59,6 +67,11 @@ impl SeptuvoApp {
     /// A new app. `prefs_path` is where preferences are saved (`None` in tests).
     #[must_use]
     pub fn new(link: Box<dyn Link>, prefs: Prefs, prefs_path: Option<PathBuf>) -> SeptuvoApp {
+        let drafts = prefs_path
+            .as_deref()
+            .and_then(drafts::dir_for)
+            .map_or_else(Drafts::in_memory, Drafts::load);
+        let conns = Connections::new(Library::new(drafts, prefs.selected_draft));
         SeptuvoApp {
             link,
             prefs,
@@ -71,6 +84,8 @@ impl SeptuvoApp {
             lan_wanted: false,
             shells: Shells::default(),
             page: Page::default(),
+            conns,
+            files: Box::new(FakeFiles::default()),
             textures: None,
             exit: false,
             placed: false,
@@ -93,6 +108,31 @@ impl SeptuvoApp {
     /// the service (design preview only).
     pub fn preview_local_network_note(&mut self) {
         self.lan = LanNote::Allowed;
+    }
+
+    /// Opens a secondary area and, for the profile selector, its list
+    /// (design preview and tests only).
+    pub fn preview_open(&mut self, shell: Option<Shell>, selector: bool) {
+        if let Some(s) = shell {
+            if s == Shell::Editor {
+                self.conns.create_new();
+            } else {
+                self.shells.open(s);
+            }
+        }
+        self.conns.selector_open = selector;
+    }
+
+    /// Uses these file dialogs (the desktop portal in the app; prepared
+    /// answers in tests).
+    pub fn set_files(&mut self, files: Box<dyn Files>) {
+        self.files = files;
+    }
+
+    /// The saved-connections controller (tests).
+    #[must_use]
+    pub fn connections(&self) -> &Connections {
+        &self.conns
     }
 
     /// Replaces the service link (tests: the service changes state).
@@ -246,6 +286,9 @@ impl SeptuvoApp {
         };
         self.pending = Pending::None;
         match self.origin.take() {
+            Some(Origin::DeleteFirst) => {
+                self.conns.on_disconnect_result(&result);
+            }
             Some(Origin::Close) => {
                 if self.close.result(result) == Step::Exit {
                     self.exit = true;
@@ -279,6 +322,64 @@ impl SeptuvoApp {
         };
     }
 
+    /// Service answers and file dialog results for the connections.
+    fn handle_connections(&mut self, session: Session) {
+        for reply in self.link.replies() {
+            self.conns.on_reply(reply, session);
+        }
+        for event in self.files.events() {
+            self.conns.on_file(event);
+        }
+        self.conns.tick();
+    }
+
+    /// Carries out what the connections controller asked for.
+    fn run_effects(&mut self) {
+        for effect in self.conns.take_effects() {
+            match effect {
+                Effect::Op(op) => self.link.send(op),
+                Effect::Disconnect => {
+                    if self.pending == Pending::None {
+                        self.pending = Pending::Disconnecting;
+                        self.origin = Some(Origin::DeleteFirst);
+                        self.link.disconnect();
+                    } else {
+                        self.conns
+                            .on_disconnect_result(&Err("Septuvo is busy. Try again.".into()));
+                    }
+                }
+                Effect::OpenFile => self.files.open(),
+                Effect::SaveFile {
+                    file_name,
+                    contents,
+                } => self.files.save(file_name, contents),
+                Effect::RememberDraft(d) => {
+                    self.prefs.selected_draft = d;
+                    if let Some(path) = &self.prefs_path {
+                        let _ = self.prefs.save(path);
+                    }
+                }
+            }
+        }
+    }
+
+    /// The connection choice for the main views.
+    fn choice(&self) -> Choice {
+        let lib = &self.conns.lib;
+        let selected = lib.selected();
+        Choice {
+            name: selected.and_then(|k| lib.name(k)),
+            detail: match selected {
+                Some(Key::Saved(id)) => lib.saved(id).and_then(crate::library::Saved::server),
+                _ => None,
+            },
+            draft: matches!(selected, Some(Key::Draft(_))),
+            any: !lib.saved.is_empty() || !lib.drafts.list().is_empty(),
+            connecting: self.conns.connecting.clone(),
+            switching: self.conns.switching.clone(),
+        }
+    }
+
     /// Draws one frame into `ui` (the whole window). Public for tests.
     pub fn draw(&mut self, ui: &mut Ui) {
         let ctx = ui.ctx().clone();
@@ -289,24 +390,49 @@ impl SeptuvoApp {
         self.handle_result(&ctx);
         self.handle_setting_result();
         let snapshot = self.link.latest();
+        let session = Session::of(&snapshot);
+        self.handle_connections(session);
         self.handle_close(&ctx, &snapshot);
-        let notice = self.close.notice.clone().or_else(|| self.notice.clone());
+        let notice = self
+            .close
+            .notice
+            .clone()
+            .or_else(|| self.notice.clone())
+            .or_else(|| self.conns.main_notice.clone());
+        let choice = self.choice();
         let Some(textures) = self.textures.as_ref() else {
             return;
         };
         let mode = self.prefs.interface_mode;
         let mut actions = match mode {
             InterfaceMode::Simple => {
-                let view = MainView::build(&snapshot, self.pending, notice.as_deref());
-                main_window::draw(ui, &view, textures)
+                let view =
+                    MainView::build_with(&snapshot, self.pending, notice.as_deref(), &choice);
+                let entries = self.conns.lib.entries(session.in_use);
+                let list = (self.conns.selector_open && view.selector.enabled)
+                    .then_some(entries.as_slice());
+                main_window::draw(ui, &view, textures, list)
             }
             InterfaceMode::Advanced => {
-                let view =
-                    HomeView::build_with(&snapshot, self.pending, notice.as_deref(), &self.lan);
-                advanced_window::draw(ui, &view, textures, &mut self.page, mode)
+                let view = HomeView::build_with(
+                    &snapshot,
+                    self.pending,
+                    notice.as_deref(),
+                    &self.lan,
+                    &choice,
+                );
+                advanced_window::draw(
+                    ui,
+                    &view,
+                    textures,
+                    &mut self.page,
+                    mode,
+                    &mut self.conns,
+                    session,
+                )
             }
         };
-        actions.extend(self.shells.show(&ctx, mode));
+        actions.extend(self.shells.show(&ctx, mode, &mut self.conns, session));
         for action in actions {
             match action {
                 Action::Main(ButtonAction::Disconnect) if self.pending == Pending::None => {
@@ -322,11 +448,28 @@ impl SeptuvoApp {
                     self.lan_wanted = allowed;
                     self.link.set_local_network(allowed);
                 }
+                Action::Main(ButtonAction::Connect) if self.pending == Pending::None => {
+                    self.notice = None;
+                    self.conns.connect();
+                }
                 Action::Main(_) | Action::SetLocalNetwork(_) => {}
                 Action::Open(s) => self.shells.open(s),
                 Action::SetMode(m) => self.set_mode(&ctx, m),
+                Action::ToggleSelector => self.conns.selector_open = !self.conns.selector_open,
+                Action::CloseSelector => self.conns.selector_open = false,
+                Action::Select(key) => {
+                    self.notice = None;
+                    self.conns.select(key, session);
+                }
             }
         }
+        // The editor is its own window while it is open.
+        if self.conns.editor.is_some() {
+            self.shells.open(Shell::Editor);
+        } else {
+            self.shells.close(Shell::Editor);
+        }
+        self.run_effects();
         ctx.request_repaint_after(REFRESH);
     }
 }
