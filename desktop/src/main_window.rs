@@ -35,6 +35,8 @@ pub enum Shell {
     HelpDiagnostics,
     /// Settings (cog).
     Settings,
+    /// The VPN Configuration editor (New, Edit, Duplicate; N4-05).
+    Editor,
 }
 
 /// What the user did this frame.
@@ -48,6 +50,12 @@ pub enum Action {
     SetMode(InterfaceMode),
     /// Asked the service to set Local Network Access (true: Allowed).
     SetLocalNetwork(bool),
+    /// Opened or closed the profile selector's list.
+    ToggleSelector,
+    /// Closed the selector's list without choosing (Escape, click outside).
+    CloseSelector,
+    /// Chose a connection in the selector (N4-05).
+    Select(crate::library::Key),
 }
 
 pub(crate) fn translucent(c: Color32, alpha: u8) -> Color32 {
@@ -160,7 +168,7 @@ pub(crate) fn lockup(ui: &mut Ui, tex: &Textures, at: egui::Pos2, scale: f32) ->
     rect
 }
 
-fn selector(ui: &mut Ui, v: &MainView, width: f32) {
+fn selector(ui: &mut Ui, v: &MainView, width: f32) -> (Rect, bool) {
     let w = width.clamp(240.0, 580.0);
     let (rect, resp) = ui.allocate_exact_size(
         vec2(w, 66.0),
@@ -208,6 +216,7 @@ fn selector(ui: &mut Ui, v: &MainView, width: f32) {
         text_colour,
     );
     focus_ring(ui, &resp, rect, 15.0);
+    (rect, v.selector.enabled && resp.clicked())
 }
 
 fn shield_area(ui: &mut Ui, shield: Shield, size: f32) {
@@ -438,13 +447,53 @@ fn footer(ui: &mut Ui, inner: f32, row: bool, actions: &mut Vec<Action>) {
     }
 }
 
-/// Draws the whole main window and returns what the user did.
-pub fn draw(ui: &mut Ui, v: &MainView, tex: &Textures) -> Vec<Action> {
+/// The selector's open list and the Settings cog, drawn after the page.
+fn overlays(
+    ui: &mut Ui,
+    list: Option<&[crate::library::Entry]>,
+    selector_rect: Option<Rect>,
+    cog_rect: Option<Rect>,
+    actions: &mut Vec<Action>,
+) {
+    if let (Some(entries), Some(anchor)) = (list, selector_rect) {
+        match crate::conn_ui::selector_list(ui, anchor, entries) {
+            Some(Some(key)) => actions.push(Action::Select(key)),
+            Some(None) => actions.push(Action::CloseSelector),
+            None => {}
+        }
+    }
+    // The Settings cog is created last so keyboard focus reaches it after
+    // the footer tiles (DEFAULT-UI §9.1), though it is drawn in the header.
+    if let Some(r) = cog_rect {
+        let resp = ui.interact(r, ui.id().with("settings-cog"), Sense::click());
+        resp.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, "Settings"));
+        let colour = if resp.hovered() {
+            token::ELECTRIC
+        } else {
+            token::WHITE
+        };
+        icons::gear(ui.painter(), r.shrink(9.0), colour);
+        focus_ring(ui, &resp, r, 10.0);
+        if resp.clicked() {
+            actions.push(Action::Open(Shell::Settings));
+        }
+    }
+}
+
+/// Draws the whole main window and returns what the user did. `list`: the
+/// selector's open list, if it is open.
+pub fn draw(
+    ui: &mut Ui,
+    v: &MainView,
+    tex: &Textures,
+    list: Option<&[crate::library::Entry]>,
+) -> Vec<Action> {
     let mut actions = Vec::new();
     let full = ui.available_width();
     let width = full.min(MAX_CONTENT);
     let margin = 20.0;
     let mut cog_rect = None;
+    let mut selector_rect = None;
     // Everything but the shield takes about this much height; the shield
     // shrinks to keep the footer tiles in view, down to 160 px, and below
     // that the window scrolls (DEFAULT-UI §2.3 responsive behaviour).
@@ -464,7 +513,11 @@ pub fn draw(ui: &mut Ui, v: &MainView, tex: &Textures) -> Vec<Action> {
                     Vec2::splat(44.0),
                 ));
                 ui.add_space(4.0);
-                selector(ui, v, width - 2.0 * margin);
+                let (rect, clicked) = selector(ui, v, width - 2.0 * margin);
+                selector_rect = Some(rect);
+                if clicked {
+                    actions.push(Action::ToggleSelector);
+                }
                 ui.add_space(10.0);
                 shield_area(ui, v.shield, shield_size);
                 ui.add_space(4.0);
@@ -520,21 +573,6 @@ pub fn draw(ui: &mut Ui, v: &MainView, tex: &Textures) -> Vec<Action> {
                 ui.add_space(20.0);
             });
         });
-    // The Settings cog is created last so keyboard focus reaches it after
-    // the footer tiles (DEFAULT-UI §9.1), though it is drawn in the header.
-    if let Some(r) = cog_rect {
-        let resp = ui.interact(r, ui.id().with("settings-cog"), Sense::click());
-        resp.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, "Settings"));
-        let colour = if resp.hovered() {
-            token::ELECTRIC
-        } else {
-            token::WHITE
-        };
-        icons::gear(ui.painter(), r.shrink(9.0), colour);
-        focus_ring(ui, &resp, r, 10.0);
-        if resp.clicked() {
-            actions.push(Action::Open(Shell::Settings));
-        }
-    }
+    overlays(ui, list, selector_rect, cog_rect, &mut actions);
     actions
 }

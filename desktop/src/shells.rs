@@ -14,6 +14,8 @@ use eframe::egui::{
     WidgetType, vec2,
 };
 
+use crate::conn_ui;
+use crate::connections::{Connections, Session};
 use crate::main_window::{Action, Shell, focus_ring, translucent};
 use crate::prefs::InterfaceMode;
 use crate::theme::{medium, semibold, token};
@@ -44,6 +46,13 @@ pub fn spec(shell: Shell) -> (&'static str, &'static str, [f32; 2], [f32; 2], &'
             "N4-08",
         ),
         Shell::Settings => ("Settings", "", [700.0, 640.0], [520.0, 480.0], "N4-06"),
+        Shell::Editor => (
+            "VPN Configuration",
+            "",
+            [700.0, 620.0],
+            [540.0, 450.0],
+            "N4-05",
+        ),
     }
 }
 
@@ -100,9 +109,15 @@ fn mode_selector(ui: &mut Ui, mode: InterfaceMode) -> Option<InterfaceMode> {
     chosen
 }
 
-/// The content of an area. Returns what the user did (only Settings has a
-/// working control: Interface Mode).
-pub fn page(ui: &mut Ui, shell: Shell, mode: InterfaceMode) -> Option<Action> {
+/// The content of an area. Returns what the user did in Settings (its one
+/// working control: Interface Mode); the connection areas act on `conns`.
+pub fn page(
+    ui: &mut Ui,
+    shell: Shell,
+    mode: InterfaceMode,
+    conns: &mut Connections,
+    session: Session,
+) -> Option<Action> {
     let (title, subtitle, _, _, task) = spec(shell);
     let mut action = None;
     ui.label(
@@ -114,6 +129,21 @@ pub fn page(ui: &mut Ui, shell: Shell, mode: InterfaceMode) -> Option<Action> {
         ui.label(RichText::new(subtitle).color(token::MUTED));
     }
     ui.add_space(16.0);
+    match shell {
+        Shell::Connections => {
+            conn_ui::connections_page(ui, conns, session);
+            return None;
+        }
+        Shell::AddImport => {
+            conn_ui::add_import_page(ui, conns);
+            return None;
+        }
+        Shell::Editor => {
+            conn_ui::editor_page(ui, conns);
+            return None;
+        }
+        Shell::Settings | Shell::HelpDiagnostics => {}
+    }
     if shell == Shell::Settings {
         ui.label(
             RichText::new("Interface")
@@ -191,9 +221,22 @@ impl Shells {
         self.open.clear();
     }
 
+    /// Closes one window.
+    pub fn close(&mut self, s: Shell) {
+        self.open.retain(|x| *x != s);
+    }
+
     /// Shows every open window; closes those the user closed. Returns what
-    /// the user did in them.
-    pub fn show(&mut self, ctx: &Context, mode: InterfaceMode) -> Vec<Action> {
+    /// the user did in them. The editor's X goes through
+    /// [`Connections::editor_cancel`], so unsaved changes are never lost
+    /// silently (DEFAULT-UI §4.1).
+    pub fn show(
+        &mut self,
+        ctx: &Context,
+        mode: InterfaceMode,
+        conns: &mut Connections,
+        session: Session,
+    ) -> Vec<Action> {
         let mut closed = Vec::new();
         let mut actions = Vec::new();
         for &shell in &self.open {
@@ -204,8 +247,12 @@ impl Shells {
                 .with_inner_size(size)
                 .with_min_inner_size(min);
             let (close, action) = ctx.show_viewport_immediate(id, builder, |ui, class| {
-                let body = |ui: &mut Ui| {
-                    let action = page(ui, shell, mode);
+                let mut body = |ui: &mut Ui| {
+                    let action = page(ui, shell, mode, conns, session);
+                    if shell == Shell::Editor {
+                        // The editor has its own Cancel.
+                        return (false, action);
+                    }
                     ui.add_space(12.0);
                     (ui.button("Close").clicked(), action)
                 };
@@ -215,13 +262,23 @@ impl Shells {
                     body(ui)
                 } else {
                     let frame = egui::Frame::new().fill(token::MIDNIGHT).inner_margin(24);
+                    let scroll = shell != Shell::Editor;
                     let (clicked, action) = frame
-                        .show(ui, |ui| egui::ScrollArea::vertical().show(ui, body).inner)
+                        .show(ui, |ui| {
+                            if scroll {
+                                egui::ScrollArea::vertical().show(ui, body).inner
+                            } else {
+                                body(ui)
+                            }
+                        })
                         .inner;
-                    (
-                        clicked || ui.input(|i| i.viewport().close_requested()),
-                        action,
-                    )
+                    let x = ui.input(|i| i.viewport().close_requested());
+                    if x && shell == Shell::Editor {
+                        ui.ctx()
+                            .send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                        conns.editor_cancel();
+                    }
+                    (clicked || (x && shell != Shell::Editor), action)
                 }
             });
             if close {

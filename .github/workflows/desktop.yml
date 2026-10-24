@@ -100,6 +100,19 @@ jobs:
           test -x "$test_bin"
           sudo tests/lab/namespaces/desktop_close.sh target/debug/septuvod target/debug/septuvo "$test_bin"
 
+      # N4-05: import, select, connect, switch and delete through the app,
+      # against the real lab service.
+      - name: Run the desktop connections lab
+        run: |
+          test_bin="$(cd desktop && cargo test --locked --no-run --test lab_connections --message-format=json 2>/dev/null \
+            | python3 -c 'import sys, json
+          for line in sys.stdin:
+              m = json.loads(line)
+              if m.get("reason") == "compiler-artifact" and m.get("executable") and m["target"]["name"] == "lab_connections":
+                  print(m["executable"])')"
+          test -x "$test_bin"
+          sudo tests/lab/namespaces/desktop_connections.sh target/debug/septuvod target/debug/septuvo "$test_bin"
+
       - name: Screenshots for the owner's visual sign-off (sample data)
         run: |
           mkdir -p screenshots
@@ -122,6 +135,16 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x900x24" timeout 60 \
             desktop/target/release/examples/preview blocking --advanced --settings --screenshot screenshots/advanced-settings-980x640.png
           test -s screenshots/advanced-settings-980x640.png
+          # N4-05: the saved-connection areas (shown inside the main window).
+          for shot in "saved --open selector --size 780x760:selector" "saved --open connections --size 900x800:connections" \
+                      "saved --open add --size 780x760:add-import" "saved --open editor --size 900x900:editor" \
+                      "saved-blocking --advanced --connections --size 980x640:advanced-connections"; do
+            args=${shot%%:*} name=${shot##*:}
+            # shellcheck disable=SC2086
+            LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x1000x24" timeout 60 \
+              desktop/target/release/examples/preview $args --screenshot "screenshots/n4-05-$name.png"
+            test -s "screenshots/n4-05-$name.png"
+          done
           ls -l screenshots
 
       - name: Upload the screenshots

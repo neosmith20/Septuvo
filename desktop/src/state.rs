@@ -105,6 +105,23 @@ pub struct MainView {
     pub notice: Option<String>,
 }
 
+/// The connection choice, from the saved connections and drafts (N4-05).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Choice {
+    /// The selected connection's name.
+    pub name: Option<String>,
+    /// Its server address (the Advanced connection card), if known.
+    pub detail: Option<String>,
+    /// The selection is a draft: it cannot be connected.
+    pub draft: bool,
+    /// There is at least one saved connection or draft.
+    pub any: bool,
+    /// Connecting this connection (waiting for the service).
+    pub connecting: Option<String>,
+    /// Switching: from and to (waiting for the service).
+    pub switching: Option<(String, String)>,
+}
+
 /// What the app itself is doing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Pending {
@@ -170,16 +187,35 @@ fn button(
 }
 
 const NO_CONNECTIONS: &str = "No Connections";
-const ADD_FIRST: &str = "Add or import a VPN configuration to get started.";
+/// Why Connect is disabled with no connection (DEFAULT-UI §3.1).
+pub const ADD_FIRST: &str = "Add or import a VPN configuration to get started.";
+/// Why Connect is disabled for a draft (DEFAULT-UI §3.1).
+pub const COMPLETE_FIRST: &str = "Complete this configuration before connecting.";
+/// The route to complete a draft, under the disabled Connect (DEFAULT-UI
+/// §3.1).
+pub const EDIT_TO_COMPLETE: &str = "Open Connections and choose Edit to complete it.";
+/// The pre-G1 line (N4-D12), also in Connect's accessible name.
+pub const LAB_LINE: &str = "Lab test: this blocks traffic only; there is no tunnel.";
 
 impl MainView {
-    /// The view for one service answer, what the app is doing and a notice.
+    /// The view for one service answer, what the app is doing and a notice,
+    /// with no saved connection.
     #[must_use]
     pub fn build(snapshot: &Snapshot, pending: Pending, notice: Option<&str>) -> MainView {
-        // Saved connections arrive with the service's connection store (N4-03).
+        Self::build_with(snapshot, pending, notice, &Choice::default())
+    }
+
+    /// The view with the connection choice (N4-05).
+    #[must_use]
+    pub fn build_with(
+        snapshot: &Snapshot,
+        pending: Pending,
+        notice: Option<&str>,
+        choice: &Choice,
+    ) -> MainView {
         let selector = Selector {
-            text: NO_CONNECTIONS.into(),
-            enabled: false,
+            text: choice.name.as_deref().map_or(NO_CONNECTIONS.into(), plain),
+            enabled: choice.any && matches!(snapshot, Snapshot::Service(_)),
         };
         let mut v = match snapshot {
             Snapshot::Lost(_) => MainView {
@@ -202,6 +238,7 @@ impl MainView {
             },
             Snapshot::Service(r) => Self::from_service(r, selector),
         };
+        v.apply_choice(choice);
         if pending == Pending::Disconnecting {
             v.heading = "Disconnecting…";
             v.tone = Tone::Caution;
@@ -211,6 +248,62 @@ impl MainView {
         }
         v.notice = notice.map(plain);
         v
+    }
+
+    /// Connect and Disconnect for the chosen connection; Setup Required
+    /// for a draft; Connecting… and Switching Connection… while waiting
+    /// (DEFAULT-UI §7.1).
+    fn apply_choice(&mut self, choice: &Choice) {
+        let name = choice.name.as_deref().map(plain);
+        if self.button.action == ButtonAction::Disconnect
+            && let Some(n) = &name
+        {
+            self.button.accessible = format!("Disconnect from {n}");
+        }
+        let waiting_to_connect = self.button.label == "Connect" && self.button.reason.is_some();
+        if waiting_to_connect && self.heading != "Service Unavailable" {
+            match (&name, choice.draft) {
+                (Some(_), true) => {
+                    if self.heading == "VPN Not Yet Available" {
+                        self.heading = "Setup Required";
+                        self.tone = Tone::Caution;
+                        self.lines = vec![COMPLETE_FIRST.into()];
+                        self.shield = Shield::Warning;
+                    }
+                    self.button.reason = Some(EDIT_TO_COMPLETE);
+                }
+                (Some(n), false) => {
+                    // N4-D12: before G1, Connect asks the lab service to
+                    // connect, which installs the kill switch only.
+                    self.button = MainButton {
+                        label: "Connect",
+                        accessible: format!("Connect to {n}. {LAB_LINE}"),
+                        enabled: true,
+                        reason: None,
+                        action: ButtonAction::Connect,
+                    };
+                }
+                (None, _) => {}
+            }
+        }
+        if let Some(n) = &choice.connecting {
+            self.heading = "Connecting…";
+            self.tone = Tone::Caution;
+            self.lines = vec![format!("Connecting to {}…", plain(n))];
+            self.shield = Shield::Working;
+            self.button = button("Connecting…", ButtonAction::None, false, None);
+        }
+        if let Some((old, new)) = &choice.switching {
+            self.heading = "Switching Connection…";
+            self.tone = Tone::Caution;
+            self.lines = vec![format!(
+                "Disconnecting {} and connecting {}…",
+                plain(old),
+                plain(new)
+            )];
+            self.shield = Shield::Working;
+            self.button = button("Disconnect", ButtonAction::None, false, None);
+        }
     }
 
     /// Lockdown Mode with no connection (D-038): **Internet Blocked**, or a
@@ -522,6 +615,82 @@ mod tests {
                 .with("kill_switch", "off"),
         );
         assert_eq!((v.heading, v.shield), ("Connection Failed", Shield::Error));
+    }
+
+    fn choice(name: &str) -> Choice {
+        Choice {
+            name: Some(name.into()),
+            any: true,
+            ..Choice::default()
+        }
+    }
+
+    fn with(r: Response, c: &Choice) -> MainView {
+        MainView::build_with(&Snapshot::Service(r), Pending::None, None, c)
+    }
+
+    #[test]
+    fn a_selected_connection_can_be_connected_and_says_it_is_a_lab_test() {
+        let v = with(samples::disconnected(), &choice("Home VPN"));
+        assert_eq!(v.selector.text, "Home VPN");
+        assert!(v.selector.enabled);
+        assert_eq!(v.heading, "VPN Not Yet Available", "N4-D12");
+        assert_eq!(
+            (v.button.label, v.button.enabled, v.button.action),
+            ("Connect", true, ButtonAction::Connect)
+        );
+        assert_eq!(
+            v.button.accessible,
+            format!("Connect to Home VPN. {LAB_LINE}")
+        );
+        let v = with(samples::blocking(), &choice("Home VPN"));
+        assert_eq!(v.button.accessible, "Disconnect from Home VPN");
+        // Lockdown Mode: Connect is offered too (DEFAULT-UI §7.1).
+        let v = with(samples::lockdown(), &choice("Home VPN"));
+        assert_eq!((v.heading, v.button.enabled), ("Internet Blocked", true));
+        // A lost service: never.
+        let v = MainView::build_with(
+            &Snapshot::Lost("x".into()),
+            Pending::None,
+            None,
+            &choice("Home VPN"),
+        );
+        assert!(!v.button.enabled && !v.selector.enabled);
+    }
+
+    #[test]
+    fn a_draft_is_setup_required_and_cannot_connect() {
+        let c = Choice {
+            draft: true,
+            ..choice("Cabin")
+        };
+        let v = with(samples::disconnected(), &c);
+        assert_eq!(v.heading, "Setup Required");
+        assert_eq!(v.lines, [COMPLETE_FIRST]);
+        assert!(!v.button.enabled);
+        assert_eq!(v.button.reason, Some(EDIT_TO_COMPLETE));
+        assert_ne!(v.shield, Shield::Verified);
+    }
+
+    #[test]
+    fn connecting_and_switching_are_shown_while_waiting() {
+        let c = Choice {
+            connecting: Some("Home VPN".into()),
+            ..choice("Home VPN")
+        };
+        let v = with(samples::disconnected(), &c);
+        assert_eq!(v.heading, "Connecting…");
+        assert_eq!(v.lines, ["Connecting to Home VPN…"]);
+        assert!(!v.button.enabled);
+        let c = Choice {
+            switching: Some(("Home VPN".into(), "Office".into())),
+            ..choice("Office")
+        };
+        let v = with(samples::blocking(), &c);
+        assert_eq!(v.heading, "Switching Connection…");
+        assert_eq!(v.lines, ["Disconnecting Home VPN and connecting Office…"]);
+        assert!(!v.button.enabled, "no conflicting action during the switch");
+        assert_ne!(v.shield, Shield::Verified);
     }
 
     #[test]

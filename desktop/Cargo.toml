@@ -21,7 +21,9 @@ path = "src/main.rs"
 
 [dependencies]
 eframe = { version = "=0.36.2", default-features = false, features = ["accesskit", "glow", "wayland", "x11"] }
+ashpd = { version = "=0.13.13", default-features = false, features = ["async-io", "file_chooser"] }
 septuvo-cli = { path = "../crates/septuvo-cli" }
+septuvo-config = { path = "../crates/septuvo-config" }
 septuvo-ipc = { path = "../crates/septuvo-ipc" }
 
 [dev-dependencies]

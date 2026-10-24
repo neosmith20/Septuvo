@@ -16,6 +16,10 @@ use std::sync::{Arc, Mutex};
 
 type Log = Arc<Mutex<Vec<&'static str>>>;
 
+/// Requests that only read: status, and the saved connections' list and
+/// settings (N4-05). Anything else changes something.
+const READ_ONLY: [&str; 3] = ["status", "list", "get"];
+
 fn svc(r: septuvo_ipc::Response) -> Snapshot {
     Snapshot::Service(r)
 }
@@ -228,8 +232,8 @@ fn switching_modes_sends_nothing_but_status_and_keeps_the_state() {
     let log = log.lock().unwrap();
     assert!(!log.is_empty());
     assert!(
-        log.iter().all(|r| *r == "status"),
-        "requests other than status: {log:?}"
+        log.iter().all(|r| READ_ONLY.contains(r)),
+        "requests that change something: {log:?}"
     );
 }
 
@@ -251,7 +255,7 @@ fn tabs_and_the_connection_card_open_their_pages() {
     h.run_steps(2);
     assert_eq!(h.state().page(), Page::Connections);
     h.get_by_label("Manage Your Saved Connections");
-    assert!(log.lock().unwrap().iter().all(|r| *r == "status"));
+    assert!(log.lock().unwrap().iter().all(|r| READ_ONLY.contains(r)));
 }
 
 #[test]

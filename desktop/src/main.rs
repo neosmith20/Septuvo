@@ -1,6 +1,7 @@
 //! `septuvo-vpn`: the Septuvo VPN desktop app (development preview).
 
 use septuvo_desktop::app::{SeptuvoApp, native_options};
+use septuvo_desktop::files::Portal;
 use septuvo_desktop::prefs::{Prefs, default_path};
 use septuvo_desktop::service::Worker;
 use septuvo_desktop::state::plain;
@@ -64,7 +65,10 @@ fn main() -> ExitCode {
         Box::new(move |cc| {
             let ctx = cc.egui_ctx.clone();
             let link = Worker::start(runtime_dir, move || ctx.request_repaint());
-            Ok(Box::new(SeptuvoApp::new(Box::new(link), prefs, prefs_path)))
+            let mut app = SeptuvoApp::new(Box::new(link), prefs, prefs_path);
+            let ctx = cc.egui_ctx.clone();
+            app.set_files(Box::new(Portal::new(move || ctx.request_repaint())));
+            Ok(Box::new(app))
         }),
     );
     match result {

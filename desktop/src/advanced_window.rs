@@ -655,6 +655,8 @@ pub fn draw(
     tex: &Textures,
     page: &mut Page,
     mode: InterfaceMode,
+    conns: &mut crate::connections::Connections,
+    session: crate::connections::Session,
 ) -> Vec<Action> {
     let mut actions = Vec::new();
     let full = ui.available_width();
@@ -704,7 +706,9 @@ pub fn draw(
                                 RichText::new("It arrives with development task N4-08.")
                                     .color(token::MUTED),
                             );
-                        } else if let Some(a) = shells::page(&mut child, shell, mode) {
+                        } else if let Some(a) =
+                            shells::page(&mut child, shell, mode, conns, session)
+                        {
                             actions.push(a);
                         }
                     }

@@ -60,6 +60,9 @@ pub struct Prefs {
     pub bounds: Option<Bounds>,
     /// Last window bounds in Advanced mode (its own size, ADVANCED-UI §4.2).
     pub advanced_bounds: Option<Bounds>,
+    /// A selected draft (N4-05). The selection of a saved connection is the
+    /// service's; a draft is the app's own, so the app remembers it.
+    pub selected_draft: Option<u32>,
 }
 
 fn number(v: &str) -> Option<f32> {
@@ -124,6 +127,9 @@ impl Prefs {
                 ("close_button", "exit-and-disconnect") => {
                     p.close_button = CloseButton::ExitAndDisconnect;
                 }
+                ("selected_draft", v) => {
+                    p.selected_draft = v.parse().ok().filter(|n| (1..=9999).contains(n));
+                }
                 (k, v) => {
                     if let Some(rest) = k.strip_prefix("advanced_window_") {
                         advanced.set(rest, v);
@@ -151,6 +157,9 @@ impl Prefs {
             CloseButton::ExitAndDisconnect => "close_button = exit-and-disconnect\n",
             CloseButton::SendToSystemTray => "close_button = send-to-system-tray\n",
         });
+        if let Some(d) = self.selected_draft {
+            let _ = writeln!(s, "selected_draft = {d}");
+        }
         for (prefix, bounds) in [
             ("window_", self.bounds),
             ("advanced_window_", self.advanced_bounds),
@@ -250,6 +259,7 @@ mod tests {
                 position: None,
                 maximized: false,
             }),
+            selected_draft: Some(3),
         };
         assert_eq!(Prefs::parse(&p.render()), p);
         assert_eq!(Prefs::parse(&Prefs::default().render()), Prefs::default());

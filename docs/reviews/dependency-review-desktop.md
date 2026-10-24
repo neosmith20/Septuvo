@@ -13,15 +13,16 @@
 | --- | --- | --- | --- | --- | --- |
 | `eframe` (with `egui`) | 0.36.2 | 2026-09-08 | MIT OR Apache-2.0 | The UI toolkit (N4-D1). Features: `accesskit` (screen readers), `glow` (OpenGL renderer), `wayland`, `x11`. **Default features off**, so no default fonts, no persistence, no web or wgpu code | Yes |
 | `egui_kittest` | 0.36.2 | 2026-09-08 | MIT OR Apache-2.0 | UI tests through the accessibility tree, without a display. Default features off (no snapshot or GPU renderer) | **No: tests only** |
-| `septuvo-cli`, `septuvo-ipc` | path | — | Apache-2.0 | Septuvo's own status model and IPC client, reused rather than copied | Yes |
+| `ashpd` | 0.13.13 | 2026-07-17 | MIT | **Added in N4-05** (N4-D3): the native **Open** and **Save As** dialogs through the xdg-desktop-portal. Features: `file_chooser` and `async-io` only (**default features off**, so no Tokio runtime, no GTK, no Wayland or PipeWire code). See section 6 | Yes |
+| `septuvo-cli`, `septuvo-ipc`, `septuvo-config` | path | — | Apache-2.0 | Septuvo's own status model, IPC client and configuration parser, reused rather than copied (`septuvo-config` added in N4-05: the editor validates with the service's own parser) | Yes |
 
-**Not added yet:** the tray (`ksni`), notification (`notify-rust`) and file-save (`ashpd`) crates from N4-D2/N4-D3. They come with N4-03 and N4-06. Each will be pinned and added to this record **in that task's pull request**, under the same two-week rule and the same gate.
+**Not added yet:** the tray (`ksni`) and notification (`notify-rust`) crates from N4-D2/N4-D3. They come with N4-06. Each will be pinned and added to this record **in that task's pull request**, under the same two-week rule and the same gate.
 
 ## 2. The whole tree
 
 | Measure | Result |
 | --- | --- |
-| Crates built for `x86_64-unknown-linux-gnu` (normal, build and dev dependencies, with the enabled features) | **210 third-party crates**, plus 4 Septuvo crates |
+| Crates built for `x86_64-unknown-linux-gnu` (normal, build and dev dependencies, with the enabled features) | **211 third-party crates** (210 at N4-01, plus `ashpd` in N4-05), plus 5 Septuvo crates |
 | Two-week rule (D-035) | **Every locked version was published on or before 2026-10-04**. The newest is from 2026-10-03; 26 locked crates were pinned back from newer releases |
 | Pinning | `desktop/Cargo.lock`; CI uses `--locked` |
 | Licences | All permissive (below). Where a crate offers a choice that includes a copyleft licence (`self_cell`: Apache-2.0 OR GPL-2.0-only), **Septuvo uses the permissive option** |
@@ -35,7 +36,7 @@ Licences across the 210 crates:
 | Licence expression | Crates |
 | --- | ---: |
 | MIT OR Apache-2.0 (incl. `Apache-2.0 OR MIT`, `MIT/Apache-2.0`) | 130 |
-| MIT | 48 |
+| MIT | 49 |
 | Apache-2.0 | 9 |
 | MIT OR Apache-2.0 OR Zlib (any order) | 8 |
 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | 4 |
@@ -75,11 +76,22 @@ The gate (`crates/septuvo-native-gate`) inspected all 214 crates. These are all 
 | Risk | Handling |
 | --- | --- |
 | A future update adds native code | Exact pins; the CI gate over the whole tree and the built binary; any allowlist change is a reviewed pull request needing the owner's approval |
-| A large tree (210 crates) | Mostly the window system, text and accessibility. All permissive, all at least two weeks old. Updates are deliberate, never automatic |
+| A large tree (211 crates) | Mostly the window system, text and accessibility. All permissive, all at least two weeks old. Updates are deliberate, never automatic |
 | `unsafe` code inside dependencies | Expected for a window toolkit (OS calls). Septuvo's own app code forbids `unsafe` (`unsafe_code = "forbid"`) |
 | OpenGL driver problems | Mesa's software renderer works without a GPU; CI runs that way |
 
-## 6. Updating
+## 6. N4-05: `ashpd` for the native file dialogs
+
+**Prepared 2026-10-24 for N4-05**, before the crate was added, under N4-D3 (approved with the N4 work order).
+
+- **What it does:** asks the desktop's own file chooser (GNOME, KDE and others, through `org.freedesktop.portal.FileChooser` on the session D-Bus) to show an Open or Save As dialog, and returns the chosen file's `file://` URI. The app reads or writes the file itself (bounded to 64 KiB, atomic writes). Nothing else is reached: no network, no other portal.
+- **Tree impact:** one new crate. Everything it uses was already in the tree for the accessibility bus (`zbus` 5.19.0 with its `async-io` backend, `serde`, `serde_repr`, `enumflags2`, `futures-util`, `getrandom`). Enabling `futures-util`'s `io` feature adds edges to `futures-io` and `memchr`, both already locked. Resolving also moved `tempfile`'s `getrandom` edge from 0.3.4 to 0.4.3 (both already locked) and some Windows-only edges; no other version changed.
+- **Two-week rule:** published 2026-07-17. **Licence:** MIT.
+- **Native code:** none. The CI gate (deps and the built binary) passes unchanged: no allowlist change was needed.
+- **Runtime:** the dialog runs on its own short-lived thread with `zbus`'s blocking executor (`ashpd::zbus::block_on`, the `async-io` one), so the window never waits. If no portal is running, the app says so in plain words and nothing changes.
+- **Considered:** `rfd` (GTK backend by default; rejected in N4-D3).
+
+## 7. Updating
 
 1. Change a pin deliberately (`cargo update -p NAME --precise VERSION`), keeping the two-week rule.
 2. Run the gate. Add or change allowlist entries **only** with a reason.
@@ -100,6 +112,7 @@ The gate (`crates/septuvo-native-gate`) inspected all 214 crates. These are all 
 | `arboard` | 3.6.1 | 2025-08-23 | MIT OR Apache-2.0 |
 | `arrayvec` | 0.7.8 | 2026-07-02 | MIT OR Apache-2.0 |
 | `as-raw-xcb-connection` | 1.0.1 | 2023-12-17 | MIT OR Apache-2.0 |
+| `ashpd` | 0.13.13 | 2026-07-17 | MIT |
 | `async-broadcast` | 0.7.2 | 2024-12-23 | MIT OR Apache-2.0 |
 | `async-channel` | 2.5.0 | 2025-07-06 | Apache-2.0 OR MIT |
 | `async-executor` | 1.14.0 | 2026-02-15 | Apache-2.0 OR MIT |
