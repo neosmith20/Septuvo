@@ -113,6 +113,9 @@ pub enum Pending {
     None,
     /// A deliberate disconnect was sent; waiting for the service.
     Disconnecting,
+    /// A service setting change (Local Network Access) was sent; waiting
+    /// for the service to confirm it. The connection itself is unchanged.
+    Setting,
 }
 
 /// Text from the service: printable characters only, bounded.
@@ -132,11 +135,20 @@ pub fn plain(value: &str) -> String {
 
 /// True when the service has anything active that a deliberate disconnect
 /// must end: rules installed, a wanted connection, or any check passing.
+/// Lockdown Mode blocking with no connection is not a session: it is a
+/// service setting that stays after a disconnect and after the app exits
+/// (D-038), so there is nothing to disconnect.
 #[must_use]
 pub fn needs_disconnect(r: &Response) -> bool {
     let status = status_from(r);
     let any_pass =
         [status.adapter, status.peer, status.reachability, status.dns].contains(&Check::Pass);
+    if matches!(
+        r.field("state"),
+        Some("lockdown" | "error-lockdown-missing")
+    ) {
+        return any_pass;
+    }
     r.field("kill_switch") == Some("on")
         || r.field("state").is_some_and(|s| s != "disconnected")
         || any_pass
@@ -201,6 +213,43 @@ impl MainView {
         v
     }
 
+    /// Lockdown Mode with no connection (D-038): **Internet Blocked**, or a
+    /// failure when its rules are missing.
+    fn lockdown(state: &str, blocking: bool, selector: Selector) -> Option<MainView> {
+        let not_connected = StatusLine {
+            tone: Tone::Neutral,
+            text: "Not connected".into(),
+        };
+        match state {
+            "lockdown" if blocking => Some(MainView {
+                heading: "Internet Blocked",
+                tone: Tone::Caution,
+                lines: vec![
+                    "Lockdown Mode is on. Internet access is blocked until you connect.".into(),
+                ],
+                status: not_connected,
+                shield: Shield::Warning,
+                button: button("Connect", ButtonAction::None, false, Some(ADD_FIRST)),
+                selector,
+                notice: None,
+            }),
+            "error-lockdown-missing" => Some(MainView {
+                heading: "Connection Failed",
+                tone: Tone::Danger,
+                lines: vec![
+                    "Lockdown Mode is on, but its blocking rules are missing.".into(),
+                    "Open Help & Diagnostics for more information.".into(),
+                ],
+                status: not_connected,
+                shield: Shield::Error,
+                button: button("Connect", ButtonAction::None, false, Some(ADD_FIRST)),
+                selector,
+                notice: None,
+            }),
+            _ => None,
+        }
+    }
+
     fn from_service(r: &Response, selector: Selector) -> MainView {
         let status = status_from(r);
         let state = r.field("state").unwrap_or("");
@@ -225,6 +274,11 @@ impl MainView {
                 selector,
                 notice: None,
             };
+        }
+        if !status.is_connected()
+            && let Some(v) = Self::lockdown(state, blocking, selector.clone())
+        {
+            return v;
         }
         match state {
             "error-kill-switch-missing" => MainView {
@@ -324,6 +378,14 @@ pub mod samples {
     #[must_use]
     pub fn captive() -> Response {
         with_captive("blocking", "on", "open")
+    }
+
+    /// Lockdown Mode blocking with no connection (N4-04).
+    #[must_use]
+    pub fn lockdown() -> Response {
+        base("lockdown", "on")
+            .with("lockdown", "on")
+            .with("local_network", "not-allowed")
     }
 
     /// The service wants a connection but its rules are missing.
@@ -443,7 +505,31 @@ mod tests {
     }
 
     #[test]
+    fn lockdown_mode_is_internet_blocked_never_protected() {
+        let v = view(samples::lockdown());
+        assert_eq!(v.heading, "Internet Blocked");
+        assert_eq!(
+            v.lines,
+            ["Lockdown Mode is on. Internet access is blocked until you connect."]
+        );
+        assert_eq!(v.shield, Shield::Warning);
+        assert_eq!(v.button.label, "Connect");
+        assert!(!v.button.enabled && v.button.reason.is_some());
+        // Lockdown Mode reported without its rules is a failure.
+        let v = view(
+            Response::ok()
+                .with("state", "error-lockdown-missing")
+                .with("kill_switch", "off"),
+        );
+        assert_eq!((v.heading, v.shield), ("Connection Failed", Shield::Error));
+    }
+
+    #[test]
     fn what_needs_a_disconnect() {
+        assert!(!needs_disconnect(&samples::lockdown()), "X simply exits");
+        assert!(!needs_disconnect(
+            &Response::ok().with("state", "error-lockdown-missing")
+        ));
         assert!(!needs_disconnect(&samples::disconnected()));
         assert!(needs_disconnect(&samples::blocking()));
         assert!(needs_disconnect(&samples::kill_switch_missing()));

@@ -25,7 +25,14 @@ fn harness(
     mode: InterfaceMode,
     size: [f32; 2],
 ) -> (Harness<'static, SeptuvoApp>, Log) {
-    let fake = Fake::new(s, svc(samples::disconnected()));
+    with_fake(Fake::new(s, svc(samples::disconnected())), mode, size)
+}
+
+fn with_fake(
+    fake: Fake,
+    mode: InterfaceMode,
+    size: [f32; 2],
+) -> (Harness<'static, SeptuvoApp>, Log) {
     let log = fake.log.clone();
     let prefs = Prefs {
         interface_mode: mode,
@@ -71,7 +78,7 @@ fn the_approved_structure_is_announced() {
 }
 
 #[test]
-fn kill_switch_and_dns_are_status_only_and_lan_is_not_operable_yet() {
+fn kill_switch_and_dns_are_status_only_and_lan_needs_a_value_from_the_service() {
     let (h, _) = advanced(svc(samples::blocking()));
     assert_ne!(role(&h, "Kill Switch, On, status"), Role::Button);
     assert_ne!(role(&h, "DNS Protection, Unknown, status"), Role::Button);
@@ -79,7 +86,76 @@ fn kill_switch_and_dns_are_status_only_and_lan_is_not_operable_yet() {
         role(&h, "Local Network Access, Unknown, button"),
         Role::Button
     );
+    // The service reports no value: nothing to toggle from.
     assert!(disabled(&h, "Local Network Access, Unknown, button"));
+}
+
+fn requests(log: &Log, what: &str) -> usize {
+    log.lock().unwrap().iter().filter(|r| **r == what).count()
+}
+
+/// N4-04: the tile asks the service, and shows only what it then reports,
+/// with the one short note after allowing.
+#[test]
+fn local_network_access_is_changed_by_the_service() {
+    let (mut h, log) = advanced(svc(samples::lockdown()));
+    let tile = "Local Network Access, Not Allowed, button";
+    assert!(!disabled(&h, tile));
+    h.get_by_label(tile).click();
+    h.run_steps(3);
+    assert_eq!(requests(&log, "local-network allowed"), 1);
+    h.get_by_label("Local Network Access, Allowed, button");
+    h.get_by_label(septuvo_desktop::home::LAN_ALLOWED_NOTE);
+    h.get_by_label("Local Network Access, Allowed, button")
+        .click();
+    h.run_steps(3);
+    assert_eq!(requests(&log, "local-network not-allowed"), 1);
+    h.get_by_label(tile);
+    assert!(
+        h.query_by_label(septuvo_desktop::home::LAN_ALLOWED_NOTE)
+            .is_none()
+    );
+    assert_eq!(
+        requests(&log, "disconnect"),
+        0,
+        "the connection is untouched"
+    );
+}
+
+#[test]
+fn a_refused_change_keeps_the_value_and_says_why() {
+    let mut fake = Fake::new(svc(samples::lockdown()), svc(samples::disconnected()));
+    fake.setting_outcome = Err("Local Network Access was not changed: nft failed".into());
+    let (mut h, log) = with_fake(fake, InterfaceMode::Advanced, [980.0, 640.0]);
+    let tile = "Local Network Access, Not Allowed, button";
+    h.get_by_label(tile).click();
+    h.run_steps(3);
+    assert_eq!(requests(&log, "local-network allowed"), 1);
+    h.get_by_label(tile);
+    h.get_by_label("Not changed: Local Network Access was not changed: nft failed");
+}
+
+#[test]
+fn lockdown_mode_is_internet_blocked_and_the_x_simply_exits() {
+    let (mut h, log) = advanced(svc(samples::lockdown()));
+    h.get_by_label("Internet Blocked");
+    h.get_by_label("Lockdown Mode is on. Internet access is blocked until you connect.");
+    h.get_by_label("Kill Switch, On, status");
+    assert!(disabled(&h, "Connect"));
+    assert!(h.query_by_label("Disconnect").is_none());
+    h.input_mut()
+        .viewports
+        .entry(eframe::egui::ViewportId::ROOT)
+        .or_default()
+        .events
+        .push(eframe::egui::ViewportEvent::Close);
+    h.step();
+    assert!(h.state().exit_requested());
+    assert_eq!(
+        requests(&log, "disconnect"),
+        0,
+        "Lockdown Mode is a setting, not a session: it stays after exit"
+    );
 }
 
 #[test]

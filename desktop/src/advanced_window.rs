@@ -320,13 +320,22 @@ fn tile(ui: &mut Ui, t: &Tile, rect: Rect, icon: fn(&egui::Painter, Rect, Color3
         theme::tone(t.tone),
     );
     let text = painter.layout(
-        t.text.to_string(),
+        t.text.clone(),
         egui::FontId::proportional(13.5),
         token::MUTED,
         room,
     );
     let text_bottom = rect.top() + 68.0 + text.size().y;
-    painter.galley(pos2(left, rect.top() + 68.0), text, token::MUTED);
+    // The supporting sentence is announced too (a refusal's reason, the
+    // note after allowing): status changes must be accessible (§14.1).
+    let text_rect = Rect::from_min_size(pos2(left, rect.top() + 68.0), text.size());
+    painter.galley(text_rect.min, text, token::MUTED);
+    ui.interact(
+        text_rect,
+        ui.id().with(("tile-text", t.label)),
+        Sense::hover(),
+    )
+    .widget_info(|| WidgetInfo::labeled(WidgetType::Label, true, &t.text));
     if let TileKind::Control {
         enabled: false,
         reason: Some(why),
@@ -513,7 +522,9 @@ fn draw_column(
 }
 
 /// The Kill Switch, DNS Protection and Local Network Access tiles: in one
-/// row, or stacked.
+/// row, or stacked. Clicking Local Network Access (the only control) asks
+/// the service for the other value.
+#[allow(clippy::too_many_arguments)]
 fn draw_tiles(
     ui: &mut Ui,
     v: &HomeView,
@@ -522,7 +533,15 @@ fn draw_tiles(
     width: f32,
     across: bool,
     tile_h: f32,
+    actions: &mut Vec<Action>,
 ) {
+    // Only a control tile reports a click, and Local Network Access is the
+    // only control.
+    let mut clicked = |hit: bool| {
+        if hit {
+            actions.push(Action::SetLocalNetwork(v.local_network.value != "Allowed"));
+        }
+    };
     let specs: [(&Tile, IconFn); 3] = [
         (&v.kill_switch, shield_check),
         (&v.dns, icons::servers),
@@ -544,8 +563,8 @@ fn draw_tiles(
                     Stroke::new(1.0, translucent(token::BORDER, 160)),
                 );
             }
-            // Local Network Access becomes operable in N4-04.
-            let _ = tile(ui, t, r, icon);
+            let hit = tile(ui, t, r, icon);
+            clicked(hit);
         }
     } else {
         for (i, (t, icon)) in specs.into_iter().enumerate() {
@@ -555,7 +574,8 @@ fn draw_tiles(
                 vec2(width, tile_h),
             );
             panel(ui, r);
-            let _ = tile(ui, t, r, icon);
+            let hit = tile(ui, t, r, icon);
+            clicked(hit);
         }
     }
 }
@@ -623,6 +643,7 @@ fn home(
         hero.width(),
         across,
         tile_h,
+        actions,
     );
 }
 

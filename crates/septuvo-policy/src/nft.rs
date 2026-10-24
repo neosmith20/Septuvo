@@ -36,9 +36,22 @@
 //!   [`MAX_CAPTIVE_SECONDS`]; the **kernel** removes them when the time is
 //!   up, so a crashed or killed service cannot leave the window open.
 //!
+//! - **Local Network Access** (D-040, NP-L1 to NP-L7): when the user allows
+//!   it, the directly attached subnets computed by [`crate::lan`] are
+//!   accepted after the DNS rules and before the policy rules; local
+//!   discovery (mDNS, LLMNR, SSDP, multicast and broadcast) is dropped first
+//!   and stays blocked.
+//! - **Lockdown Mode** (D-038, NP-K1 to NP-K5): [`render_lockdown`] blocks
+//!   everything while no VPN connection is established, except loopback,
+//!   DHCP, neighbour discovery, the endpoints of the saved connections (so
+//!   the user can connect), Local Network Access if allowed and the
+//!   captive-portal helper window. It lives in the same table, so going
+//!   between it and the kill switch is one atomic replacement.
+//!
 //! Scope: locally generated traffic (the output hook). Forwarded traffic and
 //! routes are not rendered here.
 
+use crate::lan::{LocalAccess, MAX_LOCAL_NETWORKS, MIN_IPV4_PREFIX, MIN_IPV6_PREFIX};
 use crate::policy::{Action, Mode, Policy};
 use crate::prefix::Family;
 use std::fmt::{self, Write};
@@ -52,6 +65,9 @@ pub const TABLE_FAMILY: &str = "inet";
 pub const TABLE_NAME: &str = "septuvo";
 /// Maximum number of server endpoints in one ruleset.
 pub const MAX_ENDPOINTS: usize = 16;
+/// Maximum number of server endpoints in a Lockdown Mode ruleset (the
+/// endpoints of every saved connection).
+pub const MAX_LOCKDOWN_ENDPOINTS: usize = 128;
 /// Maximum number of resolver plus LAN DNS exception addresses in one ruleset.
 pub const MAX_DNS_ADDRESSES: usize = 16;
 /// Longest captive-portal window, in seconds (Q1: five minutes).
@@ -101,6 +117,21 @@ pub struct KillSwitch {
     /// captive-portal mode is not configured (then no captive rule or set is
     /// rendered at all). Never 0 (root).
     pub captive_helper: Option<u32>,
+    /// What Local Network Access opens (empty: Not Allowed).
+    pub local: LocalAccess,
+}
+
+/// Settings of the Lockdown Mode ruleset.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Lockdown {
+    /// Name of the tunnel interface (the helper is kept off it).
+    pub tunnel_interface: String,
+    /// The endpoints of every saved connection, so the user can connect.
+    pub endpoints: Vec<(IpAddr, u16)>,
+    /// The captive-portal helper, as in [`KillSwitch::captive_helper`].
+    pub captive_helper: Option<u32>,
+    /// What Local Network Access opens (empty: Not Allowed).
+    pub local: LocalAccess,
 }
 
 /// Why a ruleset could not be rendered.
@@ -126,6 +157,10 @@ pub enum RenderError {
     BadCaptiveResolvers,
     /// The captive-portal helper would be root (user ID 0).
     BadCaptiveHelper,
+    /// A local subnet that breaks the Local Network Access limits: more than
+    /// [`MAX_LOCAL_NETWORKS`], wider than the size caps, a single address,
+    /// or not unicast.
+    BadLocalNetworks,
 }
 
 impl fmt::Display for RenderError {
@@ -156,6 +191,10 @@ impl fmt::Display for RenderError {
             RenderError::BadCaptiveHelper => {
                 f.write_str("the captive-portal helper must be a dedicated account, never root")
             }
+            RenderError::BadLocalNetworks => write!(
+                f,
+                "at most {MAX_LOCAL_NETWORKS} local subnets, IPv4 /{MIN_IPV4_PREFIX} to /31 and IPv6 /{MIN_IPV6_PREFIX} to /127, unicast only"
+            ),
         }
     }
 }
@@ -193,14 +232,11 @@ pub fn render(policy: &Policy, ks: &KillSwitch) -> Result<String, RenderError> {
     validate(policy, ks)?;
     let tun = &ks.tunnel_interface;
     let mut s = String::new();
-    // `add` then `delete` makes replacement work whether or not the table
-    // exists; nft applies the whole file as one transaction (NP-E6).
     let _ = writeln!(
         s,
         "# Septuvo kill switch, generated from a validated policy"
     );
-    let _ = writeln!(s, "add table {TABLE}");
-    let _ = writeln!(s, "delete table {TABLE}");
+    render_replace(&mut s);
     let _ = writeln!(s, "table {TABLE} {{");
     if ks.captive_helper.is_some() {
         render_captive_sets(&mut s);
@@ -235,6 +271,7 @@ pub fn render(policy: &Policy, ks: &KillSwitch) -> Result<String, RenderError> {
         );
     }
     render_dns(&mut s, policy, tun, &ks.dns);
+    render_local(&mut s, &ks.local);
     let _ = writeln!(s, "\t\t# Policy rules, most specific first; each is final");
     for rule in policy.rules() {
         let m = format!("{} {}", daddr(rule.prefix.family()), rule.prefix);
@@ -286,6 +323,7 @@ fn validate(policy: &Policy, ks: &KillSwitch) -> Result<(), RenderError> {
     if ks.captive_helper == Some(0) {
         return Err(RenderError::BadCaptiveHelper);
     }
+    validate_local(&ks.local)?;
     match &ks.dns {
         DnsRules::Resolvers {
             resolvers,
@@ -301,10 +339,173 @@ fn validate(policy: &Policy, ks: &KillSwitch) -> Result<(), RenderError> {
     Ok(())
 }
 
+/// Local subnets are written into the ruleset: checked again here (defence
+/// in depth: the caller computed them from hostile DHCP and RA input).
+fn validate_local(local: &LocalAccess) -> Result<(), RenderError> {
+    let ok = local.subnets.len() <= MAX_LOCAL_NETWORKS
+        && local.subnets.iter().all(|p| {
+            let (min, width) = match p.family() {
+                Family::V4 => (MIN_IPV4_PREFIX, 32),
+                Family::V6 => (MIN_IPV6_PREFIX, 128),
+            };
+            let a = p.addr();
+            (min..width).contains(&p.prefix_len())
+                && !a.is_multicast()
+                && !a.is_loopback()
+                && !a.is_unspecified()
+        });
+    if ok {
+        Ok(())
+    } else {
+        Err(RenderError::BadLocalNetworks)
+    }
+}
+
+/// Local Network Access (NP-L2, NP-L5): discovery dropped first, then the
+/// directly attached subnets accepted. Nothing at all when Not Allowed.
+fn render_local(s: &mut String, local: &LocalAccess) {
+    if local.is_empty() {
+        return;
+    }
+    let _ = writeln!(
+        s,
+        "\t\t# NP-L5 local discovery stays blocked (mDNS, LLMNR, SSDP, multicast, broadcast)"
+    );
+    let _ = writeln!(s, "\t\tudp dport {{ 1900, 5353, 5355 }} drop");
+    let _ = writeln!(s, "\t\ttcp dport 5355 drop");
+    let _ = writeln!(s, "\t\tip daddr {{ 224.0.0.0/4, 255.255.255.255 }} drop");
+    let _ = writeln!(s, "\t\tip6 daddr ff00::/8 drop");
+    for p in local.subnets.iter().filter(|p| p.family() == Family::V4) {
+        let _ = writeln!(s, "\t\tip daddr {} drop", p.last());
+    }
+    let _ = writeln!(
+        s,
+        "\t\t# NP-L2 Local Network Access: directly attached subnets only"
+    );
+    for p in &local.subnets {
+        let _ = writeln!(s, "\t\t{} {p} accept", daddr(p.family()));
+    }
+    if local.ipv6_link_local {
+        let _ = writeln!(s, "\t\tip6 daddr fe80::/10 accept");
+    }
+}
+
+/// Renders a complete `nft -f` script that atomically replaces any previous
+/// Septuvo table with the **Lockdown Mode** ruleset (NP-K2): everything is
+/// blocked except loopback, DHCP, neighbour discovery, the saved
+/// connections' endpoints, Local Network Access if allowed and the
+/// captive-portal helper window. All DNS is blocked: there is no tunnel to
+/// carry it.
+///
+/// # Errors
+/// See [`RenderError`].
+pub fn render_lockdown(l: &Lockdown) -> Result<String, RenderError> {
+    if !valid_interface(&l.tunnel_interface) {
+        return Err(RenderError::BadInterfaceName);
+    }
+    if l.endpoints.len() > MAX_LOCKDOWN_ENDPOINTS {
+        return Err(RenderError::TooManyEndpoints);
+    }
+    if l.endpoints.iter().any(|&(_, port)| port == 0) {
+        return Err(RenderError::BadEndpointPort);
+    }
+    if l.captive_helper == Some(0) {
+        return Err(RenderError::BadCaptiveHelper);
+    }
+    validate_local(&l.local)?;
+    let tun = &l.tunnel_interface;
+    let mut s = String::new();
+    let _ = writeln!(
+        s,
+        "# Septuvo Lockdown Mode: blocking while no VPN connection is established"
+    );
+    render_replace(&mut s);
+    let _ = writeln!(s, "table {TABLE} {{");
+    if l.captive_helper.is_some() {
+        render_captive_sets(&mut s);
+    }
+    let _ = writeln!(s, "\tchain output {{");
+    let _ = writeln!(
+        s,
+        "\t\ttype filter hook output priority filter; policy drop;"
+    );
+    let _ = writeln!(s, "\t\t# NP-U4 loopback");
+    let _ = writeln!(s, "\t\toifname \"lo\" accept");
+    if let Some(uid) = l.captive_helper {
+        // No policy rules in Lockdown Mode: the helper is still kept off the
+        // tunnel and gets only its window.
+        if let Ok(empty) = Policy::new(Mode::FullTunnel, Vec::new()) {
+            render_captive_helper(&mut s, &empty, tun, uid);
+        }
+    }
+    let _ = writeln!(s, "\t\t# NP-U1 DHCPv4 and DHCPv6");
+    let _ = writeln!(s, "\t\tudp sport 68 udp dport 67 accept");
+    let _ = writeln!(s, "\t\tudp sport 546 udp dport 547 accept");
+    let _ = writeln!(
+        s,
+        "\t\t# NP-U2 IPv6 neighbour discovery (hop limit 255: never routed)"
+    );
+    let _ = writeln!(
+        s,
+        "\t\ticmpv6 type {{ nd-router-solicit, nd-neighbor-solicit, nd-neighbor-advert }} ip6 hoplimit 255 accept"
+    );
+    let _ = writeln!(
+        s,
+        "\t\t# NP-K2 the saved connections' server endpoints, so the user can connect"
+    );
+    for &(addr, port) in &l.endpoints {
+        let _ = writeln!(
+            s,
+            "\t\t{} {addr} udp dport {port} accept",
+            daddr(family_of(addr))
+        );
+    }
+    let _ = writeln!(
+        s,
+        "\t\t# No tunnel: all DNS, DNS over TLS and DNS over QUIC is dropped"
+    );
+    let _ = writeln!(s, "\t\tudp dport {{ 53, 853 }} drop");
+    let _ = writeln!(s, "\t\ttcp dport {{ 53, 853 }} drop");
+    render_local(&mut s, &l.local);
+    let _ = writeln!(
+        s,
+        "\t\t# Lockdown Mode: everything else is dropped (policy drop)"
+    );
+    let _ = writeln!(s, "\t}}");
+    let _ = writeln!(s, "}}");
+    Ok(s)
+}
+
 fn family_of(addr: IpAddr) -> Family {
     match addr {
         IpAddr::V4(_) => Family::V4,
         IpAddr::V6(_) => Family::V6,
+    }
+}
+
+/// The start of every ruleset: replaces whatever Septuvo table is installed
+/// (or none) in the same transaction as the new rules (NP-E6).
+///
+/// The table and its `output` base chain are **kept** and only emptied
+/// (`flush table`), never deleted and re-created. Deleting and re-creating a
+/// base chain in one transaction is not packet-atomic: the N4-04 lockdown
+/// lab measured a few packets on ports no rule names getting out while a
+/// table was replaced that way under load (the chain's drop policy did not
+/// cover the swap). With the chain kept, its drop policy applies throughout
+/// and the rules change in one generation. The captive-portal sets are
+/// deleted (after their rules are flushed) so every ruleset starts with
+/// them empty or absent; `add` first makes that work whether or not they
+/// exist.
+fn render_replace(s: &mut String) {
+    let _ = writeln!(s, "add table {TABLE}");
+    let _ = writeln!(s, "flush table {TABLE}");
+    for (set, kind) in [
+        (CAPTIVE_WEB_SET, "inet_service"),
+        (CAPTIVE_DNS4_SET, "ipv4_addr"),
+        (CAPTIVE_DNS6_SET, "ipv6_addr"),
+    ] {
+        let _ = writeln!(s, "add set {TABLE} {set} {{ type {kind}; flags timeout; }}");
+        let _ = writeln!(s, "delete set {TABLE} {set}");
     }
 }
 
@@ -473,6 +674,7 @@ mod tests {
             endpoints: vec![("203.0.113.7".parse().unwrap(), 51820)],
             dns: DnsRules::TunnelOnly,
             captive_helper: None,
+            local: LocalAccess::default(),
         }
     }
 
@@ -634,6 +836,7 @@ mod tests {
         let p = parse_policy(policy).unwrap();
         let k = KillSwitch {
             captive_helper: Some(995),
+            local: LocalAccess::default(),
             ..with_resolvers(&["10.77.0.1"], &["192.168.1.53"])
         };
         render(&p, &k).unwrap()
@@ -643,7 +846,16 @@ mod tests {
     fn without_a_helper_there_is_no_captive_rule_or_set() {
         let p = parse_policy("mode full-tunnel\n").unwrap();
         let s = render(&p, &with_resolvers(&["10.77.0.1"], &[])).unwrap();
-        assert!(!s.contains("captive"), "captive-portal mode not configured");
+        // The script's start only deletes any captive sets left from before.
+        let (start, table) = s.split_once("table inet septuvo {").unwrap();
+        assert!(
+            !table.contains("captive"),
+            "captive-portal mode not configured"
+        );
+        assert!(start.lines().filter(|l| l.contains("captive")).all(|l| {
+            l.starts_with("delete set inet septuvo captive_")
+                || l.starts_with("add set inet septuvo captive_")
+        }));
         assert!(!s.contains("skuid"));
     }
 
@@ -664,9 +876,12 @@ mod tests {
             .into_iter()
             .filter(|l| !l.contains("skuid 995") && !l.to_lowercase().contains("captive"))
             .collect();
+        let without: Vec<&str> = lines(&without)
+            .into_iter()
+            .filter(|l| !l.to_lowercase().contains("captive"))
+            .collect();
         assert_eq!(
-            others,
-            lines(&without),
+            others, without,
             "rules for ordinary applications are unchanged"
         );
         for l in lines(&with).iter().filter(|l| l.contains('@')) {
@@ -728,6 +943,7 @@ mod tests {
         let p = parse_policy("mode full-tunnel\n").unwrap();
         let k = KillSwitch {
             captive_helper: Some(0),
+            local: LocalAccess::default(),
             ..ks()
         };
         assert_eq!(render(&p, &k), Err(RenderError::BadCaptiveHelper));
@@ -852,10 +1068,160 @@ mod tests {
         assert_eq!(sa, sb);
         let l = lines(&sa);
         assert_eq!(l[1], "add table inet septuvo");
-        assert_eq!(l[2], "delete table inet septuvo");
+        assert_eq!(l[2], "flush table inet septuvo");
+        assert!(
+            !sa.contains("delete table"),
+            "the base chain is never re-created"
+        );
         assert_eq!(
             removal_script(),
             "add table inet septuvo\ndelete table inet septuvo\n"
         );
+    }
+
+    fn lan() -> LocalAccess {
+        LocalAccess {
+            subnets: vec![
+                "192.168.1.0/24".parse().unwrap(),
+                "2001:db8:1::/64".parse().unwrap(),
+            ],
+            ipv6_link_local: true,
+        }
+    }
+
+    fn full() -> Policy {
+        parse_policy("mode full-tunnel\n").unwrap()
+    }
+
+    #[test]
+    fn local_network_access_opens_subnets_after_dropping_discovery() {
+        let mut k = ks();
+        k.local = lan();
+        let s = render(&full(), &k).unwrap();
+        let at = |n: &str| s.find(n).unwrap_or_else(|| panic!("missing {n}"));
+        let first_accept = at("ip daddr 192.168.1.0/24 accept");
+        for drop in [
+            "udp dport { 1900, 5353, 5355 } drop",
+            "tcp dport 5355 drop",
+            "ip daddr { 224.0.0.0/4, 255.255.255.255 } drop",
+            "ip6 daddr ff00::/8 drop",
+            "ip daddr 192.168.1.255 drop",
+        ] {
+            assert!(at(drop) < first_accept, "{drop} must come first");
+        }
+        assert!(s.contains("ip6 daddr 2001:db8:1::/64 accept"));
+        assert!(s.contains("ip6 daddr fe80::/10 accept"));
+        // DNS rules come before: LAN access never opens DNS.
+        assert!(at("udp dport 53 drop") < first_accept);
+        // Not Allowed: nothing at all.
+        let s = render(&full(), &ks()).unwrap();
+        assert!(!s.contains("NP-L") && !s.contains("fe80"));
+    }
+
+    #[test]
+    fn hostile_local_subnets_are_refused_by_the_renderer() {
+        for bad in [
+            "10.0.0.0/8",
+            "0.0.0.0/0",
+            "192.168.1.1/32",
+            "2001:db8::/48",
+            "224.0.0.0/24",
+            "::/64",
+        ] {
+            let mut k = ks();
+            k.local = LocalAccess {
+                subnets: vec![bad.parse().unwrap()],
+                ipv6_link_local: false,
+            };
+            assert_eq!(
+                render(&full(), &k),
+                Err(RenderError::BadLocalNetworks),
+                "{bad}"
+            );
+        }
+        let mut k = ks();
+        k.local = LocalAccess {
+            subnets: (0..9)
+                .map(|i| format!("192.168.{i}.0/24").parse().unwrap())
+                .collect(),
+            ipv6_link_local: false,
+        };
+        assert_eq!(render(&full(), &k), Err(RenderError::BadLocalNetworks));
+    }
+
+    fn lockdown() -> Lockdown {
+        Lockdown {
+            tunnel_interface: "septuvo0".into(),
+            endpoints: vec![
+                ("203.0.113.10".parse().unwrap(), 51820),
+                ("2001:db8::10".parse().unwrap(), 443),
+            ],
+            captive_helper: None,
+            local: LocalAccess::default(),
+        }
+    }
+
+    #[test]
+    fn lockdown_blocks_everything_but_the_listed_exceptions() {
+        let s = render_lockdown(&lockdown()).unwrap();
+        assert!(
+            s.contains("add table inet septuvo\nflush table inet septuvo\n")
+                && s.contains("delete set inet septuvo captive_dns6\ntable inet septuvo {")
+        );
+        assert!(s.contains("policy drop;"));
+        assert!(s.contains("oifname \"lo\" accept"));
+        assert!(s.contains("udp sport 68 udp dport 67 accept"));
+        assert!(s.contains("ip daddr 203.0.113.10 udp dport 51820 accept"));
+        assert!(s.contains("ip6 daddr 2001:db8::10 udp dport 443 accept"));
+        assert!(s.contains("udp dport { 53, 853 } drop"));
+        // Nothing else is accepted: not even through the tunnel.
+        let accepts: Vec<&str> = s
+            .lines()
+            .filter(|l| l.trim_end().ends_with("accept"))
+            .collect();
+        assert_eq!(accepts.len(), 6, "{accepts:#?}");
+        assert!(!s.contains("oifname \"septuvo0\" accept"));
+    }
+
+    #[test]
+    fn lockdown_with_local_network_access_and_the_helper() {
+        let mut l = lockdown();
+        l.local = lan();
+        l.captive_helper = Some(995);
+        let s = render_lockdown(&l).unwrap();
+        assert!(s.contains("ip daddr 192.168.1.0/24 accept"));
+        assert!(s.contains("meta skuid 995 tcp dport @captive_web accept"));
+        assert!(s.contains("meta skuid 995 oifname \"septuvo0\" drop"));
+        assert!(
+            s.find("meta skuid 995 drop").unwrap() < s.find("udp sport 68").unwrap(),
+            "the helper's rules come first"
+        );
+        for bad in [
+            Lockdown {
+                captive_helper: Some(0),
+                ..lockdown()
+            },
+            Lockdown {
+                tunnel_interface: "a\"b".into(),
+                ..lockdown()
+            },
+            Lockdown {
+                endpoints: vec![("203.0.113.1".parse().unwrap(), 0)],
+                ..lockdown()
+            },
+            Lockdown {
+                endpoints: vec![("203.0.113.1".parse().unwrap(), 1); MAX_LOCKDOWN_ENDPOINTS + 1],
+                ..lockdown()
+            },
+            Lockdown {
+                local: LocalAccess {
+                    subnets: vec!["10.0.0.0/8".parse().unwrap()],
+                    ipv6_link_local: false,
+                },
+                ..lockdown()
+            },
+        ] {
+            assert!(render_lockdown(&bad).is_err(), "{bad:?}");
+        }
     }
 }

@@ -35,11 +35,11 @@
 | --- | --- | --- | --- |
 | `septuvo-policy` | `fuzz_policy_file` | Policy file format | Round trip; deciding any address never panics; bounded errors with valid line numbers |
 | | `fuzz_prefix` | Address prefixes | Round trip; a prefix contains its own address; length within the family |
-| | `fuzz_nft_render` | nftables renderer, with hostile interface names, ports, resolvers and helper IDs | Only validated values reach the ruleset; printable output; **no injected statements** (semicolons only from fixed templates); bounded size; captive rules always scoped to the helper; root never the helper; bounded captive-portal script |
+| | `fuzz_nft_render` | nftables renderer, with hostile interface names, ports, resolvers and helper IDs | Only validated values reach the ruleset; printable output; **no injected statements** (semicolons only from fixed templates); bounded size; captive rules always scoped to the helper; root never the helper; bounded captive-portal script. From N4-04 also: Local Network Access subnets always within the size caps and never multicast, with discovery dropped before the first subnet is accepted (and no discovery rules at all when nothing is opened); random **Lockdown Mode** rulesets (endpoints, helper, local subnets) with the same no-injection and scoping properties |
 | `septuvo-config` | `fuzz_toml_subset` | The TOML subset | Deterministic; every limit holds; **round trip** through a test-only writer; error positions in range |
 | | `fuzz_device_schema` | `septuvo.toml` | Deterministic; invariants; **every accepted configuration renders a kill switch** |
 | | `fuzz_server_schema` | `septuvo-server.toml` | Invariants (address families, absolute data directory, retention limit) |
-| `septuvo-ipc` | `fuzz_ipc_request` | Control requests | **Only the canonical encoding of a command is accepted**; captive minutes in range |
+| `septuvo-ipc` | `fuzz_ipc_request` | Control requests, including `LOCKDOWN ON\|OFF` and `LOCAL-NETWORK ALLOWED\|NOT-ALLOWED` (N4-04) | **Only the canonical encoding of a command is accepted**; captive minutes in range |
 | | `fuzz_ipc_framed` | Requests with a length-prefixed body (N4-03): `ADD`, `REPLACE`, `RENAME` with right, wrong and huge lengths | **Only the canonical encoding is accepted, body included**; reading never takes more than one request or more than 64 KiB of body |
 | | `fuzz_ipc_response` | Control responses, with and without a body | Round trip; field limit |
 | | `fuzz_ipc_builder` | The response builder (any keys, values, codes, messages, bodies) | **A built response always parses and never exceeds the size limits** |
@@ -92,11 +92,14 @@ The fix then gets a regression test that names the seed.
 | `septuvo-config`, device schema (found in CI, seed `0xc8c5a99ba1125cd2`) | The validator accepted a tunnel interface name starting with `-` (`-1septuvo0`), but the kill-switch renderer refuses one: **a configuration that passed `septuvo-config check` would fail at connect**. The two rules had drifted apart when the renderer was hardened in #60 | The validator now calls the renderer's own check, `nft::valid_interface`, so the rules cannot drift again |
 | `septuvo-server`, `Records::revoke` / `remove` (seed `0x496239978f4b4369`) | Errors for impossible device names **repeated the name, control characters included**. Printed to a terminal, such a name could carry escape sequences. The command-line tool already filtered them, but the library did not | An invalid name is refused without being repeated |
 
+**Not found by fuzzing, but by a lab (N4-04):** replacing the ruleset by deleting and re-creating the table let a few packets out under load. Fuzzing checks the text of a ruleset, not how the kernel swaps it. See [daemon.md](daemon.md#finding-n4-04-replacing-a-table-by-deleting-it-was-not-packet-atomic).
+
 **Mistakes in the new tests themselves, also found by fuzzing and corrected (not product bugs):**
 - a semicolon count that forgot one fixed comment line;
 - an address comparison that ignored upper-case IPv6;
 - an over-strict generator;
-- a settings round-trip writer that did not escape quotes in paths.
+- a settings round-trip writer that did not escape quotes in paths;
+- (N4-04) a Local Network Access property that looked for "5353" anywhere in the ruleset, when a random endpoint port can be 5353; it now checks the exact discovery rule.
 
 **A flaw in the first version of this workflow, also caught in this PR:** it piped `cargo test` through `tee` without `pipefail`, so **a failing run was reported as success**. A long-run job that "finished" after 12 seconds exposed it. Both jobs now:
 - set `pipefail`;

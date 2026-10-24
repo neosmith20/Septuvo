@@ -9,6 +9,7 @@
 //! switch for a policy as text; the namespace lab in `tests/lab/namespaces`
 //! applies and tests it (N1-03).
 
+pub mod lan;
 pub mod nft;
 pub mod parse;
 pub mod policy;

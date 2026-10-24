@@ -45,6 +45,16 @@ Usage:
                                        Show the status live, refreshed every
                                        S seconds (1-60, default 2) until
                                        Ctrl-C, or N refreshes; read-only
+  septuvo lockdown on|off [--runtime-dir DIR]
+                                       Lockdown Mode: when on, internet access
+                                       is blocked whenever no VPN connection
+                                       is up, also after a disconnect and
+                                       from boot (off by default)
+  septuvo local-network allowed|not-allowed [--runtime-dir DIR]
+                                       Local Network Access: let traffic reach
+                                       the directly attached network (not
+                                       allowed by default; discovery stays
+                                       blocked)
   septuvo policy check FILE [--dst ADDRESS] [--path up|down]
                                        Validate a policy file and explain
                                        what happens to traffic
@@ -52,8 +62,9 @@ Usage:
 Saved connections (kept by the service):
 {CONNECTIONS}
 
-connect, disconnect, captive-portal and every connection command except
-list need membership of the service's control group.
+connect, disconnect, captive-portal, lockdown, local-network and every
+connection command except list need membership of the service's control
+group.
 
 Exit codes: 0 success, 1 invalid policy, unreadable file or service
 error, 2 usage error, 3 status shows the VPN is not working.
@@ -119,24 +130,10 @@ fn run(args: &[String], out: &mut impl Write, err: &mut impl Write) -> io::Resul
                 EXIT_INVALID
             })
         }
-        [cmd, rest @ ..] if cmd == "captive-portal" => {
-            let Some((minutes, network_dns, runtime_dir)) = captive_args(rest) else {
-                writeln!(
-                    err,
-                    "septuvo: usage: septuvo captive-portal [--minutes 1-5] [--network-dns] [--runtime-dir DIR]"
-                )?;
-                return Ok(EXIT_USAGE);
-            };
-            let reply = service::ask(
-                &runtime_dir,
-                Command::Captive {
-                    minutes,
-                    network_dns,
-                },
-            );
-            out.write_all(reply.text.as_bytes())?;
-            Ok(if reply.ok { EXIT_OK } else { EXIT_INVALID })
+        [cmd, value, rest @ ..] if cmd == "lockdown" || cmd == "local-network" => {
+            setting(cmd, value, rest, out, err)
         }
+        [cmd, rest @ ..] if cmd == "captive-portal" => captive(rest, out, err),
         [cmd, rest @ ..] if cmd == "watch" => {
             let Some(opts) = watch_args(rest) else {
                 writeln!(
@@ -177,6 +174,59 @@ fn run(args: &[String], out: &mut impl Write, err: &mut impl Write) -> io::Resul
             Ok(EXIT_USAGE)
         }
     }
+}
+
+/// `septuvo captive-portal …`.
+fn captive(rest: &[String], out: &mut impl Write, err: &mut impl Write) -> io::Result<u8> {
+    let Some((minutes, network_dns, runtime_dir)) = captive_args(rest) else {
+        writeln!(
+            err,
+            "septuvo: usage: septuvo captive-portal [--minutes 1-5] [--network-dns] [--runtime-dir DIR]"
+        )?;
+        return Ok(EXIT_USAGE);
+    };
+    let reply = service::ask(
+        &runtime_dir,
+        Command::Captive {
+            minutes,
+            network_dns,
+        },
+    );
+    out.write_all(reply.text.as_bytes())?;
+    Ok(if reply.ok { EXIT_OK } else { EXIT_INVALID })
+}
+
+/// `septuvo lockdown on|off` and `septuvo local-network allowed|not-allowed`.
+fn setting(
+    cmd: &str,
+    value: &str,
+    rest: &[String],
+    out: &mut impl Write,
+    err: &mut impl Write,
+) -> io::Result<u8> {
+    let command = match (cmd, value) {
+        ("lockdown", "on") => Command::Lockdown(true),
+        ("lockdown", "off") => Command::Lockdown(false),
+        ("local-network", "allowed") => Command::LocalNetwork(true),
+        ("local-network", "not-allowed") => Command::LocalNetwork(false),
+        _ => {
+            writeln!(
+                err,
+                "septuvo: usage: septuvo lockdown on|off, septuvo local-network allowed|not-allowed"
+            )?;
+            return Ok(EXIT_USAGE);
+        }
+    };
+    let Some(runtime_dir) = runtime_dir(rest) else {
+        writeln!(
+            err,
+            "septuvo: expected nothing or '--runtime-dir DIR' after '{cmd} {value}'"
+        )?;
+        return Ok(EXIT_USAGE);
+    };
+    let reply = service::ask(&runtime_dir, command);
+    out.write_all(reply.text.as_bytes())?;
+    Ok(if reply.ok { EXIT_OK } else { EXIT_INVALID })
 }
 
 /// `septuvo connection …`, or `septuvo connect CONN` when `connect`.

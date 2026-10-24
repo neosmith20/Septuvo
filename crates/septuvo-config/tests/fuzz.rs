@@ -202,6 +202,7 @@ fn kill_switch(c: &septuvo_config::DeviceConfig) -> KillSwitch {
             },
         },
         captive_helper: None,
+        local: septuvo_policy::lan::LocalAccess::default(),
     }
 }
 

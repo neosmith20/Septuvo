@@ -46,6 +46,8 @@ pub enum Action {
     Open(Shell),
     /// Chose an Interface Mode in Settings (never a network action).
     SetMode(InterfaceMode),
+    /// Asked the service to set Local Network Access (true: Allowed).
+    SetLocalNetwork(bool),
 }
 
 pub(crate) fn translucent(c: Color32, alpha: u8) -> Color32 {

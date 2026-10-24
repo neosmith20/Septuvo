@@ -17,6 +17,7 @@
 //! Licensed under the `PolyForm` Noncommercial License 1.0.0 (D-033); see
 //! `LICENSE.md` and `NOTICE` in this crate.
 
+pub mod addresses;
 pub mod engine;
 pub mod guard;
 pub mod resolver;

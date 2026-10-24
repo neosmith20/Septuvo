@@ -55,9 +55,11 @@ install -d -m 755 "$DEST$LIBEXECDIR" "$DEST$PREFIX/bin" "$DEST$PREFIX/sbin" "$DE
 install -m 755 "$BINDIR/septuvod" "$DEST$LIBEXECDIR/septuvod"
 install -m 755 "$BINDIR/septuvo" "$DEST$PREFIX/bin/septuvo"
 install -m 755 "$BINDIR/septuvo-server" "$DEST$PREFIX/sbin/septuvo-server"
-sed "s|@LIBEXECDIR@|$LIBEXECDIR|g" "$HERE/septuvod.service" > "$DEST$UNITDIR/septuvod.service.tmp"
-chmod 644 "$DEST$UNITDIR/septuvod.service.tmp"
-mv "$DEST$UNITDIR/septuvod.service.tmp" "$DEST$UNITDIR/septuvod.service"
+for unit in septuvod.service septuvo-lockdown.service; do
+  sed "s|@LIBEXECDIR@|$LIBEXECDIR|g" "$HERE/$unit" > "$DEST$UNITDIR/$unit.tmp"
+  chmod 644 "$DEST$UNITDIR/$unit.tmp"
+  mv "$DEST$UNITDIR/$unit.tmp" "$DEST$UNITDIR/$unit"
+done
 install -m 644 "$HERE/septuvo-lab-netns.service" "$DEST$UNITDIR/septuvo-lab-netns.service"
 install -m 644 "$HERE/septuvo.sysusers" "$DEST$PREFIX/lib/sysusers.d/septuvo.conf"
 install -m 644 "$HERE/septuvo.tmpfiles" "$DEST$PREFIX/lib/tmpfiles.d/septuvo.conf"
@@ -78,10 +80,12 @@ if [ -z "$DEST" ]; then
   systemctl daemon-reload
   say "group 'septuvo' ready: add users who may connect with: usermod -aG septuvo USER"
   if [ "$ENABLE" = 1 ]; then
-    systemctl enable --now septuvo-lab-netns.service septuvod.service
+    systemctl enable --now septuvo-lab-netns.service septuvo-lockdown.service septuvod.service
     say "service enabled and started (lab namespace septuvo-lab)"
   else
+    systemctl enable septuvo-lockdown.service
     say "start it with: systemctl enable --now septuvod.service"
   fi
+  say "Lockdown Mode is off by default; when turned on it also applies from boot"
 fi
 say "development preview: no tunnel, no encryption; status never reports connected before the G1 review"

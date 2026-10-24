@@ -3,11 +3,16 @@
 # Before the G1 security review the Septuvo service runs only inside this
 # named namespace and never changes the host's own firewall or DNS. This unit
 # creates the namespace (with only a loopback interface) and removes it again
-# when stopped. Licensed under PolyForm Noncommercial 1.0.0 (see NOTICE).
+# when stopped. It runs early at boot, before the network is configured, so
+# Lockdown Mode (septuvo-lockdown.service) can block from the start.
+# Licensed under PolyForm Noncommercial 1.0.0 (see NOTICE).
 [Unit]
 Description=Septuvo lab network namespace (development preview)
 Documentation=https://github.com/neosmith20/Septuvo/blob/main/docs/build/install.md
-Before=septuvod.service
+DefaultDependencies=no
+After=local-fs.target
+Before=network-pre.target septuvo-lockdown.service septuvod.service shutdown.target
+Conflicts=shutdown.target
 
 [Service]
 Type=oneshot
