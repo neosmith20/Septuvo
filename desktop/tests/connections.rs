@@ -39,6 +39,21 @@ fn app(fake: Fake, files: FakeFiles) -> (Harness<'static, SeptuvoApp>, Log) {
     (h, log)
 }
 
+fn advanced(fake: Fake) -> (Harness<'static, SeptuvoApp>, Log) {
+    let log = fake.log.clone();
+    let prefs = Prefs {
+        interface_mode: septuvo_desktop::prefs::InterfaceMode::Advanced,
+        ..Prefs::default()
+    };
+    let app = SeptuvoApp::new(Box::new(fake), prefs, None);
+    let mut h = Harness::builder()
+        .with_size([980.0, 800.0])
+        .build_ui_state(|ui, app: &mut SeptuvoApp| app.draw(ui), app);
+    h.ctx.set_embed_viewports(true);
+    h.run_steps(4);
+    (h, log)
+}
+
 fn saved(state: septuvo_ipc::Response) -> (Harness<'static, SeptuvoApp>, Log) {
     let fake =
         Fake::new(svc(state), svc(samples::disconnected())).with_connections(&[HOME, OFFICE]);
@@ -326,4 +341,66 @@ fn export_saves_a_backup_without_secrets_and_says_so() {
     assert!(w[0].1.starts_with(EXPORT_HEADER));
     assert!(w[0].1.contains("name = \"Office\""));
     h.get_by_label(&format!("Configuration exported. {BACKUP_WARNING}"));
+}
+
+// --- owner decisions of 2026-10-25: rows select; Add / Import in Advanced ---
+
+#[test]
+fn clicking_a_row_selects_it_and_while_connected_switches() {
+    let (mut h, log) = saved(samples::blocking());
+    click(&mut h, "Connections, Manage Saved Connections");
+    click(&mut h, "Office, 198.51.100.7:51820");
+    assert_eq!(count(&log, "select"), 1, "one switch request");
+    assert_eq!(count(&log, "disconnect"), 0, "no unprotected moment");
+    h.get_by_label("Office, 198.51.100.7:51820 · Selected · In Use");
+    // The same row again: nothing.
+    click(&mut h, "Office, 198.51.100.7:51820 · Selected · In Use");
+    assert_eq!(count(&log, "select"), 1);
+}
+
+#[test]
+fn the_three_dot_button_never_selects() {
+    let (mut h, log) = saved(samples::blocking());
+    click(&mut h, "Connections, Manage Saved Connections");
+    click(&mut h, "More actions for Office");
+    h.get_by_label("Rename");
+    assert_eq!(count(&log, "select"), 0);
+    h.get_by_label("Office, 198.51.100.7:51820");
+}
+
+#[test]
+fn an_incomplete_connection_is_explained_and_the_working_one_kept() {
+    let (mut h, log) = saved(samples::blocking());
+    click(&mut h, "Add / Import, VPN Configuration");
+    click(&mut h, "Create New Configuration");
+    type_into(&mut h, "Home VPN", "Cabin");
+    click(&mut h, "Save Draft");
+    click(&mut h, "Close");
+    click(&mut h, "Connections, Manage Saved Connections");
+    click(&mut h, "Cabin, Draft · Setup Required");
+    assert_eq!(count(&log, "select"), 0);
+    assert_eq!(count(&log, "disconnect"), 0, "never disconnected");
+    assert!(
+        h.get_all_by_label(
+            "Complete this configuration before connecting. The current connection was not changed."
+        )
+        .count()
+            >= 1
+    );
+    h.get_by_label("Disconnect from Home VPN");
+}
+
+#[test]
+fn advanced_connections_page_selects_by_row_and_offers_add_import() {
+    let fake = Fake::new(svc(samples::disconnected()), svc(samples::disconnected()))
+        .with_connections(&[HOME, OFFICE]);
+    let (mut h, log) = advanced(fake);
+    click(&mut h, "Connections");
+    click(&mut h, "Office, 198.51.100.7:51820");
+    assert_eq!(count(&log, "select"), 1);
+    assert_eq!(count(&log, "connect"), 0, "selecting never connects");
+    click(&mut h, "Add / Import");
+    // The same Add / Import window and workflow as Simple mode.
+    click(&mut h, "Create New Configuration");
+    h.get_by_label("New Configuration");
 }

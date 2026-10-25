@@ -24,6 +24,7 @@
 | `crates/septuvo-native-gate` | Apache-2.0 | Repository tooling, never shipped | Native-code review gate run in CI (N4-01); Apache-2.0 like the repository's other open tooling, so anyone can reuse the check |
 | `packaging/linux/` (not a crate) | PolyForm Noncommercial 1.0.0 | Septuvo VPN | Linux installer, systemd units and templates (N3-01); carries its own `LICENSE.md` and `NOTICE` |
 | `desktop/` (separate workspace, not in `licensing.toml`) | PolyForm Noncommercial 1.0.0 | Septuvo VPN | The desktop application `septuvo-vpn` (N4, N4-D5); carries its own `LICENSE.md` and `NOTICE`, which list its third-party crates (MIT, Apache-2.0, BSD-style, ISC, Zlib, Unlicense) and the Inter typeface (SIL Open Font License 1.1, `desktop/assets/fonts/OFL.txt`) |
+| `third_party/cloudflare-security-audit-skill/` (not a crate) | **MIT**, Copyright (c) 2025-2026 Cloudflare, Inc. (its own `LICENSE`) | Development tooling only, never shipped | An unmodified, pinned copy of Cloudflare's `security-audit` skill for AI-assisted audits (H-023, D-044, [UPSTREAM.md](third_party/cloudflare-security-audit-skill/UPSTREAM.md)). Not Septuvo-authored and not relicensed |
 | `fuzz/` (separate workspace, not in `licensing.toml`) | PolyForm Noncommercial 1.0.0 | Development only, never shipped | cargo-fuzz targets (H-018, D-035); carries its own `LICENSE.md` and `NOTICE`, which also list the third-party test tooling it uses (`libfuzzer-sys`, MIT OR Apache-2.0, with LLVM libFuzzer, NCSA) |
 
 New Septuvo VPN or Septuvo Server application code goes into **new crates** classified as PolyForm Noncommercial in [`licensing.toml`](licensing.toml). Whether the two existing crates should instead move to PolyForm for future changes is owner question **L6** (section 8).
@@ -48,7 +49,7 @@ The **Septuvo rights holder** is the owner of this repository: the person behind
   Nobody needs permission to keep using them under Apache-2.0. Nothing here relicenses published code retroactively, and Git history is not rewritten.
 - **The root [`LICENSE`](LICENSE) stays the unmodified Apache License 2.0.** It continues to cover the SVP specification, the reference implementation, the documentation and the repository tooling. CI checks that it is never altered.
 - **Third-party licenses are unaffected.**
-  - No third-party code is bundled today.
+  - No third-party code is bundled in any Septuvo product. The only third-party files in the repository outside dependency lock files are the MIT-licensed audit skill in `third_party/` (development tooling, kept under its own license).
   - The brand kit names the Inter typeface but does not include it (Inter has its own license).
   - GitHub Actions used in CI are not distributed.
 - **All G0–G4 security gates and requirements are unchanged.**

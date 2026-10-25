@@ -255,14 +255,14 @@ pub fn connections_page(ui: &mut Ui, c: &mut Connections, session: Session) {
         .show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 8.0;
             for e in &entries {
-                manager_row(ui, c, e, width);
+                manager_row(ui, c, e, width, session);
             }
         });
     rename_dialog(ui, c);
     delete_dialog(ui, c, session);
 }
 
-fn manager_row(ui: &mut Ui, c: &mut Connections, e: &Entry, width: f32) {
+fn manager_row(ui: &mut Ui, c: &mut Connections, e: &Entry, width: f32, session: Session) {
     let (rect, _) = ui.allocate_exact_size(vec2(width, MANAGER_ROW), Sense::hover());
     let row = ui.interact(rect, Id::new(("septuvo-conn-row", e.key)), Sense::click());
     let mut tags: Vec<&str> = Vec::new();
@@ -278,17 +278,20 @@ fn manager_row(ui: &mut Ui, c: &mut Connections, e: &Entry, width: f32) {
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
         .join(" · ");
-    let highlighted = c.highlight == Some(e.key);
+    // One click selects the connection, exactly as the profile selector
+    // does (owner decision of 2026-10-25): while connected that switches.
+    // The `⋯` button is a separate control on top, so it never selects.
+    let highlighted = e.selected;
     row.widget_info(|| {
         WidgetInfo::selected(
-            WidgetType::SelectableLabel,
+            WidgetType::RadioButton,
             true,
             highlighted,
             format!("{}, {second}", e.name),
         )
     });
     if row.clicked() {
-        c.highlight = Some(e.key);
+        c.select(e.key, session);
     }
     let painter = ui.painter_at(rect);
     painter.rect_filled(
@@ -521,6 +524,36 @@ fn delete_dialog(ui: &Ui, c: &mut Connections, session: Session) {
     } else if confirm {
         c.delete_confirm(session);
     }
+}
+
+/// The Advanced Connections page's **Add / Import** button, in `rect`.
+/// Returns true when activated.
+pub fn add_import_button(ui: &mut Ui, rect: Rect) -> bool {
+    let resp = ui.interact(rect, Id::new("septuvo-advanced-add-import"), Sense::click());
+    resp.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, "Add / Import"));
+    ui.painter().rect_filled(
+        rect,
+        10.0,
+        if resp.hovered() {
+            token::SKY
+        } else {
+            token::BLUE
+        },
+    );
+    icons::circle_plus(
+        &ui.painter_at(rect),
+        Rect::from_center_size(pos2(rect.left() + 24.0, rect.center().y), Vec2::splat(20.0)),
+        token::WHITE,
+    );
+    ui.painter().text(
+        pos2(rect.left() + 42.0, rect.center().y),
+        Align2::LEFT_CENTER,
+        "Add / Import",
+        medium(15.0),
+        token::WHITE,
+    );
+    focus_ring(ui, &resp, rect, 10.0);
+    resp.clicked()
 }
 
 // --- Add / Import (DEFAULT-UI §3.3, §4.3) ------------------------------------
