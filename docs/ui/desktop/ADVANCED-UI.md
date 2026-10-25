@@ -1,7 +1,7 @@
 # Septuvo VPN — Advanced Desktop UI: Binding Owner Specification
 
 **Document ID:** `SEPTUVO-UI-ADVANCED-001`  
-**Document version:** `1.1 — reconciled with owner decisions D-037–D-042 (2026-10-18)`  
+**Document version:** `1.2 — reconciled with owner decisions D-037–D-043 (2026-10-18, 2026-10-25)`  
 **Prepared:** 2026-10-18  
 **Product:** Septuvo VPN desktop client, **Advanced interface**  
 **Canonical repository destination:** `docs/ui/desktop/ADVANCED-UI.md`  
@@ -490,7 +490,26 @@ Remove the saved configuration after confirmation.
 
 ### 7.5 Shared behavior with Default UI
 
-All connection-list operations, import/export behavior, draft creation, and edit flows are shared with the Default UI unless explicitly changed later.
+All connection-list operations, import/export behavior, draft creation, and edit flows are shared with the Default UI: **one implementation**, not a separate Advanced version (D-037, D-043).
+
+### 7.6 Selecting a connection and Add / Import (owner decision D-043, 2026-10-25)
+
+Advanced mode has no profile selector on Home, so the Connections page is where a connection is chosen and created.
+
+**Clicking a connection row selects that connection** (not merely a highlight). The behavior is identical to the Default UI's profile selector (DEFAULT-UI §3.1, §7.2) and §10.2 below:
+
+- disconnected: the connection is selected; **nothing connects automatically**;
+- connected to another connection: the current one is disconnected and the newly selected one is connected automatically, **keeping the established protection throughout the switch** (D-041);
+- the same connection: nothing happens;
+- an incomplete or invalid configuration: the reason is explained and **an existing working connection is never disconnected** for it;
+- the row's three-dot `⋯` menu is a separate control: clicking it **never** selects or switches.
+
+**Add / Import:** an **Add / Import** button at the **upper right of the Connections page** opens the same Add / Import workflow as the Simple mode's footer tile:
+
+- **Create New Configuration**, with the same configuration editor;
+- **Import Configuration**, with the operating system's native file picker;
+
+and the same validation, import handling and saved-connection storage. The Connections page is a secondary page: **the approved Advanced Home dashboard and its image are unchanged.**
 
 ---
 
@@ -936,5 +955,11 @@ No agent may use ambiguity as permission to “improve” the design.
 | §11 | Kill Switch and DNS Protection tiles are truthful, non-interactive status indicators; Local Network Access is a service-confirmed control with restricted exceptions | D-038, D-039, D-040 |
 | §12 | Send to System Tray naming; GUI crash/kill and Lockdown Mode behavior | D-041 |
 | §14 | Accessibility roles: the two status tiles are statuses, not buttons | — |
+
+## 20. Changes in version 1.2 (owner decision of 2026-10-25)
+
+| Where | Change | Decision |
+|---|---|---|
+| §7.5, §7.6 | Clicking a Connections row **selects** it, with the same switching behavior as the Default UI; the `⋯` never selects. An **Add / Import** button at the upper right of the Connections page opens the shared Add / Import workflow, so creating and importing never need Simple mode | D-043 |
 
 The approved main-window image, its visible elements and their layout are unchanged.
