@@ -120,6 +120,13 @@ pub fn page(
 ) -> Option<Action> {
     let (title, subtitle, _, _, task) = spec(shell);
     let mut action = None;
+    // Advanced mode: Add / Import at the upper right of the Connections
+    // page (owner decision of 2026-10-25), opening the same Add / Import
+    // window and workflow as the Simple footer tile.
+    let corner = egui::Rect::from_min_size(
+        egui::pos2(ui.max_rect().right() - 150.0, ui.cursor().min.y),
+        vec2(150.0, 44.0),
+    );
     ui.label(
         RichText::new(title)
             .font(semibold(24.0))
@@ -131,8 +138,11 @@ pub fn page(
     ui.add_space(16.0);
     match shell {
         Shell::Connections => {
+            if mode == InterfaceMode::Advanced && conn_ui::add_import_button(ui, corner) {
+                action = Some(Action::Open(Shell::AddImport));
+            }
             conn_ui::connections_page(ui, conns, session);
-            return None;
+            return action;
         }
         Shell::AddImport => {
             conn_ui::add_import_page(ui, conns);

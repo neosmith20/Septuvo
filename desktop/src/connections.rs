@@ -233,8 +233,6 @@ pub struct Connections {
     pub lib: Library,
     /// The overflow menu that is open.
     pub menu: Option<Key>,
-    /// The row highlighted for inspection (one click).
-    pub highlight: Option<Key>,
     /// The Rename dialog.
     pub rename: Option<RenameDialog>,
     /// The Delete confirmation.
@@ -317,9 +315,13 @@ impl Connections {
         match key {
             Key::Draft(d) => {
                 if session.connected {
-                    self.main_notice = Some(format!(
-                        "{COMPLETE_FIRST} The current connection was not changed."
-                    ));
+                    // Explained, and the working connection is kept.
+                    let why = format!("{COMPLETE_FIRST} The current connection was not changed.");
+                    self.notice = Some(Notice {
+                        text: why.clone(),
+                        error: true,
+                    });
+                    self.main_notice = Some(why);
                     return;
                 }
                 self.lib.draft_selected = Some(d);

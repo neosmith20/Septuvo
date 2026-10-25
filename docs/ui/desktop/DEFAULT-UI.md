@@ -1,7 +1,7 @@
 # Septuvo VPN — Default (Simple) Desktop UI: Binding Owner Specification
 
 **Document ID:** `SEPTUVO-UI-DEFAULT-001`  
-**Document version:** `1.1 — reconciled with owner decisions D-037–D-042 (2026-10-18)`  
+**Document version:** `1.2 — reconciled with owner decisions D-037–D-043 (2026-10-18, 2026-10-25)`  
 **Prepared:** 2026-10-18  
 **Product:** Septuvo VPN desktop client, **Default / Simple interface**  
 **Canonical repository destination:** `docs/ui/desktop/DEFAULT-UI.md`  
@@ -221,9 +221,9 @@ Responsive breakpoints and behavior:
 
 - Opens centered over parent; initial **700 × 540 logical px**, min **500 × 380**, resizeable, min outer padding **20 px**; title top-left **Connections**; short subtitle `Manage Your Saved Connections`.
 - Each row baseline **72 px** tall, full available width less panel 20 px side margins; icon 32 px; 2 text lines max (name and state); `⋯` hit target **44 × 44 px**; row bottom border 1 px; gap **8 px**.
-- Scroll profile list within window; do not scroll the main default window behind a modal editing dialog. 1-click on row selects highlight for inspection; overflow `⋯` contains the commands, not hidden right-click-only behavior.
+- Scroll profile list within window; do not scroll the main default window behind a modal editing dialog. **One click on a row selects that connection** (D-043), with exactly the profile selector's behavior (§3.1 items 5–9, §7.2): while disconnected it only selects; while connected to another connection it switches automatically with protection kept; the same connection does nothing; an incomplete or invalid configuration is explained and a working connection is never disconnected for it. The overflow `⋯` is a separate control: clicking it **never** selects or switches, and it contains the commands, not hidden right-click-only behavior.
 - Overflow menu anchor aligned to three-dot control, width **180–220 px**, rows **40–44 px** with focus and Escape dismissal. Use exactly approved action order above. Destructive Delete separated subtly and uses approved error color; no surprise bulk operations.
-- No visible Add/Import button is necessary in this manager; entry to creation remains the EXISTING `Add / Import` tile, as approved. Do not introduce client-to-client invitations, live peer list, server management dashboard, or device generator here.
+- No visible Add/Import button is necessary in this Simple-mode manager window; entry to creation remains the EXISTING `Add / Import` tile, as approved. In **Advanced mode**, whose Home has no such tile, the Connections page has an **Add / Import** button at its upper right that opens this same Add / Import workflow (ADVANCED-UI §7.6, D-043). Do not introduce client-to-client invitations, live peer list, server management dashboard, or device generator here.
 - If no saved profiles, show `No saved connections yet.` with instructional text pointing to `Add / Import`, without inventing an alternative setup wizard.
 - Editing/draft/name/export actions must update the top dropdown immediately on successful save, no full app restart.
 
@@ -608,5 +608,11 @@ The following are **genuine future technical/security dependencies**, not permis
 | §4.2 | DNS fields removed from the editor (shown read-only with a link to Settings → DNS Protection); **Always On** field removed | D-038, D-039 |
 | §6 | One shared Settings structure: General, Interface, Connection & Security, DNS Protection, Network, Updates, About & Credits. Added **Lockdown Mode**, **Show Notifications**, the **DNS Protection** page and **Local Network Access**; Kill Switch confirmed read-only with no future Off toggle; update-check default follows first-run consent; macOS/Linux labels for startup and tray | D-037–D-042 |
 | §9.3, §10 | Acceptance and escalation lists updated accordingly | — |
+
+## 12. Changes in version 1.2 (owner decision of 2026-10-25)
+
+| Where | Change | Decision |
+|---|---|---|
+| §3.2 | One click on a Connections row **selects** the connection, with the profile selector's switching behavior; the `⋯` never selects. Advanced mode's Connections page has its own Add / Import button opening the same workflow | D-043 |
 
 The approved main-window image, its seven components and their layout are unchanged.
